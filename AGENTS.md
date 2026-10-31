@@ -114,6 +114,7 @@ scripts/build.mjs  esbuild 打包成 dist/cli.js + dist/hook.js（react-devtools
 scripts/media/     record.mjs + scenes.tsx：用真实面板录 README 配图（见第 6 节）
 test/              vitest：engine / review（合并、扫一眼、折行）/ notes（路由）/ hook / install / game / wrap / ui（含 60 列溢出检查）
                    render.ts 是可指定终端宽高的渲染工具（ink-testing-library 固定 100 列）
+                   helpers.ts 的 tempDir/tempHome 把临时目录建在 data/.test-tmp，每个测试文件结束时删掉（别再用 os.tmpdir()）
 docs/media/        README 用的中英文配图：demo-*.gif、review/battle/learn-*.png（浅色）
 ```
 
@@ -184,3 +185,6 @@ cowait uninstall --project    # 在 G:\Cowait 里运行即可撤销本项目的�
 ## 9. 可以清理的测试残留
 
 用户电脑上 `G:\Cowait\data\` 里有 Windows 真机测试留下的 `e2e-test\`（一个带项目级 hooks 的临时项目）、`e2e-home\`、`latency-test\`、`bomtest.json`。它们被 `.gitignore` 忽略，不影响面板（面板读的是 `G:\Cowait\data\events.jsonl`），删掉前先问用户。
+
+C 盘临时目录（`%TEMP%`）里还有 0.2.0 之前的测试留下的约 260 个小文件夹（`cowait-test-*`、`claude-cfg-*`，另有一个 `cowait-frames-*`），合计约 120 KB。0.2.0 起测试不再往那里写；这些旧的可以删，删前先问用户（AI 通道里批量删临时目录会被安全审查拦下，可以请用户自己运行：
+`Get-ChildItem $env:TEMP -Directory | Where-Object Name -match '^(cowait-(test|frames)-|claude-cfg-)' | Remove-Item -Recurse -Force`）。
