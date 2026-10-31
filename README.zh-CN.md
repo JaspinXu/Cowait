@@ -235,6 +235,8 @@ Claude 完成或需要你确认时，面板会响铃并弹出提醒。弹出后�
 
 ## 开发
 
+用 AI agent（Claude Code、Codex 等）接手开发时，先读 [`AGENTS.md`](AGENTS.md)：约定、架构、踩过的坑、路线图都在里面。项目从零开始的完整经过在 [`docs/history/`](docs/history/)。
+
 ```bash
 npm install       # 只装开发依赖（TypeScript、Ink、React、esbuild、Vitest）
 npm test          # 先打包，再跑 64 个测试：hook 协议、reducer、安装器、游戏平衡、界面交互

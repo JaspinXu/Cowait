@@ -1,0 +1,4 @@
+# Keep LF everywhere (npm rewrites bin files to LF on Windows, which made CRLF checkouts look modified).
+* text=auto eol=lf
+*.png binary
+*.gif binary

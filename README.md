@@ -245,6 +245,8 @@ except when you ask for an AI deck, which sends the topic, or for `g` a few rece
 
 ## Development
 
+Working on Cowait with an AI agent (Claude Code, Codex, …)? It reads [`AGENTS.md`](AGENTS.md) first: conventions, architecture, pitfalls and the roadmap. The full story of how the project started is in [`docs/history/`](docs/history/).
+
 ```bash
 npm install       # dev dependencies only (TypeScript, Ink, React, esbuild, Vitest)
 npm test          # bundles, then 64 tests: hook protocol, reducer, installer, game balance, UI interaction
