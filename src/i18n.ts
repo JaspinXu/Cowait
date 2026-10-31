@@ -15,7 +15,7 @@ export function resolveLang(cfg: Pick<Config, 'lang'>): Lang {
 
 const S = {
   zh: {
-    brand: 'Cowait 等等党',
+    brand: 'Cowait',
     st_busy: 'Claude 工作中',
     st_idle: 'Claude 空闲，等你下指令',
     st_attention: 'Claude 在等你确认',

@@ -181,7 +181,7 @@ var init_i18n = __esm({
     "use strict";
     S = {
       zh: {
-        brand: "Cowait \u7B49\u7B49\u515A",
+        brand: "Cowait",
         st_busy: "Claude \u5DE5\u4F5C\u4E2D",
         st_idle: "Claude \u7A7A\u95F2\uFF0C\u7B49\u4F60\u4E0B\u6307\u4EE4",
         st_attention: "Claude \u5728\u7B49\u4F60\u786E\u8BA4",
@@ -26168,7 +26168,7 @@ async function cmdStatusline() {
 function help(lang) {
   const zh = lang === "zh";
   console.log(
-    zh ? `Cowait \u7B49\u7B49\u515A v${version()} \u2014\u2014 \u628A\u7B49 Claude Code \u7684\u65F6\u95F4\u53D8\u6210\u6709\u7528\u7684\u65F6\u95F4
+    zh ? `Cowait v${version()} \u2014\u2014 \u628A\u7B49 Claude Code \u7684\u65F6\u95F4\u53D8\u6210\u6709\u7528\u7684\u65F6\u95F4
 
 \u7528\u6CD5\uFF1A
   cowait                 \u6253\u5F00\u9762\u677F\uFF08\u653E\u5728 Claude Code \u65C1\u8FB9\u7684\u5206\u5C4F\u91CC\uFF09

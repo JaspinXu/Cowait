@@ -314,7 +314,7 @@ function help(lang: Lang): void {
   const zh = lang === 'zh';
   console.log(
     zh
-      ? `Cowait 等等党 v${version()} —— 把等 Claude Code 的时间变成有用的时间
+      ? `Cowait v${version()} —— 把等 Claude Code 的时间变成有用的时间
 
 用法：
   cowait                 打开面板（放在 Claude Code 旁边的分屏里）

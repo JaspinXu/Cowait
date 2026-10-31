@@ -74,6 +74,7 @@ Anthropic 也随时可能做原生版本。
 | 02:33 | 改 settings.json 能撤销吗？安装就会改吗？影响什么？用户能选择不改吗？ | 见第 6 节；并据此给 `cowait install` 加了“先列改动再确认” |
 | 02:37 | 先用 `--project` 只在某一个项目里试；repo 应该叫 **Cowait**（首字母大写） | 仓库已改名 `JaspinXu/Cowait`；**具体在哪个项目试还没问到** |
 | 02:42 | 写好 agent.md，保留会话所有内容，让新的 AI 或账户无缝衔接 | 本文件 + `AGENTS.md` + `CLAUDE.md`（`@AGENTS.md` 导入） |
+| 02:56 | ok 那就处理；产品中文名不要叫等等党，就叫 Cowait | 查明 `npm_config_allow_scripts` 不是用户设的（见第 7 节第 6 条），无需用户改任何设置；全部去掉“等等党”，中文截图/GIF 重录 |
 | 02:49 | 倘若就在本项目试呢 | 同意，这是“用 Cowait 开发 Cowait”。先把 `.claude/settings.local.json` 加进 `.gitignore`，再在 `G:\Cowait` 运行 `cowait install --project`，用真实会话验证事件进了 `G:\Cowait\data\events.jsonl`；顺手让 `cowait doctor` 在只装项目时不再把“全局没装”标成错误 |
 
 ## 5. 命名
@@ -89,7 +90,7 @@ Anthropic 也随时可能做原生版本。
 | Halftime | 中场 | 中场休息看回放≈审阅 | 被占 |
 | Meanwhile | 与此同时 | 最贴功能 | 被占 |
 
-用户选 **Cowait / 等等党**。约定：GitHub 仓库名 `Cowait`（大写），npm 包名和命令 `cowait`（npm 要求小写）。
+用户选 **Cowait / 等等党**。**02:56 用户改主意：产品中文名不要叫“等等党”，中英文都只叫 Cowait**（界面、README、截图都已改掉）。约定：GitHub 仓库名 `Cowait`（大写），npm 包名和命令 `cowait`（npm 要求小写）。
 
 ## 6. 关于修改 `~/.claude/settings.json` 的问答（用户 02:33 的问题）
 
@@ -109,6 +110,7 @@ Anthropic 也随时可能做原生版本。
 4. **测试识别误判**：`cat pytest.ini` 被当成测试 → 改为逐段解析命令。
 5. **游戏太简单**：贪心机器人通关 93% → 调整生命、成长曲线、Boss → 44%（裸装）/ 94%（满装备）；Deadlock 守卫死亡占比过高，攻击 12→11。
 6. **用户电脑上 `npm install` 失败**：用户环境变量 `npm_config_allow_scripts=["@anthropic-ai/claude-code"]`，npm 11.18 在项目级安装里拒绝它（`EALLOWSCRIPTS`），`--ignore-scripts` 也没用；临时清掉环境变量被安全审查拦下（削弱安全设置，不该由 AI 决定）。解决：esbuild 打包成两个自包含文件并提交 `dist/`，用户电脑无需 `npm install`。
+   **后来查清（02:56）**：这个变量不在用户的用户级/系统级环境变量里，也不在 PowerShell profile 里，而是 Claude 桌面应用（`claude.exe`）给它启动的子进程注入的，只在 AI 的执行通道里存在。用户 `.npmrc` 里有同样的白名单；沙盒里用 npm 11.18 验证：没有环境变量、只有 `.npmrc` 时项目级安装正常。所以用户在自己终端里开发 Cowait 应该没有这个问题。之前建议“让用户删掉环境变量”是错的，已更正。
 7. **Windows 上留言没送达**：PowerShell 5.1 写的 JSON 带 BOM，留言被认领后解析失败、被删。修：所有 JSON 读取兼容 BOM；解析失败的留言改名为 `*.unreadable`，不再删除。（记事本保存的 config.json / settings.json 也受益。）
 8. **Node DEP0190 警告**：Windows 上 `spawn('claude', args, {shell:true})` → 改为传单个命令字符串，prompt 走 stdin。
 9. **`dist/cli.js` 显示已修改**：`core.autocrlf=true` + npm 把 bin 文件改回 LF → 加 `.gitattributes`（`* text=auto eol=lf`）。

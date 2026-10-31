@@ -1,4 +1,4 @@
-# AGENTS.md — Cowait（等等党）接手指南
+# AGENTS.md — Cowait 接手指南
 
 > 给接手这个项目的 AI agent / 新账号看的。读完这一份就能无缝继续。
 > 这次创立会话的完整来龙去脉（市场调研、每个决定为什么这么做、踩过的坑）在
@@ -30,13 +30,15 @@ Cowait 是一个放在 Claude Code 旁边分屏里的终端面板，把等 Claud
 
 ## 3. 必须遵守的约定
 
+- **产品名中英文都只叫 Cowait。** 不要再用“等等党”（用户 2026-11-01 明确要求；创立会话里曾用过这个中文名，已全部去掉）。
 - **改 `~/.claude/settings.json`（全局）之前必须得到用户明确同意。** 默认用 `--project`。`cowait install` 本身也会先列出改动并要求确认（`--yes` 跳过）。
 - **一切放 G 盘。** 用户 C 盘快满了（约 21 GB 空闲）。npm 缓存之类的临时东西也不要往 C 盘写。
-- **不要动用户的 `npm_config_allow_scripts` 环境变量。** 它是用户为全局安装 Claude Code 设的安全限制；npm 11.18 下它会让**任何项目级 `npm install` 报 `EALLOWSCRIPTS`**。尝试临时清掉它被安全审查拦下过（属于削弱安全设置）。所以：
-  - 用户电脑上**不需要也不要** `npm install`：`dist/` 里是 esbuild 打好的两个自包含文件，已提交进仓库，clone 下来就能跑。
-  - 开发（`npm install` / `npm test`）在 Linux 沙盒或别的机器上做，改完 `npm run build`，**把 `src/` 和 `dist/` 一起提交**，用户电脑上 `cd G:\Cowait; git pull` 就生效（全局命令是 junction，自动指向新代码）。
+- **关于 `npm_config_allow_scripts` 和 `EALLOWSCRIPTS`（已查清，2026-11-01）：** 通过 Claude 桌面应用（`claude.exe`）连到用户电脑时，进程环境里会带 `npm_config_allow_scripts=@anthropic-ai/claude-code`。它**不是用户设的**：用户级、系统级环境变量和 PowerShell profile 里都没有（父进程链是 `claude.exe → cmd → node(Desktop Commander) → powershell`）。npm 11.18 在项目级安装里拒绝来自环境变量/命令行的 allow-scripts，所以**在这条通道里**项目级 `npm install` 会报 `EALLOWSCRIPTS`。用户自己的 `C:\Users\19826\.npmrc` 里有同样的白名单 `allow-scripts=@anthropic-ai/claude-code`；沙盒里用同版本 npm 11.18 验证过：只有 `.npmrc`、没有环境变量时，项目级安装正常。结论和做法：
+  - 不要试图清掉这个变量（在 AI 的执行通道里清它会被安全审查拦下，属于削弱安全设置），也不需要用户改任何系统设置。
+  - 用户在**自己的终端**（或从自己终端启动的 Claude Code CLI）里，`G:\Cowait` 的 `npm install` 应该可以直接用；npm 缓存放 G 盘：`npm install --cache G:\Cowait\.npm-cache`。如果仍报 `EALLOWSCRIPTS`，先看 `$env:npm_config_allow_scripts` 是从哪来的，再和用户商量。
+  - 用户运行 Cowait 本身**不需要** `npm install`：`dist/` 里是 esbuild 打好的两个自包含文件，已提交进仓库，clone 下来就能跑。改了 `src/` 一定要 `npm run build` 并**把 `src/` 和 `dist/` 一起提交**；用户电脑上 `cd G:\Cowait; git pull` 就生效（全局命令是 junction，自动指向新代码）。
 - **在 `G:\Cowait` 里用 Claude Code 开发 Cowait 时注意两点：**
-  1. 这台电脑上跑不了 `npm install` / `npm test` / `npm run build`（原因见上）。可以改代码、改文档，但改了 `src/` 之后 `dist/` 不会自动更新，改动也就不会生效。要构建就去能 `npm install` 的环境（比如 Linux 沙盒）构建后把 `dist/` 一起提交，再在这边 `git pull`。备注：用户的 `C:\Users\19826\.npmrc` 里已经有和环境变量**一模一样**的 `allow-scripts` 白名单，环境变量是重复的；按 npm 的报错提示，去掉环境变量后安全策略不变、项目级安装应该就能用了——**这要用户自己决定和操作**，AI 不要动。
+  1. 改了 `src/` 之后要先 `npm install --cache G:\Cowait\.npm-cache`（第一次）再 `npm run build`，`dist/` 更新了改动才会生效。从用户自己的终端启动的 Claude Code 里应该能跑（见上一条）；如果遇到 `EALLOWSCRIPTS`，就到 Linux 沙盒构建后提交 `dist/`，这边 `git pull`。
   2. hook 就是本项目里的 `G:\Cowait\dist\hook.js`，改坏它会直接影响正在运行的 Claude Code（hook 报错不会卡住 Claude，但事件会丢）。改坏了就 `git checkout dist/`，或者 `cowait uninstall --project` 先卸掉。
 - 每次改进后：跑测试 → 提交 → **推到 GitHub**（用户的固定要求）。提交身份用 `Zhaobin Xu <sea.xuo@gmail.com>`，并按你所在环境的要求加 AI 署名行。
 - 仓库命名不要连字符/下划线；README 保持现在的双语风格（居中标题 + 动图/截图 + 徽章 + 导航行 + 叙事开头 + 三列亮点表），中英文两份同步改。
