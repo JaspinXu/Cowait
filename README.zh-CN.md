@@ -15,7 +15,7 @@
 <img src="https://img.shields.io/badge/%E7%BB%88%E7%AB%AF%E7%95%8C%E9%9D%A2-Ink%20%2B%20React-61DAFB?logo=react&logoColor=black" alt="Ink + React">
 <img src="https://img.shields.io/badge/%E7%B3%BB%E7%BB%9F-Windows%20%7C%20macOS%20%7C%20Linux-555" alt="Windows, macOS, Linux">
 <img src="https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-%E4%B8%AD%E6%96%87%20%2F%20English-6543ee" alt="中文 / English">
-<img src="https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-60%20%E9%80%9A%E8%BF%87-2ea44f" alt="60 个测试通过">
+<img src="https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-64%20%E9%80%9A%E8%BF%87-2ea44f" alt="64 个测试通过">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT License"></a>
 </p>
 
@@ -136,7 +136,7 @@ flowchart LR
 - **你写给 Claude 的话**通过一个小文件夹传递，hook 用原子重命名来“认领”，所以并行的工具调用也不会重复送达。工具调用之后，这些话以 `additionalContext` 送到 Claude 面前；如果 Claude 正要结束，Cowait 会**只拦一次** Stop（有 `stop_hook_active` 保护，不可能死循环），让它先处理；如果 Claude 已经闲着，就跟你下一条 prompt 一起带过去。
 - **测试识别**：把每条 Bash 命令按 `&&`、`;`、`|` 拆成段逐段判断（`npm test`、`pytest`、`go test`、`cargo test`、`uv run pytest`、`./gradlew test` 等），再读测试框架的汇总行判断通过与否。
 
-这套流程跟真实的 Claude Code 会话完整跑通过：在面板里写的话在下一条 prompt 时送达，Claude 照做了（回复里说“已按你的要求加上那一行注释”）；它的 Edit 带着真实行号进来；`npm test` 被判定为通过。
+这套流程在 **Linux 和 Windows 11** 上都跟真实的 Claude Code 会话完整跑通过：在面板里写的话送达后 Claude 照做了（加上了留言要求的那行注释），它的 Edit 带着真实行号进来，`npm test` 被判定为通过。在 Windows 上 hook 每次大约 47 毫秒，其中 39 毫秒是 Node 自身的启动时间。
 
 ## 三个模式
 
@@ -237,7 +237,7 @@ Claude 完成或需要你确认时，面板会响铃并弹出提醒。弹出后�
 
 ```bash
 npm install       # 只装开发依赖（TypeScript、Ink、React、esbuild、Vitest）
-npm test          # 先打包，再跑 60 个测试：hook 协议、reducer、安装器、游戏平衡、界面交互
+npm test          # 先打包，再跑 64 个测试：hook 协议、reducer、安装器、游戏平衡、界面交互
 npm run build     # 类型检查 + esbuild 打包成 dist/cli.js 和 dist/hook.js（已提交，clone 下来就能用）
 node dist/cli.js demo
 ```

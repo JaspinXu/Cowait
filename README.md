@@ -15,7 +15,7 @@
 <img src="https://img.shields.io/badge/TUI-Ink%20%2B%20React-61DAFB?logo=react&logoColor=black" alt="Ink + React">
 <img src="https://img.shields.io/badge/OS-Windows%20%7C%20macOS%20%7C%20Linux-555" alt="Windows, macOS, Linux">
 <img src="https://img.shields.io/badge/UI-English%20%2F%20%E4%B8%AD%E6%96%87-6543ee" alt="English / Chinese">
-<img src="https://img.shields.io/badge/tests-60%20passing-2ea44f" alt="60 tests passing">
+<img src="https://img.shields.io/badge/tests-64%20passing-2ea44f" alt="64 tests passing">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT License"></a>
 </p>
 
@@ -138,7 +138,7 @@ flowchart LR
 - **Notes back to Claude** go through a folder of small files. The hook *claims* them with an atomic rename, so parallel tool calls never deliver a note twice. After a tool call they arrive as `additionalContext`; at `Stop`, Cowait blocks the stop **once** (guarded by `stop_hook_active`, so it can never loop) so Claude can act on them; if Claude is idle, they ride along with your next prompt.
 - **Test runs** are recognised by parsing each Bash command segment by segment (`npm test`, `pytest`, `go test`, `cargo test`, `uv run pytest`, `./gradlew test`, …) and reading the runner's summary line.
 
-This was verified end to end against a real Claude Code session: a note written in the panel was delivered on the next prompt and Claude carried it out ("added the one-line comment you asked for"), its Edit arrived with real line numbers, and `npm test` was scored as a pass.
+This was verified end to end against real Claude Code sessions on **Linux and Windows 11**: a note written in the panel was delivered and Claude carried it out (it added the comment the note asked for), its Edit arrived with real line numbers, and `npm test` was scored as a pass. On Windows the hook takes about 47 ms per call, 39 ms of which is Node starting up.
 
 ## The three modes
 
@@ -247,7 +247,7 @@ except when you ask for an AI deck, which sends the topic, or for `g` a few rece
 
 ```bash
 npm install       # dev dependencies only (TypeScript, Ink, React, esbuild, Vitest)
-npm test          # bundles, then 60 tests: hook protocol, reducer, installer, game balance, UI interaction
+npm test          # bundles, then 64 tests: hook protocol, reducer, installer, game balance, UI interaction
 npm run build     # type-check, then esbuild → dist/cli.js + dist/hook.js (committed, so clones run as-is)
 node dist/cli.js demo
 ```
