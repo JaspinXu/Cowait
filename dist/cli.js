@@ -26033,12 +26033,15 @@ function cmdDoctor(lang) {
   const hookJs = path9.join(packageRoot(), "dist", "hook.js");
   (fs8.existsSync(hookJs) ? ok : bad)(`${zh ? "hook \u811A\u672C" : "hook script"}: ${hookJs}`);
   let command = null;
+  const inProject = hookStatus(readClaudeSettings("project")).installed.length > 0;
   for (const scope of ["user", "project"]) {
     const s = readClaudeSettings(scope);
     const st = hookStatus(s);
     const file = claudeSettingsPath(scope);
     if (st.installed.length === 0) {
-      if (scope === "user") bad(zh ? `${file} \u91CC\u8FD8\u6CA1\u6709 Cowait \u7684 hooks \u2014\u2014 \u8FD0\u884C cowait install` : `No Cowait hooks in ${file} \u2014 run cowait install`);
+      if (scope !== "user") continue;
+      if (inProject) info(zh ? "\u5168\u5C40\u6CA1\u88C5\uFF08\u53EA\u5728\u8FD9\u4E2A\u9879\u76EE\u91CC\u751F\u6548\uFF0C\u8FD9\u662F --project \u6A21\u5F0F\uFF09" : "Not installed globally (project-only, via --project)");
+      else bad(zh ? `${file} \u91CC\u8FD8\u6CA1\u6709 Cowait \u7684 hooks \u2014\u2014 \u8FD0\u884C cowait install\uFF08\u6216 cowait install --project \u53EA\u88C5\u5F53\u524D\u9879\u76EE\uFF09` : `No Cowait hooks in ${file} \u2014 run cowait install (or cowait install --project)`);
       continue;
     }
     command ??= ourHookCommand(s);

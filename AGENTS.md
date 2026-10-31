@@ -24,8 +24,9 @@ Cowait 是一个放在 Claude Code 旁边分屏里的终端面板，把等 Claud
 | 数据目录 | `G:\Cowait\data`（clone 安装时数据跟着程序走，见 `src/paths.ts`） |
 | 测试 | 64 个，全部通过（`npm test`） |
 | 真机验证 | Linux 和 Windows 11 上都用真实 Claude Code 会话跑通过：留言送达且 Claude 照做、Edit 带行号、测试通过被识别 |
-| **用户全局 Claude Code 配置** | **还没装**。`C:\Users\19826\.claude\settings.json` 没动过 |
-| 下一步（等用户） | 用户要求“先用 `--project` 只在某一个项目里试”。**还没问到是哪个项目**——接手后先问用户，然后在那个项目目录里运行 `cowait install --project` |
+| **用户全局 Claude Code 配置** | **没装**。`C:\Users\19826\.claude\settings.json` 没动过；改全局之前必须再问用户 |
+| **项目级安装** | 用户选择“就在本项目试”：已在 **`G:\Cowait` 本项目**里 `cowait install --project`（2026-11-01）。配置在 `G:\Cowait\.claude\settings.local.json`（已 gitignore，里面是本机绝对路径）。用真实 Claude Code 会话验证过，事件写进 `G:\Cowait\data\events.jsonl` |
+| 下一步 | 用户在 `G:\Cowait` 里启动 Claude Code，再开一个分屏运行 `cowait`（在 Windows Terminal 里可以 `cowait split`），用 Cowait 开发 Cowait |
 
 ## 3. 必须遵守的约定
 
@@ -34,6 +35,9 @@ Cowait 是一个放在 Claude Code 旁边分屏里的终端面板，把等 Claud
 - **不要动用户的 `npm_config_allow_scripts` 环境变量。** 它是用户为全局安装 Claude Code 设的安全限制；npm 11.18 下它会让**任何项目级 `npm install` 报 `EALLOWSCRIPTS`**。尝试临时清掉它被安全审查拦下过（属于削弱安全设置）。所以：
   - 用户电脑上**不需要也不要** `npm install`：`dist/` 里是 esbuild 打好的两个自包含文件，已提交进仓库，clone 下来就能跑。
   - 开发（`npm install` / `npm test`）在 Linux 沙盒或别的机器上做，改完 `npm run build`，**把 `src/` 和 `dist/` 一起提交**，用户电脑上 `cd G:\Cowait; git pull` 就生效（全局命令是 junction，自动指向新代码）。
+- **在 `G:\Cowait` 里用 Claude Code 开发 Cowait 时注意两点：**
+  1. 这台电脑上跑不了 `npm install` / `npm test` / `npm run build`（原因见上）。可以改代码、改文档，但改了 `src/` 之后 `dist/` 不会自动更新，改动也就不会生效。要构建就去能 `npm install` 的环境（比如 Linux 沙盒）构建后把 `dist/` 一起提交，再在这边 `git pull`。备注：用户的 `C:\Users\19826\.npmrc` 里已经有和环境变量**一模一样**的 `allow-scripts` 白名单，环境变量是重复的；按 npm 的报错提示，去掉环境变量后安全策略不变、项目级安装应该就能用了——**这要用户自己决定和操作**，AI 不要动。
+  2. hook 就是本项目里的 `G:\Cowait\dist\hook.js`，改坏它会直接影响正在运行的 Claude Code（hook 报错不会卡住 Claude，但事件会丢）。改坏了就 `git checkout dist/`，或者 `cowait uninstall --project` 先卸掉。
 - 每次改进后：跑测试 → 提交 → **推到 GitHub**（用户的固定要求）。提交身份用 `Zhaobin Xu <sea.xuo@gmail.com>`，并按你所在环境的要求加 AI 署名行。
 - 仓库命名不要连字符/下划线；README 保持现在的双语风格（居中标题 + 动图/截图 + 徽章 + 导航行 + 叙事开头 + 三列亮点表），中英文两份同步改。
 - 用户偏好“能用浏览器做的就用浏览器做”。但 Claude 桌面版内置浏览器**没有登录 GitHub**，GitHub 操作用用户电脑上已登录的 `gh`（账号 JaspinXu，keyring，https）。
@@ -117,8 +121,8 @@ node dist/cli.js demo --fast
 cd G:\Cowait; git pull
 cowait doctor
 cowait demo
-cowait install --project      # 在某个项目目录里运行，只改那个项目
-cowait uninstall --project
+cowait install --project      # 在某个项目目录里运行，只改那个项目（G:\Cowait 本项目已经装了）
+cowait uninstall --project    # 在 G:\Cowait 里运行即可撤销本项目的安装
 ```
 
 ## 7. 踩过的坑（改 UI/输入/hook 前先看）
@@ -134,7 +138,7 @@ cowait uninstall --project
 
 ## 8. 路线图 / 还没做的
 
-- **马上**：问用户在哪个项目里用 `--project` 试；帮他在 Windows Terminal 里分屏（`cowait split` 需要在 Windows Terminal 里运行，`WT_SESSION` 才存在）。
+- **马上**：帮用户在 Windows Terminal 里把面板分屏开在 Claude Code 旁边（`cowait split` 需要在 Windows Terminal 里运行，`WT_SESSION` 才存在），在本项目里实际用起来，收集体验问题。
 - 产品：
   - “提前问”假设队列：让 Claude 把不确定的假设推给面板，用户异步确认
   - 更多为等待设计的游戏：随 Claude 产出成长的基地经营、短等待用的每日谜题

@@ -74,6 +74,7 @@ Anthropic 也随时可能做原生版本。
 | 02:33 | 改 settings.json 能撤销吗？安装就会改吗？影响什么？用户能选择不改吗？ | 见第 6 节；并据此给 `cowait install` 加了“先列改动再确认” |
 | 02:37 | 先用 `--project` 只在某一个项目里试；repo 应该叫 **Cowait**（首字母大写） | 仓库已改名 `JaspinXu/Cowait`；**具体在哪个项目试还没问到** |
 | 02:42 | 写好 agent.md，保留会话所有内容，让新的 AI 或账户无缝衔接 | 本文件 + `AGENTS.md` + `CLAUDE.md`（`@AGENTS.md` 导入） |
+| 02:49 | 倘若就在本项目试呢 | 同意，这是“用 Cowait 开发 Cowait”。先把 `.claude/settings.local.json` 加进 `.gitignore`，再在 `G:\Cowait` 运行 `cowait install --project`，用真实会话验证事件进了 `G:\Cowait\data\events.jsonl`；顺手让 `cowait doctor` 在只装项目时不再把“全局没装”标成错误 |
 
 ## 5. 命名
 
@@ -126,4 +127,5 @@ Anthropic 也随时可能做原生版本。
 - 私有仓库：https://github.com/JaspinXu/Cowait（main 分支）。
 - 用户电脑：`G:\Cowait`，`cowait` 命令可用（全局 junction → G:\Cowait）。
 - 全局 Claude Code 配置未改动。
-- 待办：问用户在哪个项目里 `cowait install --project`；帮他在 Windows Terminal 里分屏打开面板。
+- 项目级安装：已装在 `G:\Cowait` 本项目（`.claude/settings.local.json`，已 gitignore）。
+- 待办：用户在 `G:\Cowait` 里启动 Claude Code，分屏打开面板，实际用起来；在这台电脑上构建需要先解决 `npm_config_allow_scripts`（用户决定）。

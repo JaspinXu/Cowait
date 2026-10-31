@@ -167,12 +167,16 @@ function cmdDoctor(lang: Lang): void {
   (fs.existsSync(hookJs) ? ok : bad)(`${zh ? 'hook 脚本' : 'hook script'}: ${hookJs}`);
 
   let command: string | null = null;
+  const inProject = hookStatus(readClaudeSettings('project')).installed.length > 0;
   for (const scope of ['user', 'project'] as Scope[]) {
     const s = readClaudeSettings(scope);
     const st = hookStatus(s);
     const file = claudeSettingsPath(scope);
     if (st.installed.length === 0) {
-      if (scope === 'user') bad(zh ? `${file} 里还没有 Cowait 的 hooks —— 运行 cowait install` : `No Cowait hooks in ${file} — run cowait install`);
+      if (scope !== 'user') continue;
+      // Project-only installs are a deliberate choice, not a problem.
+      if (inProject) info(zh ? '全局没装（只在这个项目里生效，这是 --project 模式）' : 'Not installed globally (project-only, via --project)');
+      else bad(zh ? `${file} 里还没有 Cowait 的 hooks —— 运行 cowait install（或 cowait install --project 只装当前项目）` : `No Cowait hooks in ${file} — run cowait install (or cowait install --project)`);
       continue;
     }
     command ??= ourHookCommand(s);
