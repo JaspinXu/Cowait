@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { addHooks, removeHooks, hookStatus, install, uninstall, HOOK_MARK, STATUS_MARK } from '../src/install.js';
-import { tempHome } from './helpers.js';
+import { tempDir, tempHome } from './helpers.js';
 
 const userHooks = {
   hooks: {
@@ -34,7 +33,7 @@ describe('install / uninstall on disk', () => {
   let cfgDir: string;
   beforeEach(() => {
     tempHome();
-    cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-cfg-'));
+    cfgDir = tempDir('claude-cfg-');
     process.env.CLAUDE_CONFIG_DIR = cfgDir;
   });
 
@@ -74,7 +73,7 @@ describe('install / uninstall on disk', () => {
 describe('settings.json saved with a BOM', () => {
   it('still parses and installs', () => {
     tempHome();
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-cfg-'));
+    const dir = tempDir('claude-cfg-');
     process.env.CLAUDE_CONFIG_DIR = dir;
     fs.writeFileSync(path.join(dir, 'settings.json'), '﻿' + JSON.stringify({ model: 'opus' }));
     install({ scope: 'user' });
