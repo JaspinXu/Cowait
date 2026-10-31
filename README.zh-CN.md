@@ -100,7 +100,7 @@ cd cowait
 npm install          # 会顺便编译
 npm link             # 把 cowait 命令加到 PATH
 
-cowait install       # 往 ~/.claude/settings.json 里加 hooks（先自动备份）
+cowait install       # 先列出要改什么、问你确认、自动备份，再加 hooks
 cowait doctor        # 自检：Node、hooks，并真的跑一次 hook
 ```
 
@@ -195,7 +195,7 @@ Claude 完成或需要你确认时，面板会响铃并弹出提醒。弹出后�
 | 命令 | 作用 |
 |---|---|
 | `cowait` | 打开面板 |
-| `cowait install [--project] [--statusline] [--force]` | 把 hooks 加到 `~/.claude/settings.json`；加 `--project` 则只装到当前项目的 `.claude/settings.local.json`。`--statusline` 同时启用 Claude Code 状态栏（模型 · 目录 · ⚡ 💰 · 待审张数）；已有自定义状态栏时默认保留，除非加 `--force`，卸载时会还原 |
+| `cowait install [--project] [--statusline] [--force] [--yes]` | 先列出会改哪些东西，问你确认后才动手。把 hooks 加到 `~/.claude/settings.json`；加 `--project` 则只装到当前项目的 `.claude/settings.local.json`。`--statusline` 同时启用 Claude Code 状态栏（模型 · 目录 · ⚡ 💰 · 待审张数）；已有自定义状态栏时默认保留，除非加 `--force`，卸载时会还原 |
 | `cowait uninstall [--project]` | 移除 Cowait 的 hooks，其他配置原样保留 |
 | `cowait doctor` | 自检 Node、hook 脚本和配置，真实执行一次已配置的 hook 命令，并显示数据目录和 AI 出题来源 |
 | `cowait demo [--fast]` | 在临时数据目录里模拟一个 Claude 会话 |

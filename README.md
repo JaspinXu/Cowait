@@ -101,7 +101,7 @@ cd cowait
 npm install          # also builds
 npm link             # puts `cowait` on your PATH
 
-cowait install       # adds the hooks to ~/.claude/settings.json (backed up first)
+cowait install       # shows what it will change, asks, backs up, then adds the hooks
 cowait doctor        # checks Node, the hooks, and runs the hook once for real
 ```
 
@@ -204,7 +204,7 @@ you are typing a note never eats a keystroke.
 | Command | What it does |
 |---|---|
 | `cowait` | Open the panel |
-| `cowait install [--project] [--statusline] [--force]` | Add the hooks to `~/.claude/settings.json`, or `.claude/settings.local.json` with `--project`. `--statusline` also adds a Claude Code status line (model · folder · ⚡ 💰 · cards to review); an existing status line is kept unless `--force`, and restored on uninstall |
+| `cowait install [--project] [--statusline] [--force] [--yes]` | Lists exactly what it will change and asks before writing anything. Adds the hooks to `~/.claude/settings.json`, or `.claude/settings.local.json` with `--project`. `--statusline` also adds a Claude Code status line (model · folder · ⚡ 💰 · cards to review); an existing status line is kept unless `--force`, and restored on uninstall |
 | `cowait uninstall [--project]` | Remove Cowait's hooks; everything else is left as it was |
 | `cowait doctor` | Check Node, the hook script, the settings, run the configured hook command for real, show the data folder and AI provider |
 | `cowait demo [--fast]` | Simulated Claude session in a throwaway data folder |

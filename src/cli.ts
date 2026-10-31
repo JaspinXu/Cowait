@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { createInterface } from 'node:readline/promises';
 import { loadConfig, saveConfig, DEFAULT_CONFIG, type Config } from './config.js';
 import { resolveLang, t, fmtDur, type Lang } from './i18n.js';
 import { dataDir, packageRoot, paths } from './paths.js';
@@ -76,10 +77,47 @@ async function runPanel(opts: { demo?: boolean; fast?: boolean } = {}): Promise<
 
 // ------------------------------------------------------------------ install / doctor
 
-function cmdInstall(args: string[], lang: Lang): void {
+async function confirm(question: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = (await rl.question(question)).trim().toLowerCase();
+    return answer === '' || answer === 'y' || answer === 'yes' || answer === '是';
+  } finally {
+    rl.close();
+  }
+}
+
+async function cmdInstall(args: string[], lang: Lang): Promise<void> {
   const scope: Scope = flag(args, '--project') ? 'project' : 'user';
-  const r = install({ scope, statusline: flag(args, '--statusline'), force: flag(args, '--force') });
   const zh = lang === 'zh';
+  const file = claudeSettingsPath(scope);
+  const statusline = flag(args, '--statusline');
+
+  // Say exactly what will change before touching anything.
+  console.log(zh ? '\ncowait install 将会：' : '\ncowait install will:');
+  info(`${zh ? '修改' : 'edit'} ${file}${fs.existsSync(file) ? '' : zh ? '（不存在，会新建）' : ' (does not exist yet, will be created)'}`);
+  info(
+    zh
+      ? '添加 5 条 hooks（UserPromptSubmit / PostToolUse / Stop / Notification / SessionEnd），' + (scope === 'user' ? '对这台电脑上所有项目的 Claude Code 生效' : '只对当前项目生效')
+      : 'add 5 hooks (UserPromptSubmit / PostToolUse / Stop / Notification / SessionEnd), ' + (scope === 'user' ? 'for every project on this machine' : 'for this project only'),
+  );
+  if (statusline) info(zh ? '启用 Cowait 状态栏（已有自定义状态栏时不覆盖，除非 --force）' : 'enable the Cowait status line (an existing one is kept unless --force)');
+  info(zh ? '其他配置一律不动；改之前先备份原文件；随时可以 cowait uninstall 撤销' : 'leave everything else untouched, back the file up first, and can be undone with cowait uninstall');
+  if (scope === 'user') info(zh ? '只想在一个项目里试？用 cowait install --project' : 'Just trying it in one project? Use cowait install --project');
+
+  if (!flag(args, '--yes') && !flag(args, '-y')) {
+    if (!process.stdin.isTTY) {
+      console.log(zh ? '\n非交互环境：确认无误后加 --yes 重新运行。' : '\nNot interactive: re-run with --yes to confirm.');
+      process.exitCode = 1;
+      return;
+    }
+    if (!(await confirm(zh ? '\n继续吗？[Y/n] ' : '\nContinue? [Y/n] '))) {
+      console.log(zh ? '已取消，什么都没改。' : 'Cancelled. Nothing was changed.');
+      return;
+    }
+  }
+
+  const r = install({ scope, statusline, force: flag(args, '--force') });
   console.log(zh ? '\nCowait 已接入 Claude Code ✓' : '\nCowait is hooked into Claude Code ✓');
   ok(`${zh ? '配置文件' : 'settings'}: ${r.file}`);
   if (r.backup) ok(`${zh ? '原文件已备份到' : 'backup'}: ${r.backup}`);
@@ -278,6 +316,7 @@ function help(lang: Lang): void {
   cowait                 打开面板（放在 Claude Code 旁边的分屏里）
   cowait install         接入 Claude Code（写入 ~/.claude/settings.json，会先备份）
       --project          只装到当前项目（.claude/settings.local.json）
+      --yes              不再询问，直接安装（脚本里用）
       --statusline       同时启用 Cowait 状态栏（不会覆盖你已有的状态栏，除非加 --force）
   cowait uninstall       移除 hooks（其他配置不动）
   cowait doctor          自检
@@ -293,6 +332,7 @@ Usage:
   cowait                 open the panel (put it in a pane next to Claude Code)
   cowait install         hook into Claude Code (edits ~/.claude/settings.json, backs it up first)
       --project          install for the current project only (.claude/settings.local.json)
+      --yes              skip the confirmation (for scripts)
       --statusline       also enable the Cowait status line (never replaces yours unless --force)
   cowait uninstall       remove the hooks (nothing else is touched)
   cowait doctor          check the setup
