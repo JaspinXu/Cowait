@@ -47,13 +47,29 @@ export async function generateTopicDeck(topic: string, n: number, lang: 'zh' | '
   return toDeck(`topic-${slug(topic)}-${Date.now().toString(36)}`, topic, cards);
 }
 
+/**
+ * The recent changes as plain diff text for the model, newest first and within `budget` characters.
+ * A card can hold many edits to one file; its latest edits are what Claude's code looks like now,
+ * so they go in before older ones, and nothing is cut halfway through an edit unless one edit
+ * alone is bigger than what is left.
+ */
+export function describeChanges(cards: ReviewCard[], budget: number): string {
+  let out = '';
+  for (const c of [...cards].reverse()) {
+    const { more, ...base } = c;
+    for (const e of [base, ...(more ?? [])].reverse()) {
+      const room = budget - out.length;
+      if (room < 200) return out.trimEnd();
+      // diffText may add "\n…\n" after cutting, and we add a newline: keep 5 characters spare.
+      out += diffText(c.file, cardDiff(e), Math.min(1500, room - 5)) + '\n';
+    }
+  }
+  return out.trimEnd();
+}
+
 export async function generateCodebaseDeck(recent: ReviewCard[], n: number, lang: 'zh' | 'en', cfg: Config): Promise<Deck> {
   if (!recent.length) throw new Error('NO_CHANGES');
-  let changes = '';
-  for (const c of recent.slice(-8)) {
-    changes += diffText(c.file, cardDiff(c), 2000) + '\n';
-    if (changes.length > 9000) break;
-  }
+  const changes = describeChanges(recent.slice(-8), 9000);
   const prompt = [
     'Below are code changes an AI coding agent just made in a developer\'s project.',
     `Write ${n} flashcards in ${LANG_NAME[lang]} that help the developer genuinely understand these changes: what changed, why it was likely needed, the concepts and APIs involved, and risks worth checking.`,

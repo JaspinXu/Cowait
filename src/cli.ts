@@ -55,6 +55,11 @@ async function runPanel(opts: { demo?: boolean; fast?: boolean } = {}): Promise<
   const state = loadState();
   const daily = grantDaily(state, Date.now());
   saveState(state);
+  // Never heard from Claude Code and no hooks here or globally: the panel explains how to connect.
+  // (Any past turn or card proves the hooks work somewhere, e.g. in another project folder.)
+  const hooked = (['user', 'project'] as Scope[]).some((sc) => hookStatus(readClaudeSettings(sc)).installed.length > 0);
+  const everConnected = state.totals.turns > 0 || state.totals.cards > 0 || fs.existsSync(paths.events());
+  const setupHint = !opts.demo && !hooked && !everConnected;
 
   const [{ render }, React, { App }] = await Promise.all([import('ink'), import('react'), import('./ui/App.js')]);
   let stopDemo: (() => void) | undefined;
@@ -67,7 +72,7 @@ async function runPanel(opts: { demo?: boolean; fast?: boolean } = {}): Promise<
     releaseLock();
   };
   process.on('exit', restore);
-  const app = render(React.createElement(App, { cfg, lang, initial: state, daily }), { exitOnCtrlC: true });
+  const app = render(React.createElement(App, { cfg, lang, initial: state, daily, setupHint }), { exitOnCtrlC: true });
   await app.waitUntilExit();
   stopDemo?.();
   restore();
@@ -221,8 +226,8 @@ function cmdStats(lang: Lang): void {
   console.log(`  ⚡ ${s.energy}   💰 ${s.coins}`);
   console.log(
     zh
-      ? `  Claude 干活的轮次 ${T.turns} · 测试通过的轮次 ${T.testsPassed}\n  改动卡片 ${T.cards} · 你审过 ${T.reviewed + T.flagged}（标出问题 ${T.flagged}，已转达 ${T.delivered}）· 跳过 ${T.skipped} · 待审 ${pendingCards(s).length}\n  AI 代码人工审阅覆盖率 ${cov === null ? '—' : Math.round(cov * 100) + '%'}\n  刷卡 ${T.learned} 张 · 捉虫地牢 ${T.runs} 局，通关 ${T.wins} 次，最深第 ${T.bestFloor} 层`
-      : `  Claude turns ${T.turns} · turns with passing tests ${T.testsPassed}\n  Change cards ${T.cards} · reviewed ${T.reviewed + T.flagged} (flagged ${T.flagged}, relayed ${T.delivered}) · skipped ${T.skipped} · pending ${pendingCards(s).length}\n  Human review coverage of AI code ${cov === null ? '—' : Math.round(cov * 100) + '%'}\n  Flashcards ${T.learned} · Debug Dungeon runs ${T.runs}, wins ${T.wins}, deepest floor ${T.bestFloor}`,
+      ? `  Claude 干活的轮次 ${T.turns} · 测试通过的轮次 ${T.testsPassed}\n  改动卡片 ${T.cards} · 你审过 ${T.reviewed + T.flagged}（其中标出问题 ${T.flagged}）· 扫一眼就过 ${T.skimmed} · 跳过 ${T.skipped} · 待审 ${pendingCards(s).length}\n  AI 代码人工审阅覆盖率 ${cov === null ? '—' : Math.round(cov * 100) + '%'}（扫一眼就过的不算）\n  转达给 Claude 的留言 ${T.delivered} 条\n  刷卡 ${T.learned} 张 · 捉虫地牢 ${T.runs} 局，通关 ${T.wins} 次，最深第 ${T.bestFloor} 层`
+      : `  Claude turns ${T.turns} · turns with passing tests ${T.testsPassed}\n  Change cards ${T.cards} · reviewed ${T.reviewed + T.flagged} (${T.flagged} flagged) · skimmed ${T.skimmed} · skipped ${T.skipped} · pending ${pendingCards(s).length}\n  Human review coverage of AI code ${cov === null ? '—' : Math.round(cov * 100) + '%'} (skims don't count)\n  Notes relayed to Claude ${T.delivered}\n  Flashcards ${T.learned} · Debug Dungeon runs ${T.runs}, wins ${T.wins}, deepest floor ${T.bestFloor}`,
   );
   console.log('');
 }

@@ -1,16 +1,23 @@
 /** Folds hook events into panel state. Pure: no I/O, so it is easy to test. */
 import type { IEvent } from '../events.js';
+import { normPath } from '../paths.js';
 import { ECON, turnCoins } from './economy.js';
 import type { Session, State } from './state.js';
 
+/** What the UI may react to. `t` is when it happened, so a panel catching up on old events can stay quiet. */
 export type Signal =
-  | { type: 'turn_start'; sid: string; cwd: string }
-  | { type: 'turn_done'; sid: string; cwd: string; ms: number; coins: number; pass: boolean; fail: boolean; edits: number }
-  | { type: 'attention'; sid: string; cwd: string; msg: string }
-  | { type: 'new_card'; count: number };
+  | { type: 'turn_start'; t: number; sid: string; cwd: string }
+  | { type: 'turn_done'; t: number; sid: string; cwd: string; ms: number; coins: number; pass: boolean; fail: boolean; edits: number }
+  | { type: 'attention'; t: number; sid: string; cwd: string; msg: string }
+  | { type: 'new_card'; t: number; count: number }
+  | { type: 'delivered'; t: number; count: number };
 
 const STALE_BUSY_MS = 15 * 60 * 1000;
 const FORGET_IDLE_MS = 24 * 60 * 60 * 1000;
+/** Edits one card may hold before the next edit to that file opens a new card. */
+const MAX_PARTS = 20;
+/** A card untouched for this long is old news: the next edit to the file starts a fresh card. */
+const MERGE_WINDOW_MS = 30 * 60 * 1000;
 
 function session(s: State, sid: string, cwd: string, t: number): Session {
   let x = s.sessions[sid];
@@ -37,12 +44,13 @@ function trimCards(s: State): void {
 export function applyEvents(s: State, events: IEvent[]): Signal[] {
   const out: Signal[] = [];
   let newCards = 0;
+  let lastEdit = 0;
   for (const e of events) {
     switch (e.k) {
       case 'prompt': {
         const x = session(s, e.sid, e.cwd, e.t);
         Object.assign(x, { status: 'busy', turnStart: e.t, lastAt: e.t, tools: 0, edits: 0, pass: false, fail: false });
-        out.push({ type: 'turn_start', sid: e.sid, cwd: x.cwd });
+        out.push({ type: 'turn_start', t: e.t, sid: e.sid, cwd: x.cwd });
         break;
       }
       case 'tool': {
@@ -58,12 +66,30 @@ export function applyEvents(s: State, events: IEvent[]): Signal[] {
           else if (e.bash.result === 'fail') x.fail = true;
         }
         if (e.edit) {
-          s.seq++;
-          s.review.push({ ...e.edit, id: `${e.t.toString(36)}-${s.seq}`, t: e.t, sid: e.sid, cwd: x.cwd, status: 'new' });
-          s.totals.cards++;
           x.edits++;
           newCards++;
-          trimCards(s);
+          lastEdit = e.t;
+          // Claude often edits one file many times in a row. While the earlier card is still
+          // waiting, fold the new edit into it: one file, one decision, with all the context.
+          const edit = e.edit;
+          const file = normPath(edit.file);
+          const open = s.review.find(
+            (c) =>
+              c.status === 'new' &&
+              c.sid === e.sid &&
+              normPath(c.file) === file &&
+              (c.more?.length ?? 0) < MAX_PARTS - 1 &&
+              e.t - (c.last ?? c.t) <= MERGE_WINDOW_MS,
+          );
+          if (open) {
+            (open.more ??= []).push(edit);
+            open.last = e.t;
+          } else {
+            s.seq++;
+            s.review.push({ ...edit, id: `${e.t.toString(36)}-${s.seq}`, t: e.t, sid: e.sid, cwd: x.cwd, status: 'new' });
+            s.totals.cards++;
+            trimCards(s);
+          }
         }
         break;
       }
@@ -79,7 +105,7 @@ export function applyEvents(s: State, events: IEvent[]): Signal[] {
             s.history.push({ cwd: x.cwd, ms, t: e.t });
             if (s.history.length > 200) s.history = s.history.slice(-200);
           }
-          out.push({ type: 'turn_done', sid: e.sid, cwd: x.cwd, ms, coins, pass: x.pass, fail: x.fail, edits: x.edits });
+          out.push({ type: 'turn_done', t: e.t, sid: e.sid, cwd: x.cwd, ms, coins, pass: x.pass, fail: x.fail, edits: x.edits });
         }
         Object.assign(x, { status: 'idle', turnStart: undefined, lastAt: e.t });
         break;
@@ -91,7 +117,7 @@ export function applyEvents(s: State, events: IEvent[]): Signal[] {
         if (x.status === 'busy') {
           x.status = 'attention';
           x.lastAt = e.t;
-          out.push({ type: 'attention', sid: e.sid, cwd: x.cwd, msg: e.msg });
+          out.push({ type: 'attention', t: e.t, sid: e.sid, cwd: x.cwd, msg: e.msg });
         }
         break;
       }
@@ -101,12 +127,14 @@ export function applyEvents(s: State, events: IEvent[]): Signal[] {
       case 'delivered': {
         const ids = new Set(e.ids);
         for (const c of s.review) if (c.noteId && ids.has(c.noteId)) c.delivered = true;
+        for (const n of s.notes) if (ids.has(n.id)) n.delivered = true;
         s.totals.delivered += e.ids.length;
+        if (e.ids.length) out.push({ type: 'delivered', t: e.t, count: e.ids.length });
         break;
       }
     }
   }
-  if (newCards) out.push({ type: 'new_card', count: newCards });
+  if (newCards) out.push({ type: 'new_card', t: lastEdit, count: newCards });
   return out;
 }
 

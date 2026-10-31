@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { allDecks, saveDeck, tx, type Deck, type Flashcard } from '../learn/decks.js';
 import { nextCard, rate, dueCount, type Rating } from '../learn/srs.js';
@@ -6,9 +6,9 @@ import { ECON } from '../engine/economy.js';
 import { detectProvider } from '../learn/llm.js';
 import { generateCodebaseDeck, generateTopicDeck } from '../learn/generate.js';
 import { t } from '../i18n.js';
-import { useLine, type ModeProps } from './common.js';
+import { InputLine, Labeled, Para, fit, useLine, useRefState, type ModeProps } from './common.js';
 
-export function Learn({ st, update, cfg, lang, active, width, now, setTyping }: ModeProps) {
+export function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping }: ModeProps) {
   const [reload, setReload] = useState(0);
   const decks = useMemo(() => allDecks(), [reload]);
   const deckId = st.learnDeck === 'all' || decks.some((d) => d.id === st.learnDeck) ? st.learnDeck : 'all';
@@ -20,11 +20,13 @@ export function Learn({ st, update, cfg, lang, active, width, now, setTyping }: 
   }, [pool.map((d) => d.id).join('|'), reload]);
   const ids = [...cards.keys()];
 
-  const [cur, setCur] = useState<{ id: string; isNew: boolean } | null>(null);
-  const [flipped, setFlipped] = useState(false);
+  // Refs too: a fast "space, 2" arrives before React re-renders, and "2" must see the flip.
+  const [cur, setCur, curRef] = useRefState<{ id: string; isNew: boolean } | null>(null);
+  const [flipped, setFlipped, flippedRef] = useRefState(false);
   const [msg, setMsg] = useState('');
   const [busyGen, setBusyGen] = useState(false);
   const topic = useLine();
+  const shownAt = useRef(Date.now());
 
   // Pick a card whenever there is none (first render, deck switch, after rating).
   useEffect(() => {
@@ -33,6 +35,11 @@ export function Learn({ st, update, cfg, lang, active, width, now, setTyping }: 
       setFlipped(false);
     }
   }, [cur, deckId, cards]);
+
+  // Start the clock whenever a new question appears.
+  useEffect(() => {
+    shownAt.current = Date.now();
+  }, [cur?.id]);
 
   // When nothing was due, look again every so often (cards become due over time).
   useEffect(() => {
@@ -52,14 +59,19 @@ export function Learn({ st, update, cfg, lang, active, width, now, setTyping }: 
   };
 
   const doRate = (r: Rating) => {
-    if (!cur) return;
-    const id = cur.id;
+    if (!curRef.current) return;
+    const id = curRef.current.id;
+    // Flip-and-rate in a blink is not studying: keep the rating, skip the reward.
+    const quick = Date.now() - shownAt.current < ECON.minStudyMs;
     update((s) => {
       s.srs[id] = rate(s.srs[id], r, Date.now());
-      s.energy += ECON.learnCard;
-      s.totals.learned++;
+      if (!quick) {
+        s.energy += ECON.learnCard;
+        s.totals.learned++;
+      }
     });
-    setMsg(t(lang, 'ln_gained', { n: ECON.learnCard }));
+    setMsg(quick ? t(lang, 'ln_quick') : t(lang, 'ln_gained', { n: ECON.learnCard }));
+    setFlipped(false);
     setCur(null);
   };
 
@@ -89,6 +101,7 @@ export function Learn({ st, update, cfg, lang, active, width, now, setTyping }: 
 
   useInput(
     (input, key) => {
+      if (blocked()) return;
       if (topic.isOpen()) {
         topic.handle(
           input,
@@ -112,9 +125,9 @@ export function Learn({ st, update, cfg, lang, active, width, now, setTyping }: 
         if (!st.review.length) return setMsg(t(lang, 'ln_no_changes'));
         return void run(() => generateCodebaseDeck(st.review.slice(-8), 8, lang, cfg));
       }
-      if (!cur) return;
-      if (!flipped && (input === ' ' || key.return)) return setFlipped(true);
-      if (flipped) {
+      if (!curRef.current) return;
+      if (!flippedRef.current && (input === ' ' || key.return)) return setFlipped(true);
+      if (flippedRef.current) {
         if (input === '1') doRate('again');
         else if (input === '2' || input === ' ' || key.return) doRate('good');
         else if (input === '3') doRate('easy');
@@ -128,6 +141,7 @@ export function Learn({ st, update, cfg, lang, active, width, now, setTyping }: 
   const unseen = ids.filter((id) => !st.srs[id]).length;
   const item = cur ? cards.get(cur.id) : undefined;
   const boxW = Math.min(width - 2, 90);
+  const inner = boxW - 4; // round border + one column of padding on each side
 
   return (
     <Box flexDirection="column">
@@ -141,47 +155,37 @@ export function Learn({ st, update, cfg, lang, active, width, now, setTyping }: 
       <Text> </Text>
       {item ? (
         <Box flexDirection="column" borderStyle="round" borderColor={flipped ? 'green' : 'cyan'} paddingX={1} width={boxW}>
-          <Text color="gray">
+          <Text color="gray" wrap="truncate-end">
             {tx(item.deck.title, lang)} · {cur!.isNew ? t(lang, 'ln_new') : t(lang, 'ln_review')}
           </Text>
-          <Text wrap="wrap">
-            <Text color="cyan" bold>
-              {t(lang, 'ln_q')}{lang === 'zh' ? '：' : ': '}
-            </Text>
-            {tx(item.card.q, lang)}
-          </Text>
+          <Labeled label={t(lang, 'ln_q') + (lang === 'zh' ? '：' : ': ')} text={tx(item.card.q, lang)} width={inner} labelColor="cyan" />
           {flipped ? (
             <>
               <Text> </Text>
-              <Text wrap="wrap">
-                <Text color="green" bold>
-                  {t(lang, 'ln_a')}{lang === 'zh' ? '：' : ': '}
-                </Text>
-                {tx(item.card.a, lang)}
-              </Text>
+              <Labeled label={t(lang, 'ln_a') + (lang === 'zh' ? '：' : ': ')} text={tx(item.card.a, lang)} width={inner} labelColor="green" />
             </>
           ) : null}
         </Box>
       ) : (
         <Box flexDirection="column">
           <Text color="green">{t(lang, 'ln_done')}</Text>
-          <Text color="gray">{t(lang, 'ln_done_hint')}</Text>
+          <Para text={t(lang, 'ln_done_hint')} width={width - 1} color="gray" />
         </Box>
       )}
       {topic.value !== null ? (
-        <Text>
-          <Text color="yellow">{t(lang, 'ln_topic')}</Text>
-          {topic.value}
-          <Text inverse> </Text>
-        </Text>
+        <InputLine prompt={t(lang, 'ln_topic')} value={topic.value} />
+      ) : msg ? (
+        <Para text={msg} width={width - 1} color="yellow" />
       ) : (
-        <Text color="yellow" wrap="truncate-end">
-          {msg || ' '}
+        <Text> </Text>
+      )}
+      {item && (
+        <Text color="gray" wrap="truncate-end">
+          {flipped ? t(lang, 'ln_rate') : t(lang, 'ln_flip')}
         </Text>
       )}
-      {item && <Text color="gray">{flipped ? t(lang, 'ln_rate') : t(lang, 'ln_flip')}</Text>}
       <Text color="gray" wrap="truncate-end">
-        {t(lang, 'ln_keys')}
+        {fit([t(lang, 'ln_keys'), t(lang, 'ln_keys_short')], width - 1)}
       </Text>
     </Box>
   );

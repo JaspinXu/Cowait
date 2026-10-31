@@ -58,10 +58,10 @@ describe('reducer', () => {
 
   it('marks relayed notes as delivered and tracks coverage', () => {
     const s = newState();
-    applyEvents(s, [edit(1), edit(2), edit(3)]);
+    applyEvents(s, [edit(1, '/p/a.ts'), edit(2, '/p/b.ts'), edit(3, '/p/c.ts')]);
     const [a, b, c] = s.review;
     expect(applyVerdict(s, a.id, 'ok')).toBe(1);
-    expect(applyVerdict(s, b.id, 'flag', 'fix this', 'note1')).toBe(2);
+    expect(applyVerdict(s, b.id, 'flag', { note: 'fix this', noteId: 'note1' })).toBe(2);
     expect(applyVerdict(s, b.id, 'ok')).toBe(0); // already decided
     applyVerdict(s, c.id, 'skip');
     expect(s.energy).toBe(13);
@@ -77,7 +77,7 @@ describe('reducer', () => {
     applyVerdict(s, s.review[0].id, 'ok');
     applyEvents(
       s,
-      Array.from({ length: 80 }, (_, i) => edit(10 + i)),
+      Array.from({ length: 80 }, (_, i) => edit(10 + i, `/p/f${i}.ts`)),
     );
     expect(s.review).toHaveLength(80);
     expect(s.review.every((c) => c.status === 'new')).toBe(true);
@@ -108,6 +108,19 @@ describe('auto mode', () => {
     expect(predictWait(h, '/a')).toBe(20_000);
     expect(predictWait(h, '/c')).toBe(65_000);
     expect(predictWait([], '/a')).toBeNull();
+  });
+
+  it('re-estimates a turn that has already run past the usual length', () => {
+    const h = [30, 60, 90, 120, 600].map((s) => ({ cwd: '/a', ms: s * 1000, t: 0 }));
+    expect(predictWait(h, '/a', 10_000)).toBe(90_000);
+    // 100 s in: only the 120 s and 600 s turns lasted this long, so expect their median.
+    expect(predictWait(h, '/a', 100_000)).toBe(360_000);
+    // Longer than anything seen before: no honest estimate.
+    expect(predictWait(h, '/a', 700_000)).toBeNull();
+  });
+
+  it('starts a brand-new user on the review tab, the heart of the product', () => {
+    expect(chooseMode(newState(), cfg, null)).toBe('review');
   });
 
   it('reviews first, then flashcards for short waits, games for long ones', () => {

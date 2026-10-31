@@ -2,11 +2,11 @@
 
 # Cowait
 
-**Half of working with Claude Code is waiting. Spend it reviewing what Claude just wrote, playing a tiny roguelike, or learning something.**
+**Half of working with Claude Code is waiting. Cowait fills it with the thing most worth doing, reviewing what Claude just wrote, and pays you for it in a tiny roguelike and flashcards.**
 
 **English** · [简体中文](README.zh-CN.md)
 
-<img src="docs/media/demo-en.gif" alt="Cowait running next to Claude Code: review a change, send Claude a note, get the 'finished' alert, play Debug Dungeon, study a flashcard" width="100%">
+<img src="docs/media/demo-en.gif" alt="The Cowait panel while Claude works: a card with two edits to one file, a note to Claude that it receives on its next step, a note about something else, the 'finished' alert, a Debug Dungeon fight, a flashcard" width="100%">
 
 <p>
 <img src="https://img.shields.io/badge/Claude%20Code-hooks-D97757?logo=anthropic&logoColor=white" alt="Claude Code hooks">
@@ -15,7 +15,7 @@
 <img src="https://img.shields.io/badge/TUI-Ink%20%2B%20React-61DAFB?logo=react&logoColor=black" alt="Ink + React">
 <img src="https://img.shields.io/badge/OS-Windows%20%7C%20macOS%20%7C%20Linux-555" alt="Windows, macOS, Linux">
 <img src="https://img.shields.io/badge/UI-English%20%2F%20%E4%B8%AD%E6%96%87-6543ee" alt="English / Chinese">
-<img src="https://img.shields.io/badge/tests-64%20passing-2ea44f" alt="64 tests passing">
+<img src="https://img.shields.io/badge/tests-104%20passing-2ea44f" alt="104 tests passing">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT License"></a>
 </p>
 
@@ -41,10 +41,11 @@ nothing still feels great.
 
 Cowait starts from the opposite end. The most valuable thing you can do while Claude works is
 **look at what it is doing**: AI-written code nobody reads is the real cost of agentic coding.
-So every edit Claude makes lands in a side panel as a small diff card. Approve it with one key, or
-type one line ("keep the 200, the frontend depends on it") and **Claude receives your note on its very
-next step, without being interrupted**. Once the queue is clear, the same panel gives you a turn-based
-card game or flashcards, and the game is paid for by reviewing.
+So every file Claude changes lands in a side panel as a diff card, and repeated edits to the same file
+pile onto the same card. Approve it with one key, or type one line ("keep the 200, the frontend depends
+on it") and **Claude receives your note on its very next step, without being interrupted**; the panel tells
+you when it has. Once the queue is clear, the same panel gives you a turn-based card game or flashcards,
+and the game is paid for by reviewing.
 
 > [!TIP]
 > No Claude Code needed to try it: `cowait demo` runs a simulated Claude session so you can click
@@ -75,18 +76,18 @@ card game or flashcards, and the game is paid for by reviewing.
 
 <table>
 <tr>
-<td width="33%" valign="top"><b>Review while it works</b><br>Every Edit / Write / MultiEdit becomes a diff card with real line numbers. <code>y</code> approves, <code>n</code> lets you write Claude one line.</td>
-<td width="33%" valign="top"><b>Steer without interrupting</b><br>Your note is injected into Claude's context after its next tool call. If it was about to stop, it gets one more turn to address it. No Esc, no lost work.</td>
+<td width="33%" valign="top"><b>Review while it works</b><br>Every file Claude edits becomes a diff card with real line numbers, and later edits to that file join the same card. <code>y</code> approves, <code>n</code> writes Claude one line, <code>S</code> twice clears a backlog.</td>
+<td width="33%" valign="top"><b>Steer without interrupting</b><br>Write Claude a line about a card (<code>n</code>) or about anything (<code>m</code>). It reaches Claude after its next tool call, only in the project it is about, and the panel confirms when Claude got it. No Esc, no lost work.</td>
 <td width="33%" valign="top"><b>Review first, then play</b><br>Starting a game costs ⚡ energy, and energy comes from reviewing and studying. Slacking off and supervising the AI are the same loop.</td>
 </tr>
 <tr>
 <td width="33%" valign="top"><b>Paid for outcomes, not minutes</b><br>💰 coins come only from Claude's results: a turn that did real work, a bonus when tests pass. Waiting longer never pays more.</td>
-<td width="33%" valign="top"><b>A game built for waiting</b><br>Debug Dungeon: a turn-based card roguelike, one keypress per action, saved on every move. Drop it the instant Claude is done.</td>
-<td width="33%" valign="top"><b>Learn what Claude just wrote</b><br>Five built-in decks plus AI decks on any topic, or a quiz generated from Claude's latest changes, so you actually understand them.</td>
+<td width="33%" valign="top"><b>A glance is not a review</b><br>A <code>y</code> pressed before anyone could have read the change approves it but earns nothing and does not count toward review coverage, so the number a team lead sees means something.</td>
+<td width="33%" valign="top"><b>A game built for waiting</b><br>Debug Dungeon: a turn-based card roguelike, one keypress per action, saved on every move. Drop it the instant Claude is done; a new turn never yanks you out of a fight.</td>
 </tr>
 <tr>
-<td width="33%" valign="top"><b>Picks the right thing for the wait</b><br>Predicts this turn's length from your history in the same project: changes to review come first, short waits get flashcards, long ones a game.</td>
-<td width="33%" valign="top"><b>Never misses the moment</b><br>Rings the bell and pops an alert when Claude finishes or needs your approval, even while you are mid-battle.</td>
+<td width="33%" valign="top"><b>Learn what Claude just wrote</b><br>Five built-in decks plus AI decks on any topic, or a quiz generated from Claude's latest changes, so you actually understand them.</td>
+<td width="33%" valign="top"><b>Picks the right thing, never misses the moment</b><br>Reviews come first, short waits get flashcards, long ones a game. The panel rings when Claude finishes or needs you, and says what the turn did.</td>
 <td width="33%" valign="top"><b>Safe to install</b><br>Backs up <code>settings.json</code>, leaves your own hooks untouched, uninstalls cleanly. Hooks always exit 0 within milliseconds and can never block Claude.</td>
 </tr>
 </table>
@@ -107,7 +108,7 @@ cowait doctor              # checks Node, the hooks, and runs the hook once for 
 ```
 
 Restart any running Claude Code sessions so they pick up the hooks, then open the panel **next to**
-Claude Code:
+Claude Code (it is laid out for a narrow side pane, 60 columns and up):
 
 | Terminal | How |
 |---|---|
@@ -115,7 +116,8 @@ Claude Code:
 | tmux | `cowait split` |
 | anything else | open a second tab or window and run `cowait` |
 
-Just want to look around? `cowait demo` (or `cowait demo --fast`).
+Just want to look around? `cowait demo` (or `cowait demo --fast`). Opened the panel before installing?
+It tells you how to connect it.
 
 > [!NOTE]
 > A cloned install keeps all of its data in `<install folder>/data`, so if you clone it onto `G:\`, nothing
@@ -129,32 +131,37 @@ flowchart LR
     H -- append --> L[("events.jsonl")]
     L -- "poll 400 ms" --> P["Cowait panel<br/>review · play · learn"]
     P -- "your note" --> Q[("feedback/")]
-    Q -- "claimed atomically" --> H
+    Q -- "claimed atomically,<br/>by the right session" --> H
     H -- "additionalContext,<br/>or one-time Stop block" --> CC
 ```
 
 - **The hook** is a tiny dependency-free script Claude Code runs on five events. It turns the payload into a compact event (prompt text and file *reads* are never stored; edits are clipped) and appends it to a log. It never blocks: it always exits 0 and has a 4-second hard stop.
-- **The panel** folds the log into state: sessions busy/idle, turn durations, diff cards, rewards. A pure reducer, unit-tested on its own.
-- **Notes back to Claude** go through a folder of small files. The hook *claims* them with an atomic rename, so parallel tool calls never deliver a note twice. After a tool call they arrive as `additionalContext`; at `Stop`, Cowait blocks the stop **once** (guarded by `stop_hook_active`, so it can never loop) so Claude can act on them; if Claude is idle, they ride along with your next prompt.
+- **The panel** folds the log into state: sessions busy/idle, turn durations, diff cards, rewards. A pure reducer, unit-tested on its own. Events that happened while the panel was closed are folded in quietly, without bells or alerts.
+- **Notes back to Claude** go through a folder of small files, each tagged with the project and the Claude session it is for. A hook only takes notes for its own session or for the project it is working in, so with two sessions open a note about one project never lands in the other. It *claims* them with an atomic rename, so parallel tool calls never deliver a note twice. After a tool call they arrive as `additionalContext`; at `Stop`, Cowait blocks the stop **once** (guarded by `stop_hook_active`, so it can never loop) so Claude can act on them; if Claude is idle, they ride along with your next prompt.
 - **Test runs** are recognised by parsing each Bash command segment by segment (`npm test`, `pytest`, `go test`, `cargo test`, `uv run pytest`, `./gradlew test`, …) and reading the runner's summary line.
 
 This was verified end to end against real Claude Code sessions on **Linux and Windows 11**: a note written in the panel was delivered and Claude carried it out (it added the comment the note asked for), its Edit arrived with real line numbers, and `npm test` was scored as a pass. On Windows the hook takes about 47 ms per call, 39 ms of which is Node starting up.
 
 ## The three modes
 
-`Tab` switches modes. `a` toggles auto mode, `?` shows help, `q` quits.
+`Tab` switches modes, `m` writes Claude a note, `a` toggles auto mode, `?` shows help, `q` quits.
 
 ### Review
 
-<img src="docs/media/note-en.png" alt="Review mode: a diff card for src/services/payment.ts with a note to Claude being typed" width="80%">
+<img src="docs/media/review-en.png" alt="Review mode: one card holding two edits to src/routes/orders.ts, with a note to Claude being typed" width="80%">
 
-Each change Claude makes is a card: file, kind, `+/-` counts, age, and the diff. `y` looks good (+1⚡),
-`n` writes Claude a note (+2⚡), `s` skips, `←/→` moves between cards, `↑/↓` scrolls. The header keeps
-a running **human review coverage of AI code**, the number a team lead actually wants (`cowait stats`).
+Each file Claude changes is a card: file, `+/-` counts, age, and the diff, with long lines wrapped rather
+than cut off. When Claude edits the same file again before you have looked, the new edit joins the card
+(marked *edit 2*, *edit 3*…), so one file is one decision. `y` looks good (+1⚡), `n` writes Claude a note
+(+2⚡), `s` skips, `S` twice skips the whole queue, `←/→` moves between cards, `↑/↓` scrolls.
+
+The header keeps a running **human review coverage of AI code**, the number a team lead actually wants
+(`cowait stats`). Skims don't count: a `y` given sooner than the change could be read (0.6 s plus a little
+per changed line, at most 4 s) still approves the card, but earns no energy and is not counted as reviewed.
 
 ### Play: Debug Dungeon
 
-<img src="docs/media/battle-en.png" alt="Debug Dungeon battle against an Off-by-One Imp" width="80%">
+<img src="docs/media/battle-en.png" alt="Debug Dungeon: floor 3 against a Memory Leak Blob, with some gear" width="80%">
 
 You are a debugger fighting down six floors of bugs to fix the **Stack Overflow**. Each enemy is a
 real bug with a mechanic: the *Heisenbug* dodges your first hit each turn unless you observe it
@@ -168,23 +175,23 @@ about 44% of runs with no gear and about 94% with all of it.
 
 ### Learn
 
-<img src="docs/media/learn-en.png" alt="Learn mode: a Git flashcard flipped to show the answer" width="80%">
+<img src="docs/media/learn-en.png" alt="Learn mode: a flashcard the AI wrote about Claude's latest change, flipped" width="80%">
 
 Spaced repetition (Leitner boxes) over five built-in decks: Git, networking & HTTP, OS & concurrency,
 LLMs & agents, and system design, each in English and Chinese. Plus:
 
 - `t`: type any topic and an AI writes a 12-card deck for it.
 - `g`: an AI writes questions about **the changes Claude just made**: what changed, why, which
-  APIs are involved, what to double-check.
+  APIs are involved, what to double-check. The newest code goes to the model first.
 
 AI decks use `ANTHROPIC_API_KEY` if set, otherwise the `claude` CLI you are already signed into
-(`claude -p`, run so that Cowait's own hooks ignore it).
+(`claude -p`, run so that Cowait's own hooks ignore it). A card rated in the blink of an eye earns no energy.
 
 ## Two currencies
 
 | | Earned by | Spent on |
 |---|---|---|
-| ⚡ **Energy** | **You**: +1 per approved change, +2 per note to Claude, +1 per flashcard, +5 on the first open of the day, +5 for clearing the dungeon | Starting a Debug Dungeon run (3⚡, configurable, `0` = free play) |
+| ⚡ **Energy** | **You**: +1 per approved change, +2 per note on a change, +1 per flashcard, +5 on the first open of the day, +5 for clearing the dungeon. Skims and blink-fast ratings earn nothing | Starting a Debug Dungeon run (3⚡, configurable, `0` = free play) |
 | 💰 **Coins** | **Claude's outcomes**: +3 for a turn that used tools, +10 more when tests passed in it. A chat-only turn earns nothing, however long it took | Permanent gear: Ergonomic Chair, Noise-Cancelling Headphones, Espresso Machine, Second Monitor, Mechanical Keyboard |
 
 ## Auto mode
@@ -196,9 +203,14 @@ the same folder) and picks:
 2. **Learn** if the wait looks short (under 45 s by default)
 3. **Play** otherwise, if you have the energy
 
-When Claude finishes or needs approval, the panel rings and shows an alert. The first key only
-dismisses it, so a stray keypress never plays a card by accident, and an alert that appears while
-you are typing a note never eats a keystroke.
+A new turn never pulls you out of a fight, and once you have cleared the review queue the panel only moves
+on if you are still on the review tab. While Claude works, the header shows how long the turn has run and
+how long it should take; when a turn runs past the usual length the estimate moves out with it, or says
+*longer than usual*.
+
+When Claude finishes or needs approval, the panel rings and shows an alert with what the turn did (edits,
+tests, coins, what is left to review). The first key only dismisses it, so a stray keypress never plays a
+card by accident, and an alert that appears while you are typing a note never eats a keystroke.
 
 ## Commands
 
@@ -211,7 +223,7 @@ you are typing a note never eats a keystroke.
 | `cowait demo [--fast]` | Simulated Claude session in a throwaway data folder |
 | `cowait split` | Open the panel in a Windows Terminal or tmux split |
 | `cowait learn "topic" [-n 12]` | Generate a flashcard deck from the command line |
-| `cowait stats` | Turns, test passes, review coverage, notes relayed, game record |
+| `cowait stats` | Turns, test passes, review coverage (skims excluded), notes relayed, game record |
 | `cowait config [key value]` | Show or change settings |
 
 ## Configuration
@@ -223,7 +235,7 @@ you are typing a note never eats a keystroke.
 | `lang` | `auto` | `zh` / `en` / `auto` (system locale) |
 | `autoMode` | `true` | Pick a mode automatically each turn (`a` toggles it in the panel) |
 | `runCost` | `3` | ⚡ to start a game run; `0` for free play |
-| `feedback` | `true` | Relay review notes to Claude |
+| `feedback` | `true` | Relay notes to Claude |
 | `bell` | `true` | Ring when Claude finishes or needs you |
 | `shortWaitSec` | `45` | Predicted waits shorter than this get flashcards instead of the game |
 | `llm` | `auto` | `auto` / `anthropic` / `claude-cli` / `off` for AI decks |
@@ -245,12 +257,13 @@ except when you ask for an AI deck, which sends the topic, or for `g` a few rece
 
 ## Development
 
-Working on Cowait with an AI agent (Claude Code, Codex, …)? It reads [`AGENTS.md`](AGENTS.md) first: conventions, architecture, pitfalls and the roadmap. The full story of how the project started is in [`docs/history/`](docs/history/).
+Working on Cowait with an AI agent (Claude Code, Codex, …)? It reads [`AGENTS.md`](AGENTS.md) first: conventions, architecture, pitfalls and the roadmap. The full story of how the project started and evolved is in [`docs/history/`](docs/history/).
 
 ```bash
 npm install       # dev dependencies only (TypeScript, Ink, React, esbuild, Vitest)
-npm test          # bundles, then 64 tests: hook protocol, reducer, installer, game balance, UI interaction
+npm test          # bundles, then 104 tests: hook protocol, note routing, reducer, installer, game balance, UI at 60 columns
 npm run build     # type-check, then esbuild → dist/cli.js + dist/hook.js (committed, so clones run as-is)
+npm run media     # re-record docs/media from the real panel (needs Chrome or Edge, and ffmpeg)
 node dist/cli.js demo
 ```
 
@@ -258,13 +271,15 @@ node dist/cli.js demo
 src/
   hook.ts            the hook Claude Code runs (dependency-free, fast path)
   events.ts          hook payload → compact event
-  feedback.ts        note queue with atomic claiming
+  feedback.ts        note queue: atomic claiming, routed by project and session
   testdetect.ts      is this Bash command a test run, and did it pass?
   install.ts         settings.json merge / unmerge
+  text.ts            CJK-aware wrapping for the narrow panel
   engine/            reducer, economy, wait prediction, diff rendering, store
   game/              Debug Dungeon (pure, seeded, serialisable)
   learn/             spaced repetition, built-in decks, AI deck generation
   ui/                Ink components: App, Review, Game, Learn
+scripts/media/       records the README pictures from the real panel
 ```
 
 ## Known limitations
@@ -273,6 +288,7 @@ src/
 - **Restart Claude Code after installing.** Running sessions do not reload hooks.
 - **A note sent at the very end of a turn costs one extra turn.** That is how the Stop hook lets Claude act on it. Turn off with `cowait config feedback false`.
 - **Interrupted turns.** If you press Esc, Claude Code sends no Stop event; Cowait marks the session idle after 15 silent minutes.
+- **What counts as a skim is a heuristic.** It only looks at how long the card was on screen, not where your eyes were.
 - **Test detection is a heuristic.** Unknown runners count as plain commands (no bonus, no penalty).
 - **Pass/fail of failing commands.** Depending on the Claude Code version, a command that exits non-zero may not trigger `PostToolUse`; Cowait then simply doesn't award the test bonus.
 - **One panel at a time.** A lock file stops a second panel, which would double-count rewards.

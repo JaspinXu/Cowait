@@ -30,6 +30,7 @@ export function handleHook(raw: string, now = Date.now()): string | null {
   }
   const name: string = p?.hook_event_name ?? '';
   const sid: string = typeof p?.session_id === 'string' ? p.session_id : 'unknown';
+  const cwd: string | undefined = typeof p?.cwd === 'string' && p.cwd ? p.cwd : undefined;
   const ev = toEvent(p, now);
   const relay = feedbackEnabled();
 
@@ -37,7 +38,7 @@ export function handleHook(raw: string, now = Date.now()): string | null {
     // Notes left while Claude was working: keep Claude going so it can address them.
     // stop_hook_active means we already did that once this turn; never loop.
     if (relay && !p.stop_hook_active) {
-      const notes = claimNotes();
+      const notes = claimNotes(cwd, sid);
       if (notes.length) {
         log({ t: now, k: 'delivered', sid, ids: notes.map((n) => n.id) });
         return JSON.stringify({ decision: 'block', reason: formatNotes(notes) });
@@ -50,7 +51,7 @@ export function handleHook(raw: string, now = Date.now()): string | null {
   if (ev) log(ev);
 
   if (relay && (name === 'PostToolUse' || name === 'UserPromptSubmit')) {
-    const notes = claimNotes();
+    const notes = claimNotes(cwd, sid);
     if (notes.length) {
       log({ t: now, k: 'delivered', sid, ids: notes.map((n) => n.id) });
       return JSON.stringify({ hookSpecificOutput: { hookEventName: name, additionalContext: formatNotes(notes) } });

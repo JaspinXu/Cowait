@@ -8,10 +8,11 @@ import { paths } from './paths.js';
 import { claimNotes } from './feedback.js';
 import type { EditInfo, IEvent } from './events.js';
 
-const CWD = process.platform === 'win32' ? 'G:\\code\\shop-api' : '/home/dev/shop-api';
+export const CWD = process.platform === 'win32' ? 'G:\\code\\shop-api' : '/home/dev/shop-api';
 const f = (p: string) => (process.platform === 'win32' ? `${CWD}\\${p.replace(/\//g, '\\')}` : `${CWD}/${p}`);
 
-const EDITS: EditInfo[] = [
+/** The fake project's changes (also used by scripts/media to record the README pictures). */
+export const EDITS: EditInfo[] = [
   {
     file: f('src/routes/orders.ts'),
     kind: 'edit',
@@ -19,6 +20,17 @@ const EDITS: EditInfo[] = [
       {
         old: "router.post('/orders', async (req, res) => {\n  const order = await db.orders.create(req.body);\n  res.json(order);\n});",
         new: "router.post('/orders', async (req, res) => {\n  const parsed = OrderInput.safeParse(req.body);\n  if (!parsed.success) {\n    return res.status(400).json({ error: parsed.error.flatten() });\n  }\n  const order = await db.orders.create(parsed.data);\n  res.status(201).json(order);\n});",
+      },
+    ],
+  },
+  {
+    // A follow-up edit to the same file: the panel folds it into the open card.
+    file: f('src/routes/orders.ts'),
+    kind: 'edit',
+    hunks: [
+      {
+        old: "import { Router } from 'express';",
+        new: "import { Router } from 'express';\nimport { OrderInput } from '../schemas/order';",
       },
     ],
   },
@@ -86,17 +98,19 @@ export function startDemo(speed = 1): () => void {
   const write = (ev: IEvent) => appendLine(paths.events(), JSON.stringify(ev));
   const tool = (t: number, name: string, extra: Partial<Extract<IEvent, { k: 'tool' }>> = {}): IEvent => ({ t, k: 'tool', sid, cwd: CWD, tool: name, ...extra });
 
+  // Each turn: read, a few edits, run the tests. Turn 0 edits orders.ts twice (one card, two edits).
+  const TURNS = [EDITS.slice(0, 3), EDITS.slice(3, 5), EDITS.slice(5, 7)];
   const turnSteps = (n: number): Step[] => {
-    const a = EDITS[(n * 2) % EDITS.length];
-    const b = EDITS[(n * 2 + 1) % EDITS.length];
+    const edits = TURNS[n % TURNS.length];
     const pass = n % 4 !== 2;
     return [
       [0, (t) => ({ t, k: 'prompt', sid, cwd: CWD })],
       [2500, (t) => tool(t, 'Read')],
-      [3000, (t) => tool(t, 'Edit', { edit: a })],
-      [3000, (t) => tool(t, 'Grep')],
-      [3500, (t) => tool(t, a.kind === 'write' ? 'Write' : 'Edit', { edit: b })],
-      [3500, (t) => tool(t, 'Bash', { bash: { cmd: 'npm test', test: true, result: pass ? 'pass' : 'fail' } })],
+      ...edits.flatMap((e, i): Step[] => [
+        [i === 0 ? 3000 : 2500, (t) => tool(t, e.kind === 'write' ? 'Write' : 'Edit', { edit: e })],
+        [1500, (t) => tool(t, 'Grep')],
+      ]),
+      [3000, (t) => tool(t, 'Bash', { bash: { cmd: 'npm test', test: true, result: pass ? 'pass' : 'fail' } })],
       [3000, (t) => ({ t, k: 'stop', sid, cwd: CWD })],
       [9000, () => null],
     ];

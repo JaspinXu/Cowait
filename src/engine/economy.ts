@@ -17,6 +17,8 @@ export const ECON = {
   coinTestsPass: 10,
   winEnergy: 5,
   maxCards: 80,
+  /** A flashcard rated sooner than this after it appeared earns nothing. */
+  minStudyMs: 1500,
 };
 
 export function turnCoins(tools: number, pass: boolean): number {
@@ -24,19 +26,38 @@ export function turnCoins(tools: number, pass: boolean): number {
   return ECON.coinWorkTurn + (pass ? ECON.coinTestsPass : 0);
 }
 
+/**
+ * Was this approval too fast to be a real review? A glance needs a moment, plus a little
+ * per changed line, but never more than a few seconds: the rule catches key-mashing,
+ * not careful readers. Pressing `y` faster than this still approves, it just earns nothing.
+ */
+export function isSkim(changedLines: number, shownMs: number): boolean {
+  const needed = Math.min(4000, 600 + 80 * Math.max(0, changedLines));
+  return shownMs < needed;
+}
+
 /** Apply a review verdict. Returns the energy gained. */
-export function applyVerdict(s: State, cardId: string, verdict: Exclude<CardStatus, 'new'>, note?: string, noteId?: string): number {
+export function applyVerdict(
+  s: State,
+  cardId: string,
+  verdict: Exclude<CardStatus, 'new'>,
+  opts: { note?: string; noteId?: string; quick?: boolean } = {},
+): number {
   const card = s.review.find((c) => c.id === cardId);
   if (!card || card.status !== 'new') return 0;
   card.status = verdict;
   let gain = 0;
-  if (verdict === 'ok') {
+  if (verdict === 'ok' && opts.quick) {
+    // Rubber-stamping is not reviewing: it must not pay, or count toward coverage.
+    card.quick = true;
+    s.totals.skimmed++;
+  } else if (verdict === 'ok') {
     s.totals.reviewed++;
     gain = ECON.reviewOk;
   } else if (verdict === 'flag') {
     s.totals.flagged++;
-    card.note = note;
-    card.noteId = noteId;
+    card.note = opts.note;
+    card.noteId = opts.noteId;
     gain = ECON.reviewFlag;
   } else {
     s.totals.skipped++;

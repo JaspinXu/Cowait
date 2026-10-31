@@ -19,6 +19,7 @@ export type CardStatus = 'new' | 'ok' | 'flag' | 'skip';
 
 export interface ReviewCard extends EditInfo {
   id: string;
+  /** When the first edit on this card arrived. */
   t: number;
   sid: string;
   cwd: string;
@@ -26,6 +27,12 @@ export interface ReviewCard extends EditInfo {
   note?: string;
   noteId?: string;
   delivered?: boolean;
+  /** Later edits to the same file, folded in while this card was still waiting for review. */
+  more?: EditInfo[];
+  /** When the latest folded-in edit arrived. */
+  last?: number;
+  /** Approved faster than it could have been read: no energy, not counted as reviewed. */
+  quick?: boolean;
 }
 
 export interface Totals {
@@ -35,6 +42,8 @@ export interface Totals {
   reviewed: number;
   flagged: number;
   skipped: number;
+  /** Approvals given faster than the change could be read. */
+  skimmed: number;
   delivered: number;
   learned: number;
   runs: number;
@@ -54,6 +63,18 @@ export interface TurnRecord {
   t: number;
 }
 
+/** A note the user sent Claude from the panel (about a card, or free-form with `m`). */
+export interface NoteRecord {
+  id: string;
+  t: number;
+  text: string;
+  file?: string;
+  cwd?: string;
+  delivered?: boolean;
+}
+
+const MAX_NOTES = 30;
+
 export interface State {
   v: 1;
   /** Bytes of events.jsonl already folded into this state. */
@@ -66,6 +87,7 @@ export interface State {
   sessions: Record<string, Session>;
   history: TurnRecord[];
   review: ReviewCard[];
+  notes: NoteRecord[];
   srs: Record<string, SrsEntry>;
   learnDeck: string;
   relics: string[];
@@ -87,6 +109,7 @@ export function newState(): State {
       reviewed: 0,
       flagged: 0,
       skipped: 0,
+      skimmed: 0,
       delivered: 0,
       learned: 0,
       runs: 0,
@@ -96,6 +119,7 @@ export function newState(): State {
     sessions: {},
     history: [],
     review: [],
+    notes: [],
     srs: {},
     learnDeck: 'all',
     relics: [],
@@ -114,6 +138,7 @@ export function normalizeState(raw: Partial<State> | null | undefined): State {
     sessions: raw.sessions ?? {},
     history: raw.history ?? [],
     review: raw.review ?? [],
+    notes: raw.notes ?? [],
     srs: raw.srs ?? {},
     relics: raw.relics ?? [],
     game: raw.game ?? null,
@@ -122,6 +147,16 @@ export function normalizeState(raw: Partial<State> | null | undefined): State {
 
 export function pendingCards(s: State): ReviewCard[] {
   return s.review.filter((c) => c.status === 'new');
+}
+
+export function recordNote(s: State, note: NoteRecord): void {
+  s.notes.push(note);
+  if (s.notes.length > MAX_NOTES) s.notes = s.notes.slice(-MAX_NOTES);
+}
+
+/** Notes Claude has not picked up yet. */
+export function waitingNotes(s: State): NoteRecord[] {
+  return s.notes.filter((n) => !n.delivered);
 }
 
 export function busySessions(s: State): [string, Session][] {

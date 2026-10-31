@@ -17,6 +17,15 @@ function dataDir() {
   if (!root.split(path.sep).includes("node_modules")) return path.join(root, "data");
   return path.join(os.homedir(), ".cowait");
 }
+function normPath(p) {
+  const s = p.replace(/\\/g, "/").replace(/\/+$/, "");
+  return /^[a-z]:(\/|$)/i.test(s) ? s.toLowerCase() : s;
+}
+function within(dir, root) {
+  const d = normPath(dir);
+  const r = normPath(root);
+  return d === r || d.startsWith(r + "/");
+}
 var paths = {
   events: () => path.join(dataDir(), "events.jsonl"),
   state: () => path.join(dataDir(), "state.json"),
@@ -202,6 +211,11 @@ function toEvent(p, now) {
 // src/feedback.ts
 import fs2 from "node:fs";
 import path3 from "node:path";
+function isFor(note, cwd, sid) {
+  if (note.sid && sid && note.sid === sid) return true;
+  if (!note.cwd || !cwd) return true;
+  return within(cwd, note.cwd);
+}
 function noteFiles() {
   try {
     return fs2.readdirSync(paths.feedback()).filter((f) => f.endsWith(".json")).sort();
@@ -209,11 +223,17 @@ function noteFiles() {
     return [];
   }
 }
-function claimNotes() {
+function claimNotes(cwd, sid) {
   const dir = paths.feedback();
   const out = [];
   for (const f of noteFiles()) {
     const src = path3.join(dir, f);
+    let note = null;
+    try {
+      note = parseJson(fs2.readFileSync(src, "utf8"));
+    } catch {
+    }
+    if (note && typeof note.text === "string" && !isFor(note, cwd, sid)) continue;
     const claimed = `${src}.claimed-${process.pid}`;
     try {
       fs2.renameSync(src, claimed);
@@ -221,7 +241,7 @@ function claimNotes() {
       continue;
     }
     try {
-      const note = parseJson(fs2.readFileSync(claimed, "utf8"));
+      note ??= parseJson(fs2.readFileSync(claimed, "utf8"));
       if (!note || typeof note.text !== "string") throw new Error("not a note");
       out.push(note);
       fs2.unlinkSync(claimed);
@@ -259,11 +279,12 @@ function handleHook(raw, now = Date.now()) {
   }
   const name = p?.hook_event_name ?? "";
   const sid = typeof p?.session_id === "string" ? p.session_id : "unknown";
+  const cwd = typeof p?.cwd === "string" && p.cwd ? p.cwd : void 0;
   const ev = toEvent(p, now);
   const relay = feedbackEnabled();
   if (name === "Stop") {
     if (relay && !p.stop_hook_active) {
-      const notes = claimNotes();
+      const notes = claimNotes(cwd, sid);
       if (notes.length) {
         log({ t: now, k: "delivered", sid, ids: notes.map((n) => n.id) });
         return JSON.stringify({ decision: "block", reason: formatNotes(notes) });
@@ -274,7 +295,7 @@ function handleHook(raw, now = Date.now()) {
   }
   if (ev) log(ev);
   if (relay && (name === "PostToolUse" || name === "UserPromptSubmit")) {
-    const notes = claimNotes();
+    const notes = claimNotes(cwd, sid);
     if (notes.length) {
       log({ t: now, k: "delivered", sid, ids: notes.map((n) => n.id) });
       return JSON.stringify({ hookSpecificOutput: { hookEventName: name, additionalContext: formatNotes(notes) } });

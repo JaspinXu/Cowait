@@ -61,6 +61,15 @@ function dataDir() {
   if (!root.split(path.sep).includes("node_modules")) return path.join(root, "data");
   return path.join(os.homedir(), ".cowait");
 }
+function normPath(p) {
+  const s = p.replace(/\\/g, "/").replace(/\/+$/, "");
+  return /^[a-z]:(\/|$)/i.test(s) ? s.toLowerCase() : s;
+}
+function within(dir, root) {
+  const d = normPath(dir);
+  const r = normPath(root);
+  return d === r || d.startsWith(r + "/");
+}
 var paths;
 var init_paths = __esm({
   "src/paths.ts"() {
@@ -160,6 +169,63 @@ function t(lang, key, vars = {}) {
   for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
   return s;
 }
+function helpContent(lang) {
+  if (lang === "zh")
+    return {
+      intro: "Cowait \u628A\u7B49 Claude \u5E72\u6D3B\u7684\u65F6\u95F4\u53D8\u6210\u6709\u7528\u7684\u65F6\u95F4\u3002Claude \u5B8C\u6210\u6216\u9700\u8981\u4F60\u786E\u8BA4\u65F6\uFF0C\u9762\u677F\u4F1A\u54CD\u94C3\u63D0\u9192\u3002",
+      sections: [
+        {
+          title: "\u4E09\u4E2A\u6A21\u5F0F\uFF08Tab \u5207\u6362\uFF09",
+          rows: [
+            ["\u5BA1\u9605", "Claude \u6BCF\u6539\u4E00\u4E2A\u6587\u4EF6\u5C31\u751F\u6210\u4E00\u5F20\u5361\u7247\uFF0C\u8FDE\u7EED\u6539\u540C\u4E00\u4E2A\u6587\u4EF6\u4F1A\u5408\u5230\u4E00\u5F20\u91CC\u3002y \u6CA1\u95EE\u9898\uFF0Cn \u5199\u4E00\u53E5\u8BDD\u7ED9 Claude\uFF0C\u5B83\u4E0B\u4E00\u6B65\u64CD\u4F5C\u65F6\u5C31\u4F1A\u770B\u5230\uFF0C\u4E0D\u7528\u6253\u65AD\u5B83\u3002\u626B\u4E00\u773C\u5C31\u6309 y \u4E0D\u7B97\u5BA1\u8FC7\uFF1B\u79EF\u538B\u592A\u591A\u65F6\u8FDE\u6309\u4E24\u6B21 S \u5168\u90E8\u8DF3\u8FC7\u3002"],
+            ["\u6E38\u620F", "\u6349\u866B\u5730\u7262\uFF1A\u56DE\u5408\u5236\u5361\u724C\u5C0F\u6E38\u620F\uFF0C\u4E00\u6B21\u4E00\u4E2A\u6309\u952E\uFF0C\u968F\u65F6\u80FD\u505C\u3002"],
+            ["\u5B66\u4E60", "\u62BD\u8BA4\u5361 + \u95F4\u9694\u91CD\u590D\u3002\u5185\u7F6E Git / \u7F51\u7EDC / \u5E76\u53D1 / LLM / \u7CFB\u7EDF\u8BBE\u8BA1\uFF1Bt \u8BA9 AI \u51FA\u4EFB\u610F\u4E3B\u9898\uFF0Cg \u7528 Claude \u521A\u5199\u7684\u4EE3\u7801\u51FA\u9898\u3002"]
+          ]
+        },
+        {
+          title: "\u968F\u65F6\u53EF\u7528",
+          rows: [
+            ["m", "\u7ED9 Claude \u7559\u8A00\uFF0C\u4E0D\u7528\u9488\u5BF9\u67D0\u5F20\u5361\u7247\u3002"],
+            ["a", "\u81EA\u52A8\u9009\u6A21\u5F0F\uFF1A\u6709\u5F85\u5BA1\u7684\u5148\u5BA1\uFF0C\u7B49\u5F97\u77ED\u5C31\u5237\u5361\uFF0C\u7B49\u5F97\u957F\u5C31\u73A9\u3002"]
+          ]
+        },
+        {
+          title: "\u4E24\u79CD\u8D27\u5E01",
+          rows: [
+            ["\u26A1 \u80FD\u91CF", "\u4F60\u81EA\u5DF1\u5E72\u6D3B\u8D5A\uFF08\u5BA1\u9605\u3001\u5237\u5361\uFF09\uFF0C\u7528\u6765\u5F00\u6E38\u620F\u3002\u5148\u5BA1\u540E\u73A9\u3002"],
+            ["\u{1F4B0} \u91D1\u5E01", "\u53EA\u770B Claude \u7684\u6210\u679C\uFF1A\u5E72\u6D3B\u7684\u4E00\u8F6E +3\uFF0C\u6D4B\u8BD5\u901A\u8FC7\u518D +10\uFF0C\u7B49\u518D\u4E45\u4E5F\u4E0D\u591A\u7ED9\u3002\u7528\u6765\u4E70\u6C38\u4E45\u88C5\u5907\u3002"]
+          ]
+        }
+      ]
+    };
+  return {
+    intro: "Cowait turns the time you spend waiting on Claude into useful time, and rings when Claude finishes or needs you.",
+    sections: [
+      {
+        title: "Three modes (Tab to switch)",
+        rows: [
+          ["Review", "Every file Claude changes becomes a card; repeated edits to one file share a card. y = fine, n = write Claude one line, which it sees on its next step without being interrupted. A y in the blink of an eye does not count as a review; S twice skips a whole backlog."],
+          ["Play", "Debug Dungeon: a turn-based card game, one key per action, drop it at any moment."],
+          ["Learn", "Flashcards with spaced repetition. Built-in Git / networking / concurrency / LLM / system-design decks; t has AI write a deck on any topic, g quizzes you on the code Claude just wrote."]
+        ]
+      },
+      {
+        title: "Any time",
+        rows: [
+          ["m", "Send Claude a note that is not about one card."],
+          ["a", "Auto mode: reviews first, short waits get flashcards, long waits a game."]
+        ]
+      },
+      {
+        title: "Two currencies",
+        rows: [
+          ["\u26A1 energy", "Earned by you (reviewing, studying); spent to start a run. Review first, then play."],
+          ["\u{1F4B0} coins", "Earned by Claude\u2019s results only: +3 per working turn, +10 when tests pass, never by waiting longer. Spent on permanent gear."]
+        ]
+      }
+    ]
+  };
+}
 function fmtDur(ms) {
   const sec = Math.max(0, Math.round(ms / 1e3));
   const m = Math.floor(sec / 60);
@@ -168,7 +234,7 @@ function fmtDur(ms) {
   return m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${s}s`;
 }
 function fmtAgo(ms, lang) {
-  const sec = Math.round(ms / 1e3);
+  const sec = Math.max(0, Math.round(ms / 1e3));
   if (sec < 60) return lang === "zh" ? `${sec} \u79D2` : `${sec}s`;
   const m = Math.round(sec / 60);
   if (m < 60) return lang === "zh" ? `${m} \u5206\u949F` : `${m}m`;
@@ -188,31 +254,57 @@ var init_i18n = __esm({
         st_none: "\u7B49 Claude \u5F00\u5DE5",
         st_more: "\uFF08\u5171 {n} \u4E2A\u4F1A\u8BDD\u5728\u8DD1\uFF09",
         eta: "\u9884\u8BA1 {t}",
+        st_longer: "\u6BD4\u5E73\u65F6\u4E45",
         mode_review: "\u5BA1\u9605",
         mode_game: "\u6E38\u620F",
         mode_learn: "\u5B66\u4E60",
         auto: "\u81EA\u52A8",
-        footer: "Tab \u5207\u6362\u6A21\u5F0F \xB7 a \u81EA\u52A8\u9009\u6A21\u5F0F[{on}] \xB7 ? \u5E2E\u52A9 \xB7 q \u9000\u51FA",
+        footer: "Tab \u5207\u6362\u6A21\u5F0F \xB7 m \u7ED9 Claude \u7559\u8A00 \xB7 a \u81EA\u52A8[{on}] \xB7 ? \u5E2E\u52A9 \xB7 q \u9000\u51FA",
+        footer_short: "Tab \u5207\u6362 \xB7 m \u7559\u8A00 \xB7 a \u81EA\u52A8[{on}] \xB7 ? \u5E2E\u52A9 \xB7 q \u9000\u51FA",
         on: "\u5F00",
         off: "\u5173",
         done: "\u2714 Claude \u5B8C\u6210\u4E86 \xB7 \u7528\u65F6 {t}",
+        done_edits: " \xB7 \u6539\u52A8 {n} \u5904",
+        done_edit1: " \xB7 \u6539\u52A8 1 \u5904",
         done_cwd: "\uFF08{dir}\uFF09",
         done_coins: "+{n}\u{1F4B0}",
-        done_pass: "\u542B\u6D4B\u8BD5\u901A\u8FC7\u5956\u52B1",
-        done_none: "\u8FD9\u4E00\u8F6E\u6CA1\u6709\u52A8\u624B\u5E72\u6D3B\uFF0C\u4E0D\u53D1\u{1F4B0}",
+        done_pass: "\u6D4B\u8BD5\u901A\u8FC7",
+        done_fail: "\u6D4B\u8BD5\u6CA1\u8FC7",
+        done_pending: "\u5F85\u5BA1 {n}",
+        done_none: "\u8FD9\u4E00\u8F6E\u6CA1\u52A8\u624B\u5E72\u6D3B\uFF0C\u4E0D\u53D1\u{1F4B0}",
         attention: "\u26A0 Claude \u5728\u7B49\u4F60\u786E\u8BA4\uFF1A{msg}",
         daily: "\u2600 \u4ECA\u65E5\u9996\u6B21\u6253\u5F00 +{n}\u26A1",
         anykey: "\u6309\u4EFB\u610F\u952E\u7EE7\u7EED",
+        help_close: "\u6309\u4EFB\u610F\u952E\u5173\u95ED\u5E2E\u52A9",
+        // notes to Claude (any time, m)
+        note_prompt: "\u270E \u7ED9 Claude \u7559\u8A00\uFF1A",
+        note_prompt_to: "\u270E \u7ED9 Claude \u7559\u8A00\uFF08{dir}\uFF09\uFF1A",
+        note_hint: "Enter \u53D1\u9001 \xB7 Esc \u53D6\u6D88",
+        note_sent_busy: "\u270E \u5DF2\u8BB0\u4E0B \u2014\u2014 Claude \u4E0B\u4E00\u6B65\u64CD\u4F5C\u65F6\u5C31\u4F1A\u770B\u5230",
+        note_sent_idle: "\u270E \u5DF2\u8BB0\u4E0B \u2014\u2014 \u4E0B\u6B21\u7ED9 Claude \u53D1\u6D88\u606F\u65F6\u4E00\u8D77\u5E26\u8FC7\u53BB",
+        note_off: "\u7559\u8A00\u8F6C\u8FBE\u5DF2\u5173\u95ED\uFF08cowait config feedback true \u53EF\u4EE5\u6253\u5F00\uFF09",
+        delivered_one: "\u2713 Claude \u6536\u5230\u4E86\u4F60\u7684\u7559\u8A00",
+        delivered_n: "\u2713 Claude \u6536\u5230\u4E86\u4F60\u7684 {n} \u6761\u7559\u8A00",
         // review
         rv_title: "\u5BA1\u9605 Claude \u7684\u6539\u52A8",
         rv_pending: "\u5F85\u5BA1 {n}",
         rv_cov: "\u8986\u76D6\u7387 {p}",
         rv_relayed: "\u5DF2\u8F6C\u8FBE {n} \u6761",
         rv_empty: "\u6CA1\u6709\u5F85\u5BA1\u7684\u6539\u52A8 \u2713",
-        rv_empty_hint: "Claude \u6BCF\u6539\u4E00\u5904\u4EE3\u7801\uFF0C\u5C31\u4F1A\u53D8\u6210\u4E00\u5F20\u5361\u7247\u51FA\u73B0\u5728\u8FD9\u91CC\u3002\u770B\u4E00\u773C\u3001\u6807\u4E2A \u2713\uFF0C\u6216\u8005\u5199\u4E00\u53E5\u8BDD\u8BA9\u5B83\u6539\u3002",
+        rv_empty_hint: "Claude \u6BCF\u6539\u4E00\u4E2A\u6587\u4EF6\uFF0C\u5C31\u4F1A\u53D8\u6210\u4E00\u5F20\u5361\u7247\u51FA\u73B0\u5728\u8FD9\u91CC\u3002\u770B\u4E00\u773C\u3001\u6807\u4E2A \u2713\uFF0C\u6216\u8005\u5199\u4E00\u53E5\u8BDD\u8BA9\u5B83\u6539\u3002",
         rv_empty_play: "\u5BA1\u5B8C\u4E86\uFF0C\u80FD\u91CF \u26A1{e}\u3002\u6309 Tab \u53BB\u73A9\u4E00\u5C40\u6216\u5B66\u70B9\u4E1C\u897F\u3002",
+        rv_setup: "Cowait \u8FD8\u6CA1\u63A5\u5165 Claude Code\u3002",
+        rv_setup_cmd: "\u5728\u4F60\u7684\u9879\u76EE\u76EE\u5F55\u91CC\u8FD0\u884C\uFF1Acowait install --project",
+        rv_setup_then: "\u7136\u540E\u91CD\u542F Claude Code\u3002\u53EA\u60F3\u5148\u770B\u770B\u6548\u679C\uFF1Acowait demo",
         rv_keys: "y \u6CA1\u95EE\u9898 +1\u26A1 \xB7 n \u6709\u95EE\u9898\u2192\u544A\u8BC9Claude +2\u26A1 \xB7 s \u8DF3\u8FC7 \xB7 \u2190\u2192 \u6362\u5361 \xB7 \u2191\u2193 \u6EDA\u52A8",
+        rv_keys_short: "y \u901A\u8FC7 \xB7 n \u5199\u7ED9Claude \xB7 s \u8DF3\u8FC7 \xB7 \u2190\u2192 \u6362\u5361 \xB7 \u2191\u2193",
         rv_new_file: "\u65B0\u6587\u4EF6",
+        rv_parts: "{n} \u5904\u4FEE\u6539",
+        rv_part: "\u2500\u2500 \u7B2C {n} \u5904 \u2500\u2500",
+        kind_edit: "\u4FEE\u6539",
+        kind_write: "\u5199\u5165",
+        kind_multiedit: "\u591A\u5904\u4FEE\u6539",
+        kind_notebook: "\u7B14\u8BB0\u672C",
         rv_ago: "{t}\u524D",
         rv_more: "\u2026 \u8FD8\u6709 {n} \u884C\uFF08\u2193 \u6EDA\u52A8\uFF09",
         rv_note: "\u270E \u60F3\u5BF9 Claude \u8BF4\uFF1A",
@@ -220,7 +312,10 @@ var init_i18n = __esm({
         rv_queued_busy: "\u5DF2\u8BB0\u4E0B +{n}\u26A1 \u2014\u2014 Claude \u4E0B\u4E00\u6B65\u64CD\u4F5C\u65F6\u5C31\u4F1A\u770B\u5230\u8FD9\u53E5\u8BDD",
         rv_queued_idle: "\u5DF2\u8BB0\u4E0B +{n}\u26A1 \u2014\u2014 \u4F60\u4E0B\u6B21\u7ED9 Claude \u53D1\u6D88\u606F\u65F6\u4F1A\u4E00\u8D77\u5E26\u8FC7\u53BB",
         rv_ok: "\u2713 +{n}\u26A1",
+        rv_skim: "\u2713 \u5DF2\u901A\u8FC7 \xB7 \u592A\u5FEB\u4E86\uFF0C\u4E0D\u7B97\u5BA1\u8FC7\uFF0C\u4E0D\u52A0\u26A1",
         rv_skip: "\u5DF2\u8DF3\u8FC7",
+        rv_skip_all_ask: "\u518D\u6309\u4E00\u6B21 S \u8DF3\u8FC7\u5168\u90E8 {n} \u5F20\uFF08\u7B97\u4F5C\u8DF3\u8FC7\uFF0C\u4E0D\u7B97\u5BA1\u8FC7\uFF09",
+        rv_skip_all_done: "\u5DF2\u8DF3\u8FC7 {n} \u5F20",
         // learn
         ln_title: "\u5B66\u4E60",
         ln_all: "\u5168\u90E8\u5361\u7EC4",
@@ -232,6 +327,7 @@ var init_i18n = __esm({
         ln_flip: "\u6309 \u7A7A\u683C \u7FFB\u9762",
         ln_rate: "1 \u6CA1\u8BB0\u4F4F \xB7 2 \u8BB0\u4F4F\u4E86 \xB7 3 \u592A\u7B80\u5355   \uFF08\u90FD +1\u26A1\uFF09",
         ln_keys: "d \u6362\u5361\u7EC4 \xB7 t \u5B66\u4E00\u4E2A\u65B0\u4E3B\u9898(AI) \xB7 g \u7528 Claude \u521A\u5199\u7684\u4EE3\u7801\u51FA\u9898(AI)",
+        ln_keys_short: "d \u6362\u5361\u7EC4 \xB7 t \u65B0\u4E3B\u9898(AI) \xB7 g \u8003\u8003\u521A\u5199\u7684\u4EE3\u7801(AI)",
         ln_done: "\u8FD9\u4E00\u7EC4\u6682\u65F6\u90FD\u590D\u4E60\u5B8C\u4E86 \u{1F389}",
         ln_done_hint: "\u6309 d \u6362\u4E2A\u5361\u7EC4\uFF0C\u6216\u6309 t \u8BA9 AI \u51FA\u4E00\u7EC4\u65B0\u4E3B\u9898\u7684\u9898\u3002",
         ln_generating: "\u23F3 \u6B63\u5728\u51FA\u9898\uFF0C\u4F60\u53EF\u4EE5\u63A5\u7740\u5237\u5361\u2026\u2026",
@@ -241,6 +337,7 @@ var init_i18n = __esm({
         ln_no_changes: "Claude \u8FD8\u6CA1\u6539\u8FC7\u4EE3\u7801\uFF0C\u5148\u53BB\u5E72\u70B9\u6D3B\u5427",
         ln_topic: "\u60F3\u5B66\u4EC0\u4E48\u4E3B\u9898\uFF1A",
         ln_gained: "+{n}\u26A1",
+        ln_quick: "\u592A\u5FEB\u4E86\uFF0C\u8FD9\u5F20\u4E0D\u52A0\u26A1",
         // game
         gm_title: "\u6349\u866B\u5730\u7262",
         gm_intro: "\u4F60\u662F\u4E00\u540D\u8C03\u8BD5\u5458\u3002\u5F80\u4E0B\u6253\u7A7F 6 \u5C42 Bug\uFF0C\u6700\u540E\u4FEE\u597D\u300C\u6808\u6EA2\u51FA\u300D\u3002",
@@ -267,7 +364,6 @@ var init_i18n = __esm({
         gm_rest: "{k}  \u4F11\u606F\uFF1A\u56DE\u590D {n} \u751F\u547D",
         gm_dead: "\u{1F480} \u4F60\u5012\u5728\u4E86\u7B2C {f} \u5C42\u2026\u2026",
         gm_victory: "\u{1F3C6} \u901A\u5173\uFF01\u300C\u6808\u6EA2\u51FA\u300D\u88AB\u4F60\u4FEE\u597D\u4E86\u3002\u5956\u52B1 +{e}\u26A1",
-        gm_again: "n \u518D\u6765\u4E00\u5C40\uFF08-{c}\u26A1\uFF09 \xB7 s \u88C5\u5907\u5546\u5E97",
         gm_shop_title: "\u88C5\u5907\u5546\u5E97 \u2014\u2014 \u7528 \u{1F4B0} \u4E70\uFF0C\u6C38\u4E45\u751F\u6548",
         gm_shop_hint: "\u{1F4B0} \u53EA\u80FD\u9760 Claude \u7684\u6210\u679C\u8D5A\uFF1A\u5E72\u4E86\u6D3B\u7684\u4E00\u8F6E +3\uFF0C\u6D4B\u8BD5\u901A\u8FC7\u518D +10\u3002\u7B49\u518D\u4E45\u4E5F\u4E0D\u4F1A\u591A\u7ED9\u3002",
         gm_bought: "\u4E70\u5230\u4E86\uFF1A{n}\uFF01",
@@ -276,24 +372,7 @@ var init_i18n = __esm({
         gm_back: "b \u8FD4\u56DE",
         gm_you: "\u4F60",
         gm_block: "\u683C\u6321",
-        // help
-        help: [
-          "Cowait \u628A\u7B49 Claude \u5E72\u6D3B\u7684\u65F6\u95F4\u53D8\u6210\u6709\u7528\u7684\u65F6\u95F4\u3002\u4E09\u4E2A\u6A21\u5F0F\uFF0CTab \u5207\u6362\uFF1A",
-          "",
-          "  \u5BA1\u9605  Claude \u6BCF\u6539\u4E00\u5904\u4EE3\u7801\u5C31\u751F\u6210\u4E00\u5F20\u5361\u7247\u3002y \u6CA1\u95EE\u9898\uFF0Cn \u5199\u4E00\u53E5\u8BDD\u7ED9 Claude\u3002",
-          "        \u4F60\u5199\u7684\u8BDD\u4F1A\u5728 Claude \u4E0B\u4E00\u6B21\u64CD\u4F5C\u65F6\u81EA\u52A8\u9001\u5230\u5B83\u9762\u524D\uFF0C\u4E0D\u7528\u6253\u65AD\u5B83\u3002",
-          "  \u6E38\u620F  \u6349\u866B\u5730\u7262\uFF1A\u56DE\u5408\u5236\u5361\u724C\u5C0F\u6E38\u620F\uFF0C\u968F\u65F6\u80FD\u505C\u3002",
-          "  \u5B66\u4E60  \u62BD\u8BA4\u5361 + \u95F4\u9694\u91CD\u590D\u3002\u5185\u7F6E Git / \u7F51\u7EDC / \u5E76\u53D1 / LLM / \u7CFB\u7EDF\u8BBE\u8BA1\uFF0C",
-          "        \u4E5F\u53EF\u4EE5\u8BA9 AI \u51FA\u4EFB\u610F\u4E3B\u9898\uFF0C\u6216\u8005\u7528 Claude \u521A\u5199\u7684\u4EE3\u7801\u51FA\u9898\uFF0C\u5E2E\u4F60\u771F\u6B63\u770B\u61C2\u5B83\u3002",
-          "",
-          "\u4E24\u79CD\u8D27\u5E01\uFF1A",
-          "  \u26A1 \u80FD\u91CF\uFF1A\u4F60\u81EA\u5DF1\u5E72\u6D3B\u8D5A\uFF08\u5BA1\u9605\u3001\u5237\u5361\uFF09\uFF0C\u7528\u6765\u5F00\u6E38\u620F\u3002\u5148\u5BA1\u540E\u73A9\u3002",
-          "  \u{1F4B0} \u91D1\u5E01\uFF1A\u53EA\u770B Claude \u7684\u6210\u679C\uFF08\u5E72\u6D3B\u7684\u4E00\u8F6E +3\uFF0C\u6D4B\u8BD5\u901A\u8FC7 +10\uFF09\uFF0C\u4E0D\u770B\u7B49\u4E86\u591A\u4E45\u3002",
-          "        \u7528\u6765\u4E70\u6C38\u4E45\u88C5\u5907\u3002",
-          "",
-          "\u81EA\u52A8\u6A21\u5F0F\uFF1A\u6BCF\u8F6E\u5F00\u59CB\u65F6\u6309\u9884\u8BA1\u7B49\u5F85\u65F6\u95F4\u6311\u6A21\u5F0F\u3002\u6709\u5F85\u5BA1\u7684\u5148\u5BA1\uFF1B\u7B49\u5F97\u77ED\u5C31\u5237\u5361\uFF1B\u7B49\u5F97\u957F\u5C31\u73A9\u3002",
-          "Claude \u5B8C\u6210\u6216\u9700\u8981\u4F60\u786E\u8BA4\u65F6\uFF0C\u9762\u677F\u4F1A\u54CD\u94C3\u5E76\u5F39\u51FA\u63D0\u9192\u3002"
-        ].join("\n"),
+        gm_observed: "\u5DF2\u89C2\u6D4B",
         another: "\u53E6\u4E00\u4E2A Cowait \u9762\u677F\u5DF2\u7ECF\u5728\u8FD0\u884C\uFF08PID {pid}\uFF09\u3002\u540C\u4E00\u65F6\u95F4\u53EA\u80FD\u5F00\u4E00\u4E2A\uFF0C\u4E0D\u7136\u5956\u52B1\u4F1A\u88AB\u7B97\u4E24\u6B21\u3002"
       },
       en: {
@@ -304,30 +383,55 @@ var init_i18n = __esm({
         st_none: "Waiting for Claude",
         st_more: " ({n} sessions running)",
         eta: "est. {t}",
+        st_longer: "longer than usual",
         mode_review: "Review",
         mode_game: "Play",
         mode_learn: "Learn",
         auto: "auto",
-        footer: "Tab switch mode \xB7 a auto-pick [{on}] \xB7 ? help \xB7 q quit",
+        footer: "Tab switch mode \xB7 m note to Claude \xB7 a auto-pick [{on}] \xB7 ? help \xB7 q quit",
+        footer_short: "Tab mode \xB7 m note \xB7 a auto [{on}] \xB7 ? help \xB7 q quit",
         on: "on",
         off: "off",
         done: "\u2714 Claude finished \xB7 took {t}",
+        done_edits: " \xB7 {n} edits",
+        done_edit1: " \xB7 1 edit",
         done_cwd: " ({dir})",
         done_coins: "+{n}\u{1F4B0}",
-        done_pass: "includes tests-passed bonus",
+        done_pass: "tests passed",
+        done_fail: "tests failed",
+        done_pending: "{n} to review",
         done_none: "no real work this turn, no coins",
         attention: "\u26A0 Claude is waiting for you: {msg}",
         daily: "\u2600 First open today +{n}\u26A1",
         anykey: "press any key",
+        help_close: "press any key to close help",
+        note_prompt: "\u270E Note to Claude: ",
+        note_prompt_to: "\u270E Note to Claude ({dir}): ",
+        note_hint: "Enter send \xB7 Esc cancel",
+        note_sent_busy: "\u270E Noted \u2014 Claude sees it on its very next step",
+        note_sent_idle: "\u270E Noted \u2014 it goes along with your next message to Claude",
+        note_off: "Relaying notes is off (turn it on with: cowait config feedback true)",
+        delivered_one: "\u2713 Claude got your note",
+        delivered_n: "\u2713 Claude got your {n} notes",
         rv_title: "Review Claude's changes",
         rv_pending: "{n} to review",
         rv_cov: "coverage {p}",
         rv_relayed: "relayed {n}",
         rv_empty: "Nothing to review \u2713",
-        rv_empty_hint: "Every change Claude makes shows up here as a card. Glance, approve, or write one line asking it to fix something.",
+        rv_empty_hint: "Every file Claude changes shows up here as a card. Glance, approve, or write one line asking it to fix something.",
         rv_empty_play: "All reviewed, \u26A1{e}. Press Tab to play or learn.",
+        rv_setup: "Cowait is not hooked into Claude Code yet.",
+        rv_setup_cmd: "In your project folder run: cowait install --project",
+        rv_setup_then: "then restart Claude Code. Just looking? Try: cowait demo",
         rv_keys: "y looks good +1\u26A1 \xB7 n tell Claude what is wrong +2\u26A1 \xB7 s skip \xB7 \u2190\u2192 cards \xB7 \u2191\u2193 scroll",
+        rv_keys_short: "y ok +1\u26A1 \xB7 n note +2\u26A1 \xB7 s skip \xB7 \u2190\u2192 \xB7 \u2191\u2193",
         rv_new_file: "new file",
+        rv_parts: "{n} edits",
+        rv_part: "\u2500\u2500 edit {n} \u2500\u2500",
+        kind_edit: "edit",
+        kind_write: "write",
+        kind_multiedit: "multi-edit",
+        kind_notebook: "notebook",
         rv_ago: "{t} ago",
         rv_more: "\u2026 {n} more lines (\u2193 to scroll)",
         rv_note: "\u270E Tell Claude: ",
@@ -335,7 +439,10 @@ var init_i18n = __esm({
         rv_queued_busy: "Noted +{n}\u26A1 \u2014 Claude sees it on its very next step",
         rv_queued_idle: "Noted +{n}\u26A1 \u2014 it goes along with your next message to Claude",
         rv_ok: "\u2713 +{n}\u26A1",
+        rv_skim: "\u2713 approved \xB7 too quick to count as a review, no \u26A1",
         rv_skip: "Skipped",
+        rv_skip_all_ask: "Press S again to skip all {n} (counted as skipped, not reviewed)",
+        rv_skip_all_done: "Skipped {n} cards",
         ln_title: "Learn",
         ln_all: "All decks",
         ln_due: "{n} due",
@@ -346,6 +453,7 @@ var init_i18n = __esm({
         ln_flip: "Space to flip",
         ln_rate: "1 forgot \xB7 2 got it \xB7 3 easy   (all +1\u26A1)",
         ln_keys: "d deck \xB7 t learn a new topic (AI) \xB7 g quiz me on what Claude just wrote (AI)",
+        ln_keys_short: "d deck \xB7 t new topic (AI) \xB7 g quiz on new code (AI)",
         ln_done: "Nothing due in this deck right now \u{1F389}",
         ln_done_hint: "Press d for another deck, or t to have AI write one on any topic.",
         ln_generating: "\u23F3 Writing cards\u2026 keep studying meanwhile",
@@ -355,6 +463,7 @@ var init_i18n = __esm({
         ln_no_changes: "Claude has not changed any code yet",
         ln_topic: "Topic to learn: ",
         ln_gained: "+{n}\u26A1",
+        ln_quick: "too quick to count, no \u26A1",
         gm_title: "Debug Dungeon",
         gm_intro: "You are a debugger. Fight down 6 floors of bugs and fix the Stack Overflow.",
         gm_intro2: "Turn-based, one key per action: drop it the moment Claude is done, resume next wait.",
@@ -380,7 +489,6 @@ var init_i18n = __esm({
         gm_rest: "{k}  Rest: heal {n} HP",
         gm_dead: "\u{1F480} You fell on floor {f}\u2026",
         gm_victory: "\u{1F3C6} You fixed the Stack Overflow! +{e}\u26A1",
-        gm_again: "n new run (-{c}\u26A1) \xB7 s gear shop",
         gm_shop_title: "Gear shop \u2014 bought with \u{1F4B0}, permanent",
         gm_shop_hint: "\u{1F4B0} only come from Claude\u2019s results: +3 per working turn, +10 when tests pass. Waiting longer never pays more.",
         gm_bought: "Got it: {n}!",
@@ -389,24 +497,7 @@ var init_i18n = __esm({
         gm_back: "b back",
         gm_you: "You",
         gm_block: "Block",
-        help: [
-          "Cowait turns the time you spend waiting on Claude into useful time. Three modes, Tab to switch:",
-          "",
-          "  Review  Every edit Claude makes becomes a card. y = fine, n = write Claude one line.",
-          "          Your note reaches Claude on its next step automatically \u2014 no interrupting.",
-          "  Play    Debug Dungeon: a turn-based card game you can drop at any moment.",
-          "  Learn   Flashcards with spaced repetition. Built-in Git / networking / concurrency /",
-          "          LLM / system-design decks, AI decks on any topic, or a quiz on the code",
-          "          Claude just wrote, so you actually understand it.",
-          "",
-          "Two currencies:",
-          "  \u26A1 energy \u2014 earned by you (reviewing, studying); spent to start a run. Review first, then play.",
-          "  \u{1F4B0} coins  \u2014 earned by Claude\u2019s results only (+3 per working turn, +10 tests pass),",
-          "              never by waiting time. Spent on permanent gear.",
-          "",
-          "Auto mode picks a mode each turn from the predicted wait: reviews first, short waits get",
-          "flashcards, long waits get a game. The panel rings when Claude finishes or needs you."
-        ].join("\n"),
+        gm_observed: "observed",
         another: "Another Cowait panel is already running (PID {pid}). Only one at a time, or rewards would count twice."
       }
     };
@@ -429,6 +520,7 @@ function newState() {
       reviewed: 0,
       flagged: 0,
       skipped: 0,
+      skimmed: 0,
       delivered: 0,
       learned: 0,
       runs: 0,
@@ -438,6 +530,7 @@ function newState() {
     sessions: {},
     history: [],
     review: [],
+    notes: [],
     srs: {},
     learnDeck: "all",
     relics: [],
@@ -454,6 +547,7 @@ function normalizeState(raw) {
     sessions: raw.sessions ?? {},
     history: raw.history ?? [],
     review: raw.review ?? [],
+    notes: raw.notes ?? [],
     srs: raw.srs ?? {},
     relics: raw.relics ?? [],
     game: raw.game ?? null
@@ -462,6 +556,13 @@ function normalizeState(raw) {
 function pendingCards(s) {
   return s.review.filter((c) => c.status === "new");
 }
+function recordNote(s, note) {
+  s.notes.push(note);
+  if (s.notes.length > MAX_NOTES) s.notes = s.notes.slice(-MAX_NOTES);
+}
+function waitingNotes(s) {
+  return s.notes.filter((n) => !n.delivered);
+}
 function busySessions(s) {
   return Object.entries(s.sessions).filter(([, x]) => x.status !== "idle");
 }
@@ -469,9 +570,11 @@ function coverage(s) {
   const done = s.totals.reviewed + s.totals.flagged;
   return s.totals.cards > 0 ? done / s.totals.cards : null;
 }
+var MAX_NOTES;
 var init_state = __esm({
   "src/engine/state.ts"() {
     "use strict";
+    MAX_NOTES = 30;
   }
 });
 
@@ -585,18 +688,25 @@ function turnCoins(tools, pass) {
   if (tools === 0) return 0;
   return ECON.coinWorkTurn + (pass ? ECON.coinTestsPass : 0);
 }
-function applyVerdict(s, cardId, verdict, note, noteId) {
+function isSkim(changedLines, shownMs) {
+  const needed = Math.min(4e3, 600 + 80 * Math.max(0, changedLines));
+  return shownMs < needed;
+}
+function applyVerdict(s, cardId, verdict, opts = {}) {
   const card2 = s.review.find((c) => c.id === cardId);
   if (!card2 || card2.status !== "new") return 0;
   card2.status = verdict;
   let gain = 0;
-  if (verdict === "ok") {
+  if (verdict === "ok" && opts.quick) {
+    card2.quick = true;
+    s.totals.skimmed++;
+  } else if (verdict === "ok") {
     s.totals.reviewed++;
     gain = ECON.reviewOk;
   } else if (verdict === "flag") {
     s.totals.flagged++;
-    card2.note = note;
-    card2.noteId = noteId;
+    card2.note = opts.note;
+    card2.noteId = opts.noteId;
     gain = ECON.reviewFlag;
   } else {
     s.totals.skipped++;
@@ -611,9 +721,9 @@ function localDay(now) {
 function grantDaily(s, now) {
   const today = localDay(now);
   if (s.lastDaily === today) return 0;
-  const first = s.lastDaily === "";
+  const first2 = s.lastDaily === "";
   s.lastDaily = today;
-  if (first) return 0;
+  if (first2) return 0;
   s.energy += ECON.dailyBonus;
   return ECON.dailyBonus;
 }
@@ -629,7 +739,9 @@ var init_economy = __esm({
       coinWorkTurn: 3,
       coinTestsPass: 10,
       winEnergy: 5,
-      maxCards: 80
+      maxCards: 80,
+      /** A flashcard rated sooner than this after it appeared earns nothing. */
+      minStudyMs: 1500
     };
   }
 });
@@ -3850,17 +3962,17 @@ var init_wrap_ansi = __esm({
     };
     stringVisibleTrimSpacesRight = (string) => {
       const words = string.split(" ");
-      let last = words.length;
-      while (last > 0) {
-        if (stringWidth(words[last - 1]) > 0) {
+      let last2 = words.length;
+      while (last2 > 0) {
+        if (stringWidth(words[last2 - 1]) > 0) {
           break;
         }
-        last--;
+        last2--;
       }
-      if (last === words.length) {
+      if (last2 === words.length) {
         return string;
       }
-      return words.slice(0, last).join(" ") + words.slice(last).join("");
+      return words.slice(0, last2).join(" ") + words.slice(last2).join("");
     };
     exec = (string, columns, options = {}) => {
       if (options.trim !== false && string.trim() === "") {
@@ -4088,19 +4200,19 @@ var require_scheduler_production = __commonJS({
     }
     function pop(heap) {
       if (0 === heap.length) return null;
-      var first = heap[0], last = heap.pop();
-      if (last !== first) {
-        heap[0] = last;
+      var first2 = heap[0], last2 = heap.pop();
+      if (last2 !== first2) {
+        heap[0] = last2;
         a: for (var index = 0, length = heap.length, halfLength = length >>> 1; index < halfLength; ) {
           var leftIndex = 2 * (index + 1) - 1, left = heap[leftIndex], rightIndex = leftIndex + 1, right = heap[rightIndex];
-          if (0 > compare(left, last))
-            rightIndex < length && 0 > compare(right, left) ? (heap[index] = right, heap[rightIndex] = last, index = rightIndex) : (heap[index] = left, heap[leftIndex] = last, index = leftIndex);
-          else if (rightIndex < length && 0 > compare(right, last))
-            heap[index] = right, heap[rightIndex] = last, index = rightIndex;
+          if (0 > compare(left, last2))
+            rightIndex < length && 0 > compare(right, left) ? (heap[index] = right, heap[rightIndex] = last2, index = rightIndex) : (heap[index] = left, heap[leftIndex] = last2, index = leftIndex);
+          else if (rightIndex < length && 0 > compare(right, last2))
+            heap[index] = right, heap[rightIndex] = last2, index = rightIndex;
           else break a;
         }
       }
-      return first;
+      return first2;
     }
     function compare(a, b) {
       var diff2 = a.sortIndex - b.sortIndex;
@@ -4816,9 +4928,9 @@ var require_react_reconciler_production = __commonJS({
                   (Fake = fn()) && "function" === typeof Fake.catch && Fake.catch(function() {
                   });
                 }
-              } catch (sample) {
-                if (sample && control && "string" === typeof sample.stack)
-                  return [sample.stack, control.stack];
+              } catch (sample2) {
+                if (sample2 && control && "string" === typeof sample2.stack)
+                  return [sample2.stack, control.stack];
               }
               return [null, null];
             }
@@ -6690,13 +6802,13 @@ var require_react_reconciler_production = __commonJS({
         null !== actionNode && (nextState = actionNode.next, nextState === actionNode ? actionQueue.pending = null : (nextState = nextState.next, actionNode.next = nextState, runActionStateAction(actionQueue, nextState)));
       }
       function onActionError(actionQueue, actionNode, error) {
-        var last = actionQueue.pending;
+        var last2 = actionQueue.pending;
         actionQueue.pending = null;
-        if (null !== last) {
-          last = last.next;
+        if (null !== last2) {
+          last2 = last2.next;
           do
             actionNode.status = "rejected", actionNode.reason = error, notifyActionListeners(actionNode), actionNode = actionNode.next;
-          while (actionNode !== last);
+          while (actionNode !== last2);
         }
         actionQueue.action = null;
       }
@@ -12609,10 +12721,10 @@ function hangulClusterWidth(visibleSegment, eastAsianWidthOptions) {
 }
 function trailingWidth(visibleSegment, eastAsianWidthOptions) {
   let extra = 0;
-  let first = true;
+  let first2 = true;
   for (const character of visibleSegment) {
-    if (first) {
-      first = false;
+    if (first2) {
+      first2 = false;
       continue;
     }
     if (spacingMarkRegex.test(character) || character >= "\uFF00" && character <= "\uFFEF") {
@@ -23109,12 +23221,13 @@ function trimCards(s) {
 function applyEvents(s, events) {
   const out = [];
   let newCards = 0;
+  let lastEdit = 0;
   for (const e of events) {
     switch (e.k) {
       case "prompt": {
         const x = session(s, e.sid, e.cwd, e.t);
         Object.assign(x, { status: "busy", turnStart: e.t, lastAt: e.t, tools: 0, edits: 0, pass: false, fail: false });
-        out.push({ type: "turn_start", sid: e.sid, cwd: x.cwd });
+        out.push({ type: "turn_start", t: e.t, sid: e.sid, cwd: x.cwd });
         break;
       }
       case "tool": {
@@ -23130,12 +23243,23 @@ function applyEvents(s, events) {
           else if (e.bash.result === "fail") x.fail = true;
         }
         if (e.edit) {
-          s.seq++;
-          s.review.push({ ...e.edit, id: `${e.t.toString(36)}-${s.seq}`, t: e.t, sid: e.sid, cwd: x.cwd, status: "new" });
-          s.totals.cards++;
           x.edits++;
           newCards++;
-          trimCards(s);
+          lastEdit = e.t;
+          const edit = e.edit;
+          const file = normPath(edit.file);
+          const open = s.review.find(
+            (c) => c.status === "new" && c.sid === e.sid && normPath(c.file) === file && (c.more?.length ?? 0) < MAX_PARTS - 1 && e.t - (c.last ?? c.t) <= MERGE_WINDOW_MS
+          );
+          if (open) {
+            (open.more ??= []).push(edit);
+            open.last = e.t;
+          } else {
+            s.seq++;
+            s.review.push({ ...edit, id: `${e.t.toString(36)}-${s.seq}`, t: e.t, sid: e.sid, cwd: x.cwd, status: "new" });
+            s.totals.cards++;
+            trimCards(s);
+          }
         }
         break;
       }
@@ -23151,7 +23275,7 @@ function applyEvents(s, events) {
             s.history.push({ cwd: x.cwd, ms, t: e.t });
             if (s.history.length > 200) s.history = s.history.slice(-200);
           }
-          out.push({ type: "turn_done", sid: e.sid, cwd: x.cwd, ms, coins, pass: x.pass, fail: x.fail, edits: x.edits });
+          out.push({ type: "turn_done", t: e.t, sid: e.sid, cwd: x.cwd, ms, coins, pass: x.pass, fail: x.fail, edits: x.edits });
         }
         Object.assign(x, { status: "idle", turnStart: void 0, lastAt: e.t });
         break;
@@ -23161,7 +23285,7 @@ function applyEvents(s, events) {
         if (x.status === "busy") {
           x.status = "attention";
           x.lastAt = e.t;
-          out.push({ type: "attention", sid: e.sid, cwd: x.cwd, msg: e.msg });
+          out.push({ type: "attention", t: e.t, sid: e.sid, cwd: x.cwd, msg: e.msg });
         }
         break;
       }
@@ -23171,12 +23295,14 @@ function applyEvents(s, events) {
       case "delivered": {
         const ids = new Set(e.ids);
         for (const c of s.review) if (c.noteId && ids.has(c.noteId)) c.delivered = true;
+        for (const n of s.notes) if (ids.has(n.id)) n.delivered = true;
         s.totals.delivered += e.ids.length;
+        if (e.ids.length) out.push({ type: "delivered", t: e.t, count: e.ids.length });
         break;
       }
     }
   }
-  if (newCards) out.push({ type: "new_card", count: newCards });
+  if (newCards) out.push({ type: "new_card", t: lastEdit, count: newCards });
   return out;
 }
 function sweep(s, now) {
@@ -23192,13 +23318,16 @@ function sweep(s, now) {
   }
   return changed;
 }
-var STALE_BUSY_MS, FORGET_IDLE_MS;
+var STALE_BUSY_MS, FORGET_IDLE_MS, MAX_PARTS, MERGE_WINDOW_MS;
 var init_reducer = __esm({
   "src/engine/reducer.ts"() {
     "use strict";
+    init_paths();
     init_economy();
     STALE_BUSY_MS = 15 * 60 * 1e3;
     FORGET_IDLE_MS = 24 * 60 * 60 * 1e3;
+    MAX_PARTS = 20;
+    MERGE_WINDOW_MS = 30 * 60 * 1e3;
   }
 });
 
@@ -23208,16 +23337,25 @@ function median(xs) {
   const m = Math.floor(a.length / 2);
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 }
-function predictWait(history, cwd2) {
+function sample(history, cwd2) {
   if (cwd2) {
     const local = history.filter((h) => h.cwd === cwd2).slice(-7).map((h) => h.ms);
-    if (local.length >= 3) return median(local);
+    if (local.length >= 3) return local;
   }
   const all = history.slice(-15).map((h) => h.ms);
-  return all.length >= 3 ? median(all) : null;
+  return all.length >= 3 ? all : [];
+}
+function predictWait(history, cwd2, elapsedMs = 0) {
+  const xs = sample(history, cwd2);
+  if (!xs.length) return null;
+  const m = median(xs);
+  if (elapsedMs <= m) return m;
+  const longer = xs.filter((x) => x > elapsedMs);
+  return longer.length ? median(longer) : null;
 }
 function chooseMode(s, cfg, predictedMs) {
   if (pendingCards(s).length > 0) return "review";
+  if (s.totals.turns === 0 && s.totals.cards === 0) return "review";
   const short = predictedMs !== null && predictedMs < cfg.shortWaitSec * 1e3;
   if (short) return "learn";
   const canPlay = s.game !== null && s.game.phase !== "dead" && s.game.phase !== "victory" || s.energy >= cfg.runCost;
@@ -23229,6 +23367,68 @@ var init_predict = __esm({
     "use strict";
     init_state();
     MODES = ["review", "game", "learn"];
+  }
+});
+
+// src/feedback.ts
+import fs6 from "node:fs";
+import path5 from "node:path";
+function isFor(note, cwd2, sid) {
+  if (note.sid && sid && note.sid === sid) return true;
+  if (!note.cwd || !cwd2) return true;
+  return within(cwd2, note.cwd);
+}
+function addNote(note) {
+  const dir = paths.feedback();
+  ensureDir(dir);
+  const file = path5.join(dir, `${note.t}-${note.id}.json`);
+  const tmp = file + ".tmp";
+  fs6.writeFileSync(tmp, JSON.stringify(note));
+  fs6.renameSync(tmp, file);
+}
+function noteFiles() {
+  try {
+    return fs6.readdirSync(paths.feedback()).filter((f2) => f2.endsWith(".json")).sort();
+  } catch {
+    return [];
+  }
+}
+function claimNotes(cwd2, sid) {
+  const dir = paths.feedback();
+  const out = [];
+  for (const f2 of noteFiles()) {
+    const src = path5.join(dir, f2);
+    let note = null;
+    try {
+      note = parseJson(fs6.readFileSync(src, "utf8"));
+    } catch {
+    }
+    if (note && typeof note.text === "string" && !isFor(note, cwd2, sid)) continue;
+    const claimed = `${src}.claimed-${process.pid}`;
+    try {
+      fs6.renameSync(src, claimed);
+    } catch {
+      continue;
+    }
+    try {
+      note ??= parseJson(fs6.readFileSync(claimed, "utf8"));
+      if (!note || typeof note.text !== "string") throw new Error("not a note");
+      out.push(note);
+      fs6.unlinkSync(claimed);
+    } catch {
+      try {
+        fs6.renameSync(claimed, `${src}.unreadable`);
+      } catch {
+      }
+    }
+  }
+  return out;
+}
+var init_feedback = __esm({
+  "src/feedback.ts"() {
+    "use strict";
+    init_paths();
+    init_fsutil();
   }
 });
 
@@ -23336,16 +23536,16 @@ var init_base2 = __esm({
         }
       }
       addToPath(path10, added, removed, oldPosInc, options) {
-        const last = path10.lastComponent;
-        if (last && !options.oneChangePerToken && last.added === added && last.removed === removed) {
+        const last2 = path10.lastComponent;
+        if (last2 && !options.oneChangePerToken && last2.added === added && last2.removed === removed) {
           return {
             oldPos: path10.oldPos + oldPosInc,
-            lastComponent: { count: last.count + 1, added, removed, previousComponent: last.previousComponent }
+            lastComponent: { count: last2.count + 1, added, removed, previousComponent: last2.previousComponent }
           };
         } else {
           return {
             oldPos: path10.oldPos + oldPosInc,
-            lastComponent: { count: 1, added, removed, previousComponent: last }
+            lastComponent: { count: 1, added, removed, previousComponent: last2 }
           };
         }
       }
@@ -23623,6 +23823,99 @@ var init_libesm = __esm({
   }
 });
 
+// src/text.ts
+function splitByWidth(text, width) {
+  const w = Math.max(1, Math.floor(width));
+  const out = [];
+  let chunk = "";
+  let used = 0;
+  for (const { segment: g } of graphemes.segment(text)) {
+    const gw = stringWidth2(g);
+    if (used + gw > w && used > 0) {
+      out.push(chunk);
+      chunk = "";
+      used = 0;
+    }
+    chunk += g;
+    used += gw;
+  }
+  out.push(chunk);
+  return out;
+}
+function units(text) {
+  const raw = [];
+  let word = "";
+  const flush = () => {
+    if (word) raw.push(word);
+    word = "";
+  };
+  for (const { segment: g } of graphemes.segment(text)) {
+    if (g === " ") {
+      flush();
+      raw.push(" ");
+    } else if (stringWidth2(g) >= 2) {
+      flush();
+      raw.push(g);
+    } else word += g;
+  }
+  flush();
+  const glued = [];
+  for (const u of raw) {
+    const prev = glued.at(-1);
+    if (prev !== void 0 && prev !== " " && CLOSE.has(first(u))) glued[glued.length - 1] = prev + u;
+    else glued.push(u);
+  }
+  const out = [];
+  for (let i = 0; i < glued.length; i++) {
+    let u = glued[i];
+    while (OPEN.has(last(u)) && i + 1 < glued.length && glued[i + 1] !== " ") u += glued[++i];
+    out.push(u);
+  }
+  return out;
+}
+function wrapText2(text, width) {
+  const w = Math.max(1, Math.floor(width));
+  const lines = [];
+  for (const para of text.split("\n")) {
+    let line = "";
+    let used = 0;
+    for (const u of units(para)) {
+      if (u === " ") {
+        if (used > 0 && used < w) {
+          line += " ";
+          used += 1;
+        }
+        continue;
+      }
+      const uw = stringWidth2(u);
+      if (used + uw <= w) {
+        line += u;
+        used += uw;
+        continue;
+      }
+      if (used > 0) lines.push(line.trimEnd());
+      const pieces = uw <= w ? [u] : splitByWidth(u, w);
+      lines.push(...pieces.slice(0, -1));
+      line = pieces[pieces.length - 1];
+      used = stringWidth2(line);
+    }
+    lines.push(line.trimEnd());
+  }
+  return lines;
+}
+var graphemes, CLOSE, OPEN, first, last;
+var init_text = __esm({
+  "src/text.ts"() {
+    "use strict";
+    init_string_width2();
+    graphemes = new Intl.Segmenter(void 0, { granularity: "grapheme" });
+    CLOSE = new Set(Array.from("\uFF0C\u3002\u3001\uFF1B\uFF1A\uFF1F\uFF01\uFF09\u300B\u300D\u300F\u3011\u3015\u3009\u2026\u2019\u201D"));
+    OPEN = new Set(Array.from("\uFF08\u300A\u300C\u300E\u3010\u3014\u3008\u2018\u201C"));
+    first = (s) => Array.from(s)[0] ?? "";
+    last = (s) => Array.from(s).at(-1) ?? "";
+  }
+});
+
 // src/engine/diff.ts
 function fromPatchLines(oldStart, newStart, lines, out) {
   let o = oldStart;
@@ -23641,6 +23934,14 @@ function fromPatchLines(oldStart, newStart, lines, out) {
   }
 }
 function cardDiff(card2) {
+  const out = editDiff(card2);
+  (card2.more ?? []).forEach((e, i) => {
+    out.push({ type: "sep", text: "", no: i + 2 });
+    out.push(...editDiff(e));
+  });
+  return out;
+}
+function editDiff(card2) {
   const out = [];
   if (card2.patch?.length) {
     for (const h of card2.patch) fromPatchLines(h.oldStart, h.newStart, h.lines, out);
@@ -23661,6 +23962,19 @@ function cardDiff(card2) {
   }
   return out;
 }
+function diffRows(lines, width) {
+  const out = [];
+  for (const d of lines) {
+    if (d.type === "hunk" || d.type === "sep") {
+      out.push({ type: d.type, text: d.text, no: d.no });
+      continue;
+    }
+    splitByWidth(d.text.replace(/\t/g, "  "), width).forEach(
+      (text, i) => out.push(i === 0 ? { type: d.type, text, no: d.no } : { type: d.type, text, cont: true })
+    );
+  }
+  return out;
+}
 function diffStats(lines) {
   let add = 0;
   let del = 0;
@@ -23674,6 +23988,11 @@ function diffText(file, lines, maxChars) {
   let s = `### ${file}
 `;
   for (const d of lines) {
+    if (d.type === "sep") {
+      s += `--- edit #${d.no} ---
+`;
+      continue;
+    }
     const prefix = d.type === "add" ? "+" : d.type === "del" ? "-" : d.type === "hunk" ? "" : " ";
     s += prefix + d.text + "\n";
     if (s.length > maxChars) return s.slice(0, maxChars) + "\n\u2026\n";
@@ -23684,57 +24003,7 @@ var init_diff2 = __esm({
   "src/engine/diff.ts"() {
     "use strict";
     init_libesm();
-  }
-});
-
-// src/feedback.ts
-import fs6 from "node:fs";
-import path5 from "node:path";
-function addNote(note) {
-  const dir = paths.feedback();
-  ensureDir(dir);
-  const file = path5.join(dir, `${note.t}-${note.id}.json`);
-  const tmp = file + ".tmp";
-  fs6.writeFileSync(tmp, JSON.stringify(note));
-  fs6.renameSync(tmp, file);
-}
-function noteFiles() {
-  try {
-    return fs6.readdirSync(paths.feedback()).filter((f2) => f2.endsWith(".json")).sort();
-  } catch {
-    return [];
-  }
-}
-function claimNotes() {
-  const dir = paths.feedback();
-  const out = [];
-  for (const f2 of noteFiles()) {
-    const src = path5.join(dir, f2);
-    const claimed = `${src}.claimed-${process.pid}`;
-    try {
-      fs6.renameSync(src, claimed);
-    } catch {
-      continue;
-    }
-    try {
-      const note = parseJson(fs6.readFileSync(claimed, "utf8"));
-      if (!note || typeof note.text !== "string") throw new Error("not a note");
-      out.push(note);
-      fs6.unlinkSync(claimed);
-    } catch {
-      try {
-        fs6.renameSync(claimed, `${src}.unreadable`);
-      } catch {
-      }
-    }
-  }
-  return out;
-}
-var init_feedback = __esm({
-  "src/feedback.ts"() {
-    "use strict";
-    init_paths();
-    init_fsutil();
+    init_text();
   }
 });
 
@@ -23788,13 +24057,34 @@ function Bar({ value, max, width, color }) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: "gray", children: "\u2591".repeat(Math.max(0, width - filled)) })
   ] });
 }
-function useLine() {
-  const ref = (0, import_react29.useRef)(null);
-  const [value, setValue] = (0, import_react29.useState)(null);
+function Para({ text, width, ...style }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { ...style, children: wrapText2(text, width).join("\n") });
+}
+function Labeled({ label, text, width, labelColor }) {
+  const body = wrapText2(label + text, width).join("\n");
+  const cut = body.startsWith(label) ? label.length : label.trimEnd().length;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: labelColor, bold: true, children: body.slice(0, cut) }),
+    body.slice(cut)
+  ] });
+}
+function fit(options, width) {
+  return options.find((o) => stringWidth2(o) <= width) ?? options[options.length - 1];
+}
+function newNoteId() {
+  return Math.random().toString(36).slice(2, 10);
+}
+function useRefState(init) {
+  const ref = (0, import_react29.useRef)(init);
+  const [value, setValue] = (0, import_react29.useState)(init);
   const set = (v) => {
     ref.current = v;
     setValue(v);
   };
+  return [value, set, ref];
+}
+function useLine() {
+  const [value, set, ref] = useRefState(null);
   return {
     value,
     isOpen: () => ref.current !== null,
@@ -23815,18 +24105,36 @@ function useLine() {
     }
   };
 }
+function InputLine({ prompt, value }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { wrap: "truncate-start", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: "yellow", children: prompt }),
+    value,
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { inverse: true, children: " " })
+  ] });
+}
 var import_react29, import_jsx_runtime;
 var init_common = __esm({
   async "src/ui/common.tsx"() {
     "use strict";
     import_react29 = __toESM(require_react(), 1);
     await init_build2();
+    init_string_width2();
+    init_text();
     import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
   }
 });
 
 // src/ui/Review.tsx
 import path6 from "node:path";
+function seenSince(key) {
+  let at = firstSeen.get(key);
+  if (at === void 0) {
+    at = Date.now();
+    firstSeen.set(key, at);
+    if (firstSeen.size > 500) firstSeen.delete(firstSeen.keys().next().value);
+  }
+  return at;
+}
 function rel(file, cwd2) {
   if (cwd2 && file.toLowerCase().startsWith(cwd2.toLowerCase())) {
     const r = path6.relative(cwd2, file);
@@ -23834,7 +24142,7 @@ function rel(file, cwd2) {
   }
   return file.replace(/\\/g, "/");
 }
-function Review({ st, update, lang, active, width, height, now, busy, setTyping }) {
+function Review({ st, update, lang, active, blocked, width, height, now, busy, setTyping, setupHint }) {
   const pending = pendingCards(st);
   const [idx, setIdx] = (0, import_react30.useState)(0);
   const [scroll, setScroll] = (0, import_react30.useState)(0);
@@ -23843,23 +24151,45 @@ function Review({ st, update, lang, active, width, height, now, busy, setTyping 
   const [flash, setFlash] = (0, import_react30.useState)("");
   const i = Math.min(idx, Math.max(0, pending.length - 1));
   const card2 = pending[i];
-  const lines = (0, import_react30.useMemo)(() => card2 ? cardDiff(card2) : [], [card2?.id]);
+  const parts = card2 ? 1 + (card2.more?.length ?? 0) : 0;
+  const contentKey = card2 ? `${card2.id}:${parts}` : "";
+  if (card2) seenSince(contentKey);
+  const lines = (0, import_react30.useMemo)(() => card2 ? cardDiff(card2) : [], [contentKey]);
   const stats = diffStats(lines);
+  const textW = Math.max(10, width - 8);
+  const rows = (0, import_react30.useMemo)(() => diffRows(lines, textW), [lines, textW]);
   const file = card2 ? rel(card2.file, card2.cwd) : "";
-  const view = Math.max(3, height - 5);
-  const maxScroll = Math.max(0, lines.length - view);
+  const manyProjects = new Set(pending.map((c) => normPath(c.cwd))).size > 1;
+  const view = Math.max(3, height - 4);
+  const maxScroll = Math.max(0, rows.length - view);
   const sc = Math.min(scroll, maxScroll);
   const go = (d) => {
     setIdx((x) => Math.max(0, Math.min(pending.length - 1, Math.min(x, pending.length - 1) + d)));
     setScroll(0);
   };
+  const skipAllAsked = (0, import_react30.useRef)(0);
+  const skipAll = () => {
+    if (Date.now() - skipAllAsked.current > 4e3) {
+      skipAllAsked.current = Date.now();
+      setFlash(t(lang, "rv_skip_all_ask", { n: pending.length }));
+      return;
+    }
+    skipAllAsked.current = 0;
+    const ids = pending.map((c) => c.id);
+    update((s) => {
+      for (const id of ids) applyVerdict(s, id, "skip");
+    });
+    setFlash(t(lang, "rv_skip_all_done", { n: ids.length }));
+    setScroll(0);
+  };
   const verdict = (v) => {
     if (!card2) return;
+    const quick = v === "ok" && isSkim(stats.add + stats.del, Date.now() - seenSince(contentKey));
     let gain = 0;
     update((s) => {
-      gain = applyVerdict(s, card2.id, v);
+      gain = applyVerdict(s, card2.id, v, { quick });
     });
-    setFlash(v === "ok" ? t(lang, "rv_ok", { n: gain }) : t(lang, "rv_skip"));
+    setFlash(v === "skip" ? t(lang, "rv_skip") : quick ? t(lang, "rv_skim") : t(lang, "rv_ok", { n: gain }));
     setScroll(0);
   };
   const submitNote = (raw) => {
@@ -23867,26 +24197,32 @@ function Review({ st, update, lang, active, width, height, now, busy, setTyping 
     const target = noteCard.current;
     setTyping(false);
     if (!target || !text) return;
-    const noteId = Math.random().toString(36).slice(2, 10);
-    addNote({ id: noteId, t: Date.now(), text, file: target.file, cardId: target.id });
+    const noteId = newNoteId();
+    const at = Date.now();
+    const cwd2 = target.cwd || void 0;
+    addNote({ id: noteId, t: at, text, file: target.file, cardId: target.id, cwd: cwd2, sid: target.sid });
     let gain = 0;
     update((s) => {
-      gain = applyVerdict(s, target.id, "flag", text, noteId);
+      gain = applyVerdict(s, target.id, "flag", { note: text, noteId });
+      recordNote(s, { id: noteId, t: at, text, file: target.file, cwd: cwd2 });
     });
     setFlash(t(lang, busy ? "rv_queued_busy" : "rv_queued_idle", { n: gain }));
     setScroll(0);
   };
   use_input_default(
     (input, key) => {
+      if (blocked()) return;
       if (line.isOpen()) {
         line.handle(input, key, submitNote, () => setTyping(false));
         return;
       }
       if (!card2) return;
+      if (input === "S") return skipAll();
+      skipAllAsked.current = 0;
       if (input === "y") verdict("ok");
       else if (input === "s") verdict("skip");
       else if (input === "n") {
-        noteCard.current = { id: card2.id, file };
+        noteCard.current = { id: card2.id, file, cwd: card2.cwd, sid: card2.sid };
         line.open();
         setTyping(true);
         setFlash("");
@@ -23900,7 +24236,7 @@ function Review({ st, update, lang, active, width, height, now, busy, setTyping 
     { isActive: active }
   );
   const cov = coverage(st);
-  const head = /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { children: [
+  const head = /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { bold: true, children: t(lang, "rv_title") }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
       "  ",
@@ -23909,27 +24245,38 @@ function Review({ st, update, lang, active, width, height, now, busy, setTyping 
       st.totals.delivered ? " \xB7 " + t(lang, "rv_relayed", { n: st.totals.delivered }) : ""
     ] })
   ] });
+  const paraW = width - 1;
   if (!card2) {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", children: [
       head,
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: " " }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "green", children: t(lang, "rv_empty") }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "gray", wrap: "wrap", children: t(lang, "rv_empty_hint") }),
+      setupHint ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_setup"), width: paraW, color: "yellow" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_setup_cmd"), width: paraW }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_setup_then"), width: paraW, color: "gray" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "green", children: t(lang, "rv_empty") }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_empty_hint"), width: paraW, color: "gray" })
+      ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: " " }),
-      st.totals.cards > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", children: t(lang, "rv_empty_play", { e: st.energy }) }),
-      flash ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "yellow", children: flash }) : null
+      st.totals.cards > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_empty_play", { e: st.energy }), width: paraW, color: "cyan" }),
+      flash ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: flash, width: paraW, color: "yellow" }) : null
     ] });
   }
-  const shown = lines.slice(sc, sc + view);
-  const textW = Math.max(10, width - 8);
+  const kind = parts > 1 ? t(lang, "rv_parts", { n: parts }) : card2.created ? t(lang, "rv_new_file") : t(lang, `kind_${card2.kind}`);
+  const shownRows = rows.slice(sc, sc + view);
+  const below = rows.length - sc - view;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", children: [
     head,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
+      manyProjects ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
+        path6.basename(card2.cwd),
+        " \u203A "
+      ] }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", bold: true, children: file }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
         "  ",
-        card2.created ? t(lang, "rv_new_file") + " \xB7 " : "",
-        card2.kind,
+        kind,
         " \xB7 ",
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "green", children: [
           "+",
@@ -23941,7 +24288,7 @@ function Review({ st, update, lang, active, width, height, now, busy, setTyping 
           stats.del
         ] }),
         " \xB7 ",
-        t(lang, "rv_ago", { t: fmtAgo(now - card2.t, lang) }),
+        t(lang, "rv_ago", { t: fmtAgo(now - (card2.last ?? card2.t), lang) }),
         " \xB7 [",
         i + 1,
         "/",
@@ -23949,44 +24296,42 @@ function Review({ st, update, lang, active, width, height, now, busy, setTyping 
         "]"
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box_default, { flexDirection: "column", height: view, children: shown.map((d, k) => {
-      const no = d.no !== void 0 ? String(d.no).padStart(4) : "    ";
-      const body = d.text.replace(/\t/g, "  ").slice(0, textW);
-      if (d.type === "hunk")
-        return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", dimColor: true, wrap: "truncate-end", children: d.text }, k);
-      const color = d.type === "add" ? "green" : d.type === "del" ? "red" : void 0;
-      const sign = d.type === "add" ? "+" : d.type === "del" ? "-" : " ";
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box_default, { flexDirection: "column", height: view, children: shownRows.map((r, k) => {
+      if (r.type === "hunk")
+        return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", dimColor: true, wrap: "truncate-end", children: r.text }, k);
+      if (r.type === "sep")
+        return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", wrap: "truncate-end", children: t(lang, "rv_part", { n: r.no ?? 0 }) }, k);
+      const color = r.type === "add" ? "green" : r.type === "del" ? "red" : void 0;
+      const sign = r.cont ? " " : r.type === "add" ? "+" : r.type === "del" ? "-" : " ";
+      const no = r.no !== void 0 ? String(r.no).padStart(4) : "    ";
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
           no,
           " "
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color, dimColor: d.type === "ctx", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color, dimColor: r.type === "ctx", children: [
           sign,
           " ",
-          body
+          r.text
         ] })
       ] }, k);
     }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "gray", children: lines.length > sc + view ? t(lang, "rv_more", { n: lines.length - sc - view }) : " " }),
-    line.value !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "yellow", children: t(lang, "rv_note") }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: line.value }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { inverse: true, children: " " }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
-        "   ",
-        t(lang, "rv_note_hint")
+    line.value !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(InputLine, { prompt: t(lang, "rv_note"), value: line.value }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "gray", children: t(lang, "rv_note_hint") })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "gray", children: below > 0 ? t(lang, "rv_more", { n: below }) : " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
+        flash ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "yellow", children: [
+          flash,
+          " \xB7 "
+        ] }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "gray", children: fit([t(lang, "rv_keys"), t(lang, "rv_keys_short")], width - 1) })
       ] })
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
-      flash ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "yellow", children: [
-        flash,
-        " \xB7 "
-      ] }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "gray", children: t(lang, "rv_keys") })
     ] })
   ] });
 }
-var import_react30, import_jsx_runtime2;
+var import_react30, import_jsx_runtime2, firstSeen;
 var init_Review = __esm({
   async "src/ui/Review.tsx"() {
     "use strict";
@@ -23996,9 +24341,11 @@ var init_Review = __esm({
     init_economy();
     init_diff2();
     init_feedback();
+    init_paths();
     init_i18n();
     await init_common();
     import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
+    firstSeen = /* @__PURE__ */ new Map();
   }
 });
 
@@ -24405,6 +24752,7 @@ var init_srs = __esm({
 // src/learn/generate.ts
 var generate_exports = {};
 __export(generate_exports, {
+  describeChanges: () => describeChanges,
   generateCodebaseDeck: () => generateCodebaseDeck,
   generateTopicDeck: () => generateTopicDeck,
   parseCards: () => parseCards
@@ -24437,13 +24785,21 @@ async function generateTopicDeck(topic, n, lang, cfg) {
   const cards = parseCards(await complete(prompt, cfg));
   return toDeck(`topic-${slug(topic)}-${Date.now().toString(36)}`, topic, cards);
 }
+function describeChanges(cards, budget) {
+  let out = "";
+  for (const c of [...cards].reverse()) {
+    const { more, ...base } = c;
+    for (const e of [base, ...more ?? []].reverse()) {
+      const room = budget - out.length;
+      if (room < 200) return out.trimEnd();
+      out += diffText(c.file, cardDiff(e), Math.min(1500, room - 5)) + "\n";
+    }
+  }
+  return out.trimEnd();
+}
 async function generateCodebaseDeck(recent, n, lang, cfg) {
   if (!recent.length) throw new Error("NO_CHANGES");
-  let changes = "";
-  for (const c of recent.slice(-8)) {
-    changes += diffText(c.file, cardDiff(c), 2e3) + "\n";
-    if (changes.length > 9e3) break;
-  }
+  const changes = describeChanges(recent.slice(-8), 9e3);
   const prompt = [
     "Below are code changes an AI coding agent just made in a developer's project.",
     `Write ${n} flashcards in ${LANG_NAME[lang]} that help the developer genuinely understand these changes: what changed, why it was likely needed, the concepts and APIs involved, and risks worth checking.`,
@@ -24470,7 +24826,7 @@ var init_generate = __esm({
 });
 
 // src/ui/Learn.tsx
-function Learn({ st, update, cfg, lang, active, width, now, setTyping }) {
+function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping }) {
   const [reload, setReload] = (0, import_react31.useState)(0);
   const decks = (0, import_react31.useMemo)(() => allDecks(), [reload]);
   const deckId = st.learnDeck === "all" || decks.some((d) => d.id === st.learnDeck) ? st.learnDeck : "all";
@@ -24481,17 +24837,21 @@ function Learn({ st, update, cfg, lang, active, width, now, setTyping }) {
     return m;
   }, [pool.map((d) => d.id).join("|"), reload]);
   const ids = [...cards.keys()];
-  const [cur, setCur] = (0, import_react31.useState)(null);
-  const [flipped, setFlipped] = (0, import_react31.useState)(false);
+  const [cur, setCur, curRef] = useRefState(null);
+  const [flipped, setFlipped, flippedRef] = useRefState(false);
   const [msg, setMsg] = (0, import_react31.useState)("");
   const [busyGen, setBusyGen] = (0, import_react31.useState)(false);
   const topic = useLine();
+  const shownAt = (0, import_react31.useRef)(Date.now());
   (0, import_react31.useEffect)(() => {
     if (!cur || !cards.has(cur.id)) {
       setCur(nextCard(ids, st.srs, Date.now()));
       setFlipped(false);
     }
   }, [cur, deckId, cards]);
+  (0, import_react31.useEffect)(() => {
+    shownAt.current = Date.now();
+  }, [cur?.id]);
   (0, import_react31.useEffect)(() => {
     if (cur) return;
     const n = nextCard(ids, st.srs, now);
@@ -24507,14 +24867,18 @@ function Learn({ st, update, cfg, lang, active, width, now, setTyping }) {
     setMsg("");
   };
   const doRate = (r) => {
-    if (!cur) return;
-    const id = cur.id;
+    if (!curRef.current) return;
+    const id = curRef.current.id;
+    const quick = Date.now() - shownAt.current < ECON.minStudyMs;
     update((s) => {
       s.srs[id] = rate(s.srs[id], r, Date.now());
-      s.energy += ECON.learnCard;
-      s.totals.learned++;
+      if (!quick) {
+        s.energy += ECON.learnCard;
+        s.totals.learned++;
+      }
     });
-    setMsg(t(lang, "ln_gained", { n: ECON.learnCard }));
+    setMsg(quick ? t(lang, "ln_quick") : t(lang, "ln_gained", { n: ECON.learnCard }));
+    setFlipped(false);
     setCur(null);
   };
   const run = async (make) => {
@@ -24542,6 +24906,7 @@ function Learn({ st, update, cfg, lang, active, width, now, setTyping }) {
   };
   use_input_default(
     (input, key) => {
+      if (blocked()) return;
       if (topic.isOpen()) {
         topic.handle(
           input,
@@ -24565,9 +24930,9 @@ function Learn({ st, update, cfg, lang, active, width, now, setTyping }) {
         if (!st.review.length) return setMsg(t(lang, "ln_no_changes"));
         return void run(() => generateCodebaseDeck(st.review.slice(-8), 8, lang, cfg));
       }
-      if (!cur) return;
-      if (!flipped && (input === " " || key.return)) return setFlipped(true);
-      if (flipped) {
+      if (!curRef.current) return;
+      if (!flippedRef.current && (input === " " || key.return)) return setFlipped(true);
+      if (flippedRef.current) {
         if (input === "1") doRate("again");
         else if (input === "2" || input === " " || key.return) doRate("good");
         else if (input === "3") doRate("easy");
@@ -24580,6 +24945,7 @@ function Learn({ st, update, cfg, lang, active, width, now, setTyping }) {
   const unseen = ids.filter((id) => !st.srs[id]).length;
   const item = cur ? cards.get(cur.id) : void 0;
   const boxW = Math.min(width - 2, 90);
+  const inner = boxW - 4;
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "column", children: [
     /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { wrap: "truncate-end", children: [
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { bold: true, children: t(lang, "ln_title") }),
@@ -24596,39 +24962,23 @@ function Learn({ st, update, cfg, lang, active, width, now, setTyping }) {
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: " " }),
     item ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "column", borderStyle: "round", borderColor: flipped ? "green" : "cyan", paddingX: 1, width: boxW, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "gray", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
         tx(item.deck.title, lang),
         " \xB7 ",
         cur.isNew ? t(lang, "ln_new") : t(lang, "ln_review")
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { wrap: "wrap", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "cyan", bold: true, children: [
-          t(lang, "ln_q"),
-          lang === "zh" ? "\uFF1A" : ": "
-        ] }),
-        tx(item.card.q, lang)
-      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Labeled, { label: t(lang, "ln_q") + (lang === "zh" ? "\uFF1A" : ": "), text: tx(item.card.q, lang), width: inner, labelColor: "cyan" }),
       flipped ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: " " }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { wrap: "wrap", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "green", bold: true, children: [
-            t(lang, "ln_a"),
-            lang === "zh" ? "\uFF1A" : ": "
-          ] }),
-          tx(item.card.a, lang)
-        ] })
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Labeled, { label: t(lang, "ln_a") + (lang === "zh" ? "\uFF1A" : ": "), text: tx(item.card.a, lang), width: inner, labelColor: "green" })
       ] }) : null
     ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "column", children: [
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "green", children: t(lang, "ln_done") }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", children: t(lang, "ln_done_hint") })
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Para, { text: t(lang, "ln_done_hint"), width: width - 1, color: "gray" })
     ] }),
-    topic.value !== null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "yellow", children: t(lang, "ln_topic") }),
-      topic.value,
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: true, children: " " })
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "yellow", wrap: "truncate-end", children: msg || " " }),
-    item && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", children: flipped ? t(lang, "ln_rate") : t(lang, "ln_flip") }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", wrap: "truncate-end", children: t(lang, "ln_keys") })
+    topic.value !== null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(InputLine, { prompt: t(lang, "ln_topic"), value: topic.value }) : msg ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Para, { text: msg, width: width - 1, color: "yellow" }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: " " }),
+    item && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", wrap: "truncate-end", children: flipped ? t(lang, "ln_rate") : t(lang, "ln_flip") }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", wrap: "truncate-end", children: fit([t(lang, "ln_keys"), t(lang, "ln_keys_short")], width - 1) })
   ] });
 }
 var import_react31, import_jsx_runtime3;
@@ -25062,7 +25412,7 @@ function intentText(it, lang) {
       return t(lang, "gm_myst");
   }
 }
-function Game({ st, update, cfg, lang, active, width, height }) {
+function Game({ st, update, cfg, lang, active, blocked, width, height }) {
   const [screen, setScreen] = (0, import_react32.useState)("main");
   const [msg, setMsg] = (0, import_react32.useState)("");
   const run = st.game;
@@ -25096,6 +25446,7 @@ function Game({ st, update, cfg, lang, active, width, height }) {
   };
   use_input_default(
     (input, key) => {
+      if (blocked()) return;
       if (screen === "shop") {
         if (input === "b" || key.escape) {
           setScreen("main");
@@ -25129,24 +25480,18 @@ function Game({ st, update, cfg, lang, active, width, height }) {
     },
     { isActive: active }
   );
-  const title = /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { children: [
+  const title = /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { wrap: "truncate-end", children: [
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, color: "magenta", children: t(lang, "gm_title") }),
     run && (run.phase === "battle" || run.phase === "reward") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
       " \xB7 ",
       t(lang, "gm_floor", { f: run.floor, n: FLOORS })
-    ] }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
-      "   ",
-      "\u26A1",
-      st.energy,
-      " \u{1F4B0}",
-      st.coins
-    ] })
+    ] }) : null
   ] });
-  const msgLine = /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "yellow", children: msg || " " });
+  const msgLine = msg ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: msg, width: width - 1, color: "yellow" }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " });
   if (screen === "shop") {
+    const nameW = lang === "zh" ? 14 : width >= 90 ? 30 : 22;
     return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { wrap: "truncate-end", children: [
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: t(lang, "gm_shop_title") }),
         /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
           " \u{1F4B0}",
@@ -25157,8 +25502,8 @@ function Game({ st, update, cfg, lang, active, width, height }) {
       RELICS.map((r, i) => {
         const owned2 = st.relics.includes(r.id);
         return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: 4, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: i + 1 }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: lang === "zh" ? 14 : 30, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: !owned2, dimColor: owned2, children: r.name[lang] }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: 4, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: i + 1 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: nameW, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: !owned2, dimColor: owned2, wrap: "truncate-end", children: r.name[lang] }) }),
           /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: 8, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: st.coins >= r.price ? "yellow" : "gray", children: [
             r.price,
             "\u{1F4B0}"
@@ -25170,7 +25515,7 @@ function Game({ st, update, cfg, lang, active, width, height }) {
         ] }, r.id);
       }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", wrap: "wrap", children: t(lang, "gm_shop_hint") }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: t(lang, "gm_shop_hint"), width: width - 1, color: "gray" }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", children: t(lang, "gm_back") }),
       msgLine
     ] });
@@ -25243,7 +25588,7 @@ function Game({ st, update, cfg, lang, active, width, height }) {
         b.double ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "yellow", children: " \xD72" }) : null,
         b.observed ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
           " [",
-          lang === "zh" ? "\u5DF2\u89C2\u6D4B" : "observed",
+          t(lang, "gm_observed"),
           "]"
         ] }) : null,
         "  ",
@@ -25306,11 +25651,11 @@ function Game({ st, update, cfg, lang, active, width, height }) {
     run?.phase === "dead" ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: t(lang, "gm_dead", { f: run.floor }) }) : null,
     run?.phase === "victory" ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "green", children: t(lang, "gm_victory", { e: ECON.winEnergy }) }) : null,
     !run ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { wrap: "wrap", children: t(lang, "gm_intro") }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", wrap: "wrap", children: t(lang, "gm_intro2") })
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: t(lang, "gm_intro"), width: width - 1 }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: t(lang, "gm_intro2"), width: width - 1, color: "gray" })
     ] }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", children: owned.length ? t(lang, "gm_owned", { list: owned.join(lang === "zh" ? "\u3001" : ", ") }) : t(lang, "gm_owned_none") }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: owned.length ? t(lang, "gm_owned", { list: owned.join(lang === "zh" ? "\u3001" : ", ") }) : t(lang, "gm_owned_none"), width: width - 1, color: "gray" }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", children: t(lang, "gm_record", { w: st.totals.wins, f: st.totals.bestFloor, r: st.totals.runs }) }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { children: [
@@ -25354,7 +25699,28 @@ function useSize() {
   }, [stdout]);
   return size;
 }
-function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
+function noteTarget(s) {
+  const all = Object.entries(s.sessions);
+  if (!all.length) return {};
+  const [sid, pick2] = [...all].sort(([, a], [, b]) => Number(b.status !== "idle") - Number(a.status !== "idle") || b.lastAt - a.lastAt)[0];
+  const many = new Set(all.map(([, x]) => normPath(x.cwd))).size > 1;
+  return { sid, cwd: pick2.cwd || void 0, dir: many && pick2.cwd ? path8.basename(pick2.cwd) : void 0 };
+}
+function Help({ lang, width }) {
+  const h = helpContent(lang);
+  const keyW = lang === "zh" ? 9 : 11;
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", width, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: h.intro, width }),
+    h.sections.map((sec) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, children: sec.title }),
+      sec.rows.map(([k, d]) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: keyW, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "cyan", children: k }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: d, width: width - keyW })
+      ] }, k))
+    ] }, sec.title))
+  ] });
+}
+function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint = false }) {
   const { exit } = use_app_default();
   const { cols, rows } = useSize();
   const [cfg, setCfg] = (0, import_react33.useState)(initialCfg);
@@ -25365,7 +25731,9 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
   const [auto, setAuto] = (0, import_react33.useState)(initialCfg.autoMode);
   const autoRef = (0, import_react33.useRef)(auto);
   autoRef.current = auto;
-  const [alert, setAlert] = (0, import_react33.useState)(daily > 0 ? { kind: "info", text: t(lang, "daily", { n: daily }) } : null);
+  const [alert, setAlert] = (0, import_react33.useState)(null);
+  const [toast, setToast] = (0, import_react33.useState)(null);
+  const toastTimer = (0, import_react33.useRef)(void 0);
   const [help2, setHelp] = (0, import_react33.useState)(false);
   const [typing, setTyping] = (0, import_react33.useState)(false);
   const typingRef = (0, import_react33.useRef)(false);
@@ -25374,18 +25742,32 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
     typingRef.current = v;
     setTyping(v);
   };
+  const note = useLine();
   const lastSweep = (0, import_react33.useRef)(0);
   const modeRef = (0, import_react33.useRef)(mode);
   modeRef.current = mode;
-  const commit = (s) => {
-    ref.current = s;
+  const dirty = (0, import_react33.useRef)(false);
+  const lastSave = (0, import_react33.useRef)(0);
+  const persist = (s) => {
     saveState(s);
+    dirty.current = false;
+    lastSave.current = Date.now();
+  };
+  const commit = (s, lazy = false) => {
+    ref.current = s;
     setSt(s);
+    if (lazy) dirty.current = true;
+    else persist(s);
   };
   const update = (fn) => {
     const s = structuredClone(ref.current);
     fn(s);
     commit(s);
+  };
+  const showToast = (text, color = "green") => {
+    setToast({ text, color });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), TOAST_MS);
   };
   const ring = () => {
     if (cfg.bell) process.stdout.write("\x07");
@@ -25394,30 +25776,42 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
     let m = modeRef.current;
     const go = (next) => {
       m = next;
+      modeRef.current = next;
       setMode(next);
     };
     for (const sig of sigs) {
+      if (Date.now() - sig.t > STALE_MS) continue;
       if (sig.type === "turn_start") {
-        setAlert((a) => a && a.kind !== "info" ? null : a);
-        if (autoRef.current && !typingRef.current) go(chooseMode(s, cfg, predictWait(s.history, sig.cwd)));
+        setAlert(null);
+        if (autoRef.current && !typingRef.current && !inFight(m, s)) go(chooseMode(s, cfg, predictWait(s.history, sig.cwd)));
       } else if (sig.type === "new_card") {
-        const fighting = m === "game" && (s.game?.phase === "battle" || s.game?.phase === "reward");
-        if (autoRef.current && !typingRef.current && m !== "review" && !fighting) go("review");
+        if (autoRef.current && !typingRef.current && m !== "review" && !inFight(m, s)) go("review");
       } else if (sig.type === "turn_done") {
         const dir = sig.cwd ? path8.basename(sig.cwd) : "";
         const multi = Object.keys(s.sessions).length > 1;
+        const waiting = pendingCards(s).length;
+        const sub = [sig.coins > 0 ? t(lang, "done_coins", { n: sig.coins }) : t(lang, "done_none")];
+        if (sig.pass) sub.push(t(lang, "done_pass"));
+        else if (sig.fail) sub.push(t(lang, "done_fail"));
+        if (waiting) sub.push(t(lang, "done_pending", { n: waiting }));
         setAlert({
           kind: "done",
-          text: t(lang, "done", { t: fmtDur(sig.ms) }) + (multi && dir ? t(lang, "done_cwd", { dir }) : ""),
-          sub: sig.coins > 0 ? `${t(lang, "done_coins", { n: sig.coins })}${sig.pass ? " \xB7 " + t(lang, "done_pass") : ""}` : t(lang, "done_none")
+          text: t(lang, "done", { t: fmtDur(sig.ms) }) + (sig.edits ? t(lang, sig.edits === 1 ? "done_edit1" : "done_edits", { n: sig.edits }) : "") + (multi && dir ? t(lang, "done_cwd", { dir }) : ""),
+          sub: sub.join(" \xB7 ")
         });
         ring();
       } else if (sig.type === "attention") {
         setAlert({ kind: "attention", text: t(lang, "attention", { msg: sig.msg }) });
         ring();
+      } else if (sig.type === "delivered") {
+        showToast(sig.count > 1 ? t(lang, "delivered_n", { n: sig.count }) : t(lang, "delivered_one"));
       }
     }
   };
+  (0, import_react33.useEffect)(() => {
+    if (daily > 0) showToast(t(lang, "daily", { n: daily }), "cyan");
+    return () => clearTimeout(toastTimer.current);
+  }, []);
   (0, import_react33.useEffect)(() => {
     const tick = () => {
       const t0 = Date.now();
@@ -25431,9 +25825,11 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
         sigs = applyEvents(s, events);
       }
       const base = s ?? cur;
+      let rotated = false;
       if (busySessions(base).length === 0) {
         const r = rotateIfLarge(base.offset);
         if (r.rotated) {
+          rotated = true;
           s = s ?? structuredClone(cur);
           sigs = sigs.concat(applyEvents(s, r.events));
           s.offset = 0;
@@ -25441,16 +25837,20 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
       }
       if (t0 - lastSweep.current > 3e4) {
         lastSweep.current = t0;
-        const target = s ?? structuredClone(cur);
-        if (sweep(target, t0)) s = target;
+        const target2 = s ?? structuredClone(cur);
+        if (sweep(target2, t0)) s = target2;
       }
-      if (s) commit(s);
+      if (s) commit(s, !rotated);
+      if (dirty.current && t0 - lastSave.current >= SAVE_EVERY_MS) persist(ref.current);
       if (sigs.length) onSignals(sigs, s ?? cur);
       setNow(Math.floor(t0 / 1e3) * 1e3);
     };
     tick();
     const id = setInterval(tick, pollMs);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      if (dirty.current) persist(ref.current);
+    };
   }, []);
   const pending = pendingCards(st).length;
   const prevPending = (0, import_react33.useRef)(pending);
@@ -25458,11 +25858,32 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
     const was = prevPending.current;
     prevPending.current = pending;
     if (auto && mode === "review" && was > 0 && pending === 0 && !typing) {
-      const id = setTimeout(() => setMode(chooseMode(ref.current, cfg, predictWait(ref.current.history))), 1500);
+      const id = setTimeout(() => {
+        if (modeRef.current !== "review" || typingRef.current) return;
+        const next = chooseMode(ref.current, cfg, predictWait(ref.current.history));
+        modeRef.current = next;
+        setMode(next);
+      }, 1500);
       return () => clearTimeout(id);
     }
   }, [pending]);
+  const sendNote = (raw) => {
+    setTypingNow(false);
+    const text = raw.trim();
+    if (!text) return;
+    const s = ref.current;
+    const { sid, cwd: cwd2 } = noteTarget(s);
+    const id = newNoteId();
+    const at = Date.now();
+    addNote({ id, t: at, text, cwd: cwd2, sid });
+    update((x) => recordNote(x, { id, t: at, text, cwd: cwd2 }));
+    showToast(t(lang, busySessions(s).length ? "note_sent_busy" : "note_sent_idle"), "yellow");
+  };
   use_input_default((input, key) => {
+    if (note.isOpen()) {
+      note.handle(input, key, sendNote, () => setTypingNow(false));
+      return;
+    }
     if (typingRef.current) return;
     if (alert) {
       setAlert(null);
@@ -25479,6 +25900,12 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
         modeRef.current = next;
         return next;
       });
+    } else if (input === "m") {
+      if (!cfg.feedback) showToast(t(lang, "note_off"), "yellow");
+      else {
+        note.open();
+        setTypingNow(true);
+      }
     } else if (input === "a") {
       const next = !autoRef.current;
       autoRef.current = next;
@@ -25501,7 +25928,8 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
   } else if (working.length) {
     const [, w] = working[0];
     const elapsed = now - (w.turnStart ?? now);
-    const eta = predictWait(st.history, w.cwd);
+    const eta = predictWait(st.history, w.cwd, elapsed);
+    const usual = eta ?? predictWait(st.history, w.cwd);
     statusEl = /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "green", children: [
         "\u25CF ",
@@ -25512,6 +25940,9 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
       eta ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
         " / ",
         t(lang, "eta", { t: fmtDur(eta) })
+      ] }) : usual ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
+        " / ",
+        t(lang, "st_longer")
       ] }) : null,
       working.length > 1 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: t(lang, "st_more", { n: working.length }) }) : null
     ] });
@@ -25526,6 +25957,7 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
       t(lang, "st_none")
     ] });
   }
+  const notesWaiting = waitingNotes(st).length;
   const tabs = MODES.map((m) => {
     const label = t(lang, m === "review" ? "mode_review" : m === "game" ? "mode_game" : "mode_learn");
     const badge = m === "review" && pending ? ` ${pending}` : "";
@@ -25533,29 +25965,40 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
     return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { inverse: on, bold: on, color: on ? "cyan" : "gray", children: ` ${label}${badge} ` }, m);
   });
   const width = Math.max(40, cols);
+  const noteOpen = note.value !== null;
   const alertLines = alert ? 4 : 0;
-  const bodyH = Math.max(6, rows - 5 - alertLines);
+  const footerLines = noteOpen ? 2 : 1;
+  const bodyH = Math.max(6, rows - 4 - footerLines - alertLines);
   const modeProps = {
     st,
     update,
     cfg,
     lang,
-    active: !help2 && (!alert || typing),
+    active: !help2 && !noteOpen && (!alert || typing),
+    blocked: note.isOpen,
     width,
     height: bodyH,
     now,
     busy: working.length > 0 || !!attention,
-    setTyping: setTypingNow
+    setTyping: setTypingNow,
+    setupHint: setupHint && st.offset === 0 && Object.keys(st.sessions).length === 0
   };
+  const target = noteOpen ? noteTarget(st) : {};
+  const onOff = t(lang, auto ? "on" : "off");
   const rule = "\u2500".repeat(Math.max(10, width - 1));
   return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", width, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { justifyContent: "space-between", width: width - 1, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { width: width - 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexGrow: 1, flexShrink: 1, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { wrap: "truncate-end", children: [
         /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, color: "cyan", children: t(lang, "brand") }),
         "  ",
         statusEl
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { children: [
+      ] }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexShrink: 0, marginLeft: 1, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { children: [
+        notesWaiting ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "yellow", children: [
+          "\u270E",
+          notesWaiting,
+          " "
+        ] }) : null,
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "yellow", children: [
           "\u26A1",
           st.energy
@@ -25565,7 +26008,7 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
           "\u{1F4B0}",
           st.coins
         ] })
-      ] })
+      ] }) })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { justifyContent: "space-between", width: width - 1, children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { children: tabs }),
@@ -25576,18 +26019,21 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400 }) {
       ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: rule }),
-    alert ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { borderStyle: "round", borderColor: alert.kind === "done" ? "green" : alert.kind === "attention" ? "yellow" : "cyan", paddingX: 1, width: Math.min(width - 1, 80), flexDirection: "column", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, color: alert.kind === "done" ? "green" : alert.kind === "attention" ? "yellow" : "cyan", wrap: "truncate-end", children: alert.text }),
+    alert ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { borderStyle: "round", borderColor: alert.kind === "done" ? "green" : "yellow", paddingX: 1, width: Math.min(width - 1, 80), flexDirection: "column", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, color: alert.kind === "done" ? "green" : "yellow", wrap: "truncate-end", children: alert.text }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
         alert.sub ? `${alert.sub} \xB7 ` : "",
         t(lang, "anykey")
       ] })
     ] }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", height: bodyH, overflow: "hidden", children: help2 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { wrap: "wrap", children: t(lang, "help") }) : mode === "review" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Review, { ...modeProps }) : mode === "game" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Game, { ...modeProps }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Learn, { ...modeProps }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", wrap: "truncate-end", children: t(lang, "footer", { on: t(lang, auto ? "on" : "off") }) })
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", height: bodyH, overflow: "hidden", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", flexShrink: 0, children: help2 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Help, { lang, width: width - 1 }) : mode === "review" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Review, { ...modeProps }) : mode === "game" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Game, { ...modeProps }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Learn, { ...modeProps }) }) }),
+    noteOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(InputLine, { prompt: target.dir ? t(lang, "note_prompt_to", { dir: target.dir }) : t(lang, "note_prompt"), value: note.value ?? "" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: t(lang, "note_hint") })
+    ] }) : toast ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: toast.color, wrap: "truncate-end", children: toast.text }) : help2 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", wrap: "truncate-end", children: t(lang, "help_close") }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", wrap: "truncate-end", children: fit([t(lang, "footer", { on: onOff }), t(lang, "footer_short", { on: onOff })], width - 1) })
   ] });
 }
-var import_react33, import_jsx_runtime5;
+var import_react33, import_jsx_runtime5, SAVE_EVERY_MS, TOAST_MS, STALE_MS, inFight;
 var init_App2 = __esm({
   async "src/ui/App.tsx"() {
     "use strict";
@@ -25598,17 +26044,26 @@ var init_App2 = __esm({
     init_state();
     init_store();
     init_predict();
+    init_feedback();
+    init_paths();
     init_i18n();
     await init_Review();
     await init_Learn();
     await init_Game();
+    await init_common();
     import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
+    SAVE_EVERY_MS = 3e3;
+    TOAST_MS = 4e3;
+    STALE_MS = 15e3;
+    inFight = (m, s) => m === "game" && (s.game?.phase === "battle" || s.game?.phase === "reward");
   }
 });
 
 // src/demo.ts
 var demo_exports = {};
 __export(demo_exports, {
+  CWD: () => CWD,
+  EDITS: () => EDITS,
   startDemo: () => startDemo
 });
 function startDemo(speed = 1) {
@@ -25618,17 +26073,18 @@ function startDemo(speed = 1) {
   let stopped = false;
   const write = (ev) => appendLine(paths.events(), JSON.stringify(ev));
   const tool = (t2, name, extra = {}) => ({ t: t2, k: "tool", sid, cwd: CWD, tool: name, ...extra });
+  const TURNS = [EDITS.slice(0, 3), EDITS.slice(3, 5), EDITS.slice(5, 7)];
   const turnSteps = (n) => {
-    const a = EDITS[n * 2 % EDITS.length];
-    const b = EDITS[(n * 2 + 1) % EDITS.length];
+    const edits = TURNS[n % TURNS.length];
     const pass = n % 4 !== 2;
     return [
       [0, (t2) => ({ t: t2, k: "prompt", sid, cwd: CWD })],
       [2500, (t2) => tool(t2, "Read")],
-      [3e3, (t2) => tool(t2, "Edit", { edit: a })],
-      [3e3, (t2) => tool(t2, "Grep")],
-      [3500, (t2) => tool(t2, a.kind === "write" ? "Write" : "Edit", { edit: b })],
-      [3500, (t2) => tool(t2, "Bash", { bash: { cmd: "npm test", test: true, result: pass ? "pass" : "fail" } })],
+      ...edits.flatMap((e, i2) => [
+        [i2 === 0 ? 3e3 : 2500, (t2) => tool(t2, e.kind === "write" ? "Write" : "Edit", { edit: e })],
+        [1500, (t2) => tool(t2, "Grep")]
+      ]),
+      [3e3, (t2) => tool(t2, "Bash", { bash: { cmd: "npm test", test: true, result: pass ? "pass" : "fail" } })],
       [3e3, (t2) => ({ t: t2, k: "stop", sid, cwd: CWD })],
       [9e3, () => null]
     ];
@@ -25679,6 +26135,17 @@ var init_demo = __esm({
           {
             old: "router.post('/orders', async (req, res) => {\n  const order = await db.orders.create(req.body);\n  res.json(order);\n});",
             new: "router.post('/orders', async (req, res) => {\n  const parsed = OrderInput.safeParse(req.body);\n  if (!parsed.success) {\n    return res.status(400).json({ error: parsed.error.flatten() });\n  }\n  const order = await db.orders.create(parsed.data);\n  res.status(201).json(order);\n});"
+          }
+        ]
+      },
+      {
+        // A follow-up edit to the same file: the panel folds it into the open card.
+        file: f("src/routes/orders.ts"),
+        kind: "edit",
+        hunks: [
+          {
+            old: "import { Router } from 'express';",
+            new: "import { Router } from 'express';\nimport { OrderInput } from '../schemas/order';"
           }
         ]
       },
@@ -25940,6 +26407,9 @@ async function runPanel(opts = {}) {
   const state = loadState();
   const daily = grantDaily(state, Date.now());
   saveState(state);
+  const hooked = ["user", "project"].some((sc) => hookStatus(readClaudeSettings(sc)).installed.length > 0);
+  const everConnected = state.totals.turns > 0 || state.totals.cards > 0 || fs8.existsSync(paths.events());
+  const setupHint = !opts.demo && !hooked && !everConnected;
   const [{ render: render2 }, React16, { App: App3 }] = await Promise.all([init_build2().then(() => build_exports), Promise.resolve().then(() => __toESM(require_react(), 1)), init_App2().then(() => App_exports)]);
   let stopDemo;
   if (opts.demo) stopDemo = (await Promise.resolve().then(() => (init_demo(), demo_exports))).startDemo(opts.fast ? 0.35 : 1);
@@ -25950,7 +26420,7 @@ async function runPanel(opts = {}) {
     releaseLock();
   };
   process.on("exit", restore);
-  const app = render2(React16.createElement(App3, { cfg, lang, initial: state, daily }), { exitOnCtrlC: true });
+  const app = render2(React16.createElement(App3, { cfg, lang, initial: state, daily, setupHint }), { exitOnCtrlC: true });
   await app.waitUntilExit();
   stopDemo?.();
   restore();
@@ -26080,11 +26550,13 @@ function cmdStats(lang) {
   console.log(`  \u26A1 ${s.energy}   \u{1F4B0} ${s.coins}`);
   console.log(
     zh ? `  Claude \u5E72\u6D3B\u7684\u8F6E\u6B21 ${T.turns} \xB7 \u6D4B\u8BD5\u901A\u8FC7\u7684\u8F6E\u6B21 ${T.testsPassed}
-  \u6539\u52A8\u5361\u7247 ${T.cards} \xB7 \u4F60\u5BA1\u8FC7 ${T.reviewed + T.flagged}\uFF08\u6807\u51FA\u95EE\u9898 ${T.flagged}\uFF0C\u5DF2\u8F6C\u8FBE ${T.delivered}\uFF09\xB7 \u8DF3\u8FC7 ${T.skipped} \xB7 \u5F85\u5BA1 ${pendingCards(s).length}
-  AI \u4EE3\u7801\u4EBA\u5DE5\u5BA1\u9605\u8986\u76D6\u7387 ${cov === null ? "\u2014" : Math.round(cov * 100) + "%"}
+  \u6539\u52A8\u5361\u7247 ${T.cards} \xB7 \u4F60\u5BA1\u8FC7 ${T.reviewed + T.flagged}\uFF08\u5176\u4E2D\u6807\u51FA\u95EE\u9898 ${T.flagged}\uFF09\xB7 \u626B\u4E00\u773C\u5C31\u8FC7 ${T.skimmed} \xB7 \u8DF3\u8FC7 ${T.skipped} \xB7 \u5F85\u5BA1 ${pendingCards(s).length}
+  AI \u4EE3\u7801\u4EBA\u5DE5\u5BA1\u9605\u8986\u76D6\u7387 ${cov === null ? "\u2014" : Math.round(cov * 100) + "%"}\uFF08\u626B\u4E00\u773C\u5C31\u8FC7\u7684\u4E0D\u7B97\uFF09
+  \u8F6C\u8FBE\u7ED9 Claude \u7684\u7559\u8A00 ${T.delivered} \u6761
   \u5237\u5361 ${T.learned} \u5F20 \xB7 \u6349\u866B\u5730\u7262 ${T.runs} \u5C40\uFF0C\u901A\u5173 ${T.wins} \u6B21\uFF0C\u6700\u6DF1\u7B2C ${T.bestFloor} \u5C42` : `  Claude turns ${T.turns} \xB7 turns with passing tests ${T.testsPassed}
-  Change cards ${T.cards} \xB7 reviewed ${T.reviewed + T.flagged} (flagged ${T.flagged}, relayed ${T.delivered}) \xB7 skipped ${T.skipped} \xB7 pending ${pendingCards(s).length}
-  Human review coverage of AI code ${cov === null ? "\u2014" : Math.round(cov * 100) + "%"}
+  Change cards ${T.cards} \xB7 reviewed ${T.reviewed + T.flagged} (${T.flagged} flagged) \xB7 skimmed ${T.skimmed} \xB7 skipped ${T.skipped} \xB7 pending ${pendingCards(s).length}
+  Human review coverage of AI code ${cov === null ? "\u2014" : Math.round(cov * 100) + "%"} (skims don't count)
+  Notes relayed to Claude ${T.delivered}
   Flashcards ${T.learned} \xB7 Debug Dungeon runs ${T.runs}, wins ${T.wins}, deepest floor ${T.bestFloor}`
   );
   console.log("");

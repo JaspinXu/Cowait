@@ -18,7 +18,7 @@ import { settleRun } from '../game/meta.js';
 import { ECON } from '../engine/economy.js';
 import type { State } from '../engine/state.js';
 import { t, type Lang } from '../i18n.js';
-import { Bar, type ModeProps } from './common.js';
+import { Bar, Para, type ModeProps } from './common.js';
 
 function intentText(it: Intent, lang: Lang): string {
   switch (it.kind) {
@@ -33,7 +33,7 @@ function intentText(it: Intent, lang: Lang): string {
   }
 }
 
-export function Game({ st, update, cfg, lang, active, width, height }: ModeProps) {
+export function Game({ st, update, cfg, lang, active, blocked, width, height }: ModeProps) {
   const [screen, setScreen] = useState<'main' | 'shop'>('main');
   const [msg, setMsg] = useState('');
   const run = st.game;
@@ -72,6 +72,7 @@ export function Game({ st, update, cfg, lang, active, width, height }: ModeProps
 
   useInput(
     (input, key) => {
+      if (blocked()) return;
       if (screen === 'shop') {
         if (input === 'b' || key.escape) {
           setScreen('main');
@@ -106,26 +107,25 @@ export function Game({ st, update, cfg, lang, active, width, height }: ModeProps
     { isActive: active },
   );
 
+  // ⚡ and 💰 are already in the panel header.
   const title = (
-    <Text>
+    <Text wrap="truncate-end">
       <Text bold color="magenta">
         {t(lang, 'gm_title')}
       </Text>
       {run && (run.phase === 'battle' || run.phase === 'reward') ? (
         <Text color="gray"> · {t(lang, 'gm_floor', { f: run.floor, n: FLOORS })}</Text>
       ) : null}
-      <Text color="gray">
-        {'   '}⚡{st.energy} 💰{st.coins}
-      </Text>
     </Text>
   );
-  const msgLine = <Text color="yellow">{msg || ' '}</Text>;
+  const msgLine = msg ? <Para text={msg} width={width - 1} color="yellow" /> : <Text> </Text>;
 
   // ---------------------------------------------------------------- shop
   if (screen === 'shop') {
+    const nameW = lang === 'zh' ? 14 : width >= 90 ? 30 : 22;
     return (
       <Box flexDirection="column">
-        <Text>
+        <Text wrap="truncate-end">
           <Text bold>{t(lang, 'gm_shop_title')}</Text>
           <Text color="gray"> 💰{st.coins}</Text>
         </Text>
@@ -134,11 +134,11 @@ export function Game({ st, update, cfg, lang, active, width, height }: ModeProps
           const owned = st.relics.includes(r.id);
           return (
             <Box key={r.id}>
-              <Box width={4}>
+              <Box width={4} flexShrink={0}>
                 <Text color="cyan">{i + 1}</Text>
               </Box>
-              <Box width={lang === 'zh' ? 14 : 30}>
-                <Text bold={!owned} dimColor={owned}>
+              <Box width={nameW} flexShrink={0}>
+                <Text bold={!owned} dimColor={owned} wrap="truncate-end">
                   {r.name[lang]}
                 </Text>
               </Box>
@@ -153,9 +153,7 @@ export function Game({ st, update, cfg, lang, active, width, height }: ModeProps
           );
         })}
         <Text> </Text>
-        <Text color="gray" wrap="wrap">
-          {t(lang, 'gm_shop_hint')}
-        </Text>
+        <Para text={t(lang, 'gm_shop_hint')} width={width - 1} color="gray" />
         <Text color="gray">{t(lang, 'gm_back')}</Text>
         {msgLine}
       </Box>
@@ -201,7 +199,7 @@ export function Game({ st, update, cfg, lang, active, width, height }: ModeProps
           <Text color="cyan"> {'◆'.repeat(b.focus)}</Text>
           <Text color="gray">{'◇'.repeat(Math.max(0, 3 - b.focus))}</Text>
           {b.double ? <Text color="yellow"> ×2</Text> : null}
-          {b.observed ? <Text color="gray"> [{lang === 'zh' ? '已观测' : 'observed'}]</Text> : null}
+          {b.observed ? <Text color="gray"> [{t(lang, 'gm_observed')}]</Text> : null}
           {'  '}
           {inc === null ? null : inc > 0 ? <Text color="red">{t(lang, 'gm_incoming', { n: inc })}</Text> : <Text color="green">{t(lang, 'gm_safe')}</Text>}
         </Text>
@@ -289,14 +287,12 @@ export function Game({ st, update, cfg, lang, active, width, height }: ModeProps
       {run?.phase === 'victory' ? <Text color="green">{t(lang, 'gm_victory', { e: ECON.winEnergy })}</Text> : null}
       {!run ? (
         <>
-          <Text wrap="wrap">{t(lang, 'gm_intro')}</Text>
-          <Text color="gray" wrap="wrap">
-            {t(lang, 'gm_intro2')}
-          </Text>
+          <Para text={t(lang, 'gm_intro')} width={width - 1} />
+          <Para text={t(lang, 'gm_intro2')} width={width - 1} color="gray" />
         </>
       ) : null}
       <Text> </Text>
-      <Text color="gray">{owned.length ? t(lang, 'gm_owned', { list: owned.join(lang === 'zh' ? '、' : ', ') }) : t(lang, 'gm_owned_none')}</Text>
+      <Para text={owned.length ? t(lang, 'gm_owned', { list: owned.join(lang === 'zh' ? '、' : ', ') }) : t(lang, 'gm_owned_none')} width={width - 1} color="gray" />
       <Text color="gray">{t(lang, 'gm_record', { w: st.totals.wins, f: st.totals.bestFloor, r: st.totals.runs })}</Text>
       <Text> </Text>
       <Text>

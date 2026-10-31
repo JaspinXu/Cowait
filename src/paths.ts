@@ -21,6 +21,19 @@ export function dataDir(): string {
   return path.join(os.homedir(), '.cowait');
 }
 
+/** Comparable form of a path: forward slashes, no trailing slash, and case-folded for Windows drive paths. */
+export function normPath(p: string): string {
+  const s = p.replace(/\\/g, '/').replace(/\/+$/, '');
+  return /^[a-z]:(\/|$)/i.test(s) ? s.toLowerCase() : s;
+}
+
+/** Is `dir` the folder `root`, or inside it? */
+export function within(dir: string, root: string): boolean {
+  const d = normPath(dir);
+  const r = normPath(root);
+  return d === r || d.startsWith(r + '/');
+}
+
 export const paths = {
   events: () => path.join(dataDir(), 'events.jsonl'),
   state: () => path.join(dataDir(), 'state.json'),

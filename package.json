@@ -1,12 +1,13 @@
 {
   "name": "cowait",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Turn the time you spend waiting on Claude Code into useful time: review its changes, play a tiny roguelike, or learn something — in a side panel.",
   "main": "dist/cli.js",
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit && node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node scripts/build.mjs && vitest run"
+    "test": "node scripts/build.mjs && vitest run",
+    "media": "node scripts/media/record.mjs"
   },
   "keywords": [
     "claude-code",
@@ -22,7 +23,6 @@
   ],
   "author": "Zhaobin Xu (JaspinXu)",
   "license": "MIT",
-  "dependencies": {},
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
@@ -31,6 +31,7 @@
     "ink": "^6.8.0",
     "ink-testing-library": "^4.0.0",
     "react": "^19.3.1",
+    "string-width": "^8.3.0",
     "typescript": "5.9",
     "vitest": "^5.0.5"
   },
