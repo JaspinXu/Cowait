@@ -5,3 +5,6 @@ data/
 *.log
 .DS_Store
 coverage/
+# Per-machine Claude Code settings (cowait install --project writes absolute paths here)
+.claude/settings.local.json
+.claude/*.cowait-backup-*
