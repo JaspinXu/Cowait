@@ -32,9 +32,12 @@ import path2 from "node:path";
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
+function parseJson(text) {
+  return JSON.parse(text.charCodeAt(0) === 65279 ? text.slice(1) : text);
+}
 function readJson(file, fallback) {
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+    return parseJson(fs.readFileSync(file, "utf8"));
   } catch {
     return fallback;
   }
@@ -218,12 +221,15 @@ function claimNotes() {
       continue;
     }
     try {
-      out.push(JSON.parse(fs2.readFileSync(claimed, "utf8")));
-    } catch {
-    }
-    try {
+      const note = parseJson(fs2.readFileSync(claimed, "utf8"));
+      if (!note || typeof note.text !== "string") throw new Error("not a note");
+      out.push(note);
       fs2.unlinkSync(claimed);
     } catch {
+      try {
+        fs2.renameSync(claimed, `${src}.unreadable`);
+      } catch {
+      }
     }
   }
   return out;

@@ -70,3 +70,16 @@ describe('install / uninstall on disk', () => {
     expect(() => install({ scope: 'user' })).toThrow(/Cannot parse/);
   });
 });
+
+describe('settings.json saved with a BOM', () => {
+  it('still parses and installs', () => {
+    tempHome();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-cfg-'));
+    process.env.CLAUDE_CONFIG_DIR = dir;
+    fs.writeFileSync(path.join(dir, 'settings.json'), '﻿' + JSON.stringify({ model: 'opus' }));
+    install({ scope: 'user' });
+    const s = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8'));
+    expect(s.model).toBe('opus');
+    expect(hookStatus(s).missing).toEqual([]);
+  });
+});

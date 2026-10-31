@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { paths } from './paths.js';
-import { ensureDir } from './fsutil.js';
+import { ensureDir, parseJson } from './fsutil.js';
 
 export interface Note {
   id: string;
@@ -40,7 +40,7 @@ export function pendingNotes(): Note[] {
   const out: Note[] = [];
   for (const f of noteFiles()) {
     try {
-      out.push(JSON.parse(fs.readFileSync(path.join(paths.feedback(), f), 'utf8')));
+      out.push(parseJson<Note>(fs.readFileSync(path.join(paths.feedback(), f), 'utf8')));
     } catch {
       /* skip broken file */
     }
@@ -61,14 +61,17 @@ export function claimNotes(): Note[] {
       continue; // another hook process got it first
     }
     try {
-      out.push(JSON.parse(fs.readFileSync(claimed, 'utf8')));
-    } catch {
-      /* ignore */
-    }
-    try {
+      const note = parseJson<Note>(fs.readFileSync(claimed, 'utf8'));
+      if (!note || typeof note.text !== 'string') throw new Error('not a note');
+      out.push(note);
       fs.unlinkSync(claimed);
     } catch {
-      /* ignore */
+      // Never silently lose what the user wrote: set unreadable files aside instead of deleting them.
+      try {
+        fs.renameSync(claimed, `${src}.unreadable`);
+      } catch {
+        /* ignore */
+      }
     }
   }
   return out;

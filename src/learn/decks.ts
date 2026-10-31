@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { paths } from '../paths.js';
-import { ensureDir, writeJsonAtomic } from '../fsutil.js';
+import { ensureDir, parseJson, writeJsonAtomic } from '../fsutil.js';
 
 export type Text = string | { zh: string; en: string };
 
@@ -358,7 +358,7 @@ export function loadUserDecks(): Deck[] {
   const out: Deck[] = [];
   for (const f of files) {
     try {
-      const d = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as Deck;
+      const d = parseJson<Deck>(fs.readFileSync(path.join(dir, f), 'utf8'));
       if (d && d.id && Array.isArray(d.cards) && d.cards.length) out.push(d);
     } catch {
       /* skip broken deck */

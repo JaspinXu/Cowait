@@ -82,9 +82,12 @@ import path2 from "node:path";
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
+function parseJson(text) {
+  return JSON.parse(text.charCodeAt(0) === 65279 ? text.slice(1) : text);
+}
 function readJson(file, fallback) {
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+    return parseJson(fs.readFileSync(file, "utf8"));
   } catch {
     return fallback;
   }
@@ -636,7 +639,7 @@ import { spawn, spawnSync } from "node:child_process";
 import os3 from "node:os";
 function hasClaudeCli() {
   if (cliAvailable === void 0) {
-    const r = spawnSync("claude", ["--version"], { shell: process.platform === "win32", timeout: 1e4, stdio: "ignore", windowsHide: true });
+    const r = process.platform === "win32" ? spawnSync("claude --version", { shell: true, timeout: 1e4, stdio: "ignore", windowsHide: true }) : spawnSync("claude", ["--version"], { timeout: 1e4, stdio: "ignore" });
     cliAvailable = r.status === 0;
   }
   return cliAvailable;
@@ -663,12 +666,10 @@ async function viaApi(prompt, cfg) {
 }
 function viaCli(prompt, cfg) {
   return new Promise((resolve, reject) => {
-    const child = spawn("claude", ["-p", "--model", cfg.cliModel, "--output-format", "text"], {
-      cwd: os3.tmpdir(),
-      env: { ...process.env, COWAIT_INTERNAL: "1" },
-      shell: process.platform === "win32",
-      windowsHide: true
-    });
+    const model = /^[\w.-]+$/.test(cfg.cliModel) ? cfg.cliModel : "haiku";
+    const args = ["-p", "--model", model, "--output-format", "text"];
+    const opts = { cwd: os3.tmpdir(), env: { ...process.env, COWAIT_INTERNAL: "1" }, windowsHide: true };
+    const child = process.platform === "win32" ? spawn(["claude", ...args].join(" "), { ...opts, shell: true }) : spawn("claude", args, opts);
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
@@ -23716,12 +23717,15 @@ function claimNotes() {
       continue;
     }
     try {
-      out.push(JSON.parse(fs6.readFileSync(claimed, "utf8")));
-    } catch {
-    }
-    try {
+      const note = parseJson(fs6.readFileSync(claimed, "utf8"));
+      if (!note || typeof note.text !== "string") throw new Error("not a note");
+      out.push(note);
       fs6.unlinkSync(claimed);
     } catch {
+      try {
+        fs6.renameSync(claimed, `${src}.unreadable`);
+      } catch {
+      }
     }
   }
   return out;
@@ -24030,7 +24034,7 @@ function loadUserDecks() {
   const out = [];
   for (const f2 of files) {
     try {
-      const d = JSON.parse(fs7.readFileSync(path7.join(dir, f2), "utf8"));
+      const d = parseJson(fs7.readFileSync(path7.join(dir, f2), "utf8"));
       if (d && d.id && Array.isArray(d.cards) && d.cards.length) out.push(d);
     } catch {
     }
@@ -25820,7 +25824,7 @@ function readSettings(file) {
   const raw = fs3.readFileSync(file, "utf8");
   if (!raw.trim()) return { settings: {}, existed: true };
   try {
-    return { settings: JSON.parse(raw), existed: true };
+    return { settings: parseJson(raw), existed: true };
   } catch {
     throw new Error(`Cannot parse ${file} \u2014 please fix the JSON first.`);
   }

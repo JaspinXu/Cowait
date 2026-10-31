@@ -14,7 +14,11 @@ let cliAvailable: boolean | undefined;
 
 export function hasClaudeCli(): boolean {
   if (cliAvailable === undefined) {
-    const r = spawnSync('claude', ['--version'], { shell: process.platform === 'win32', timeout: 10000, stdio: 'ignore', windowsHide: true });
+    // On Windows `claude` is a .cmd shim, which needs a shell; pass one command string, not an args array.
+    const r =
+      process.platform === 'win32'
+        ? spawnSync('claude --version', { shell: true, timeout: 10000, stdio: 'ignore', windowsHide: true })
+        : spawnSync('claude', ['--version'], { timeout: 10000, stdio: 'ignore' });
     cliAvailable = r.status === 0;
   }
   return cliAvailable;
@@ -47,12 +51,11 @@ async function viaApi(prompt: string, cfg: Config): Promise<string> {
 
 function viaCli(prompt: string, cfg: Config): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', ['-p', '--model', cfg.cliModel, '--output-format', 'text'], {
-      cwd: os.tmpdir(),
-      env: { ...process.env, COWAIT_INTERNAL: '1' },
-      shell: process.platform === 'win32',
-      windowsHide: true,
-    });
+    const model = /^[\w.-]+$/.test(cfg.cliModel) ? cfg.cliModel : 'haiku';
+    const args = ['-p', '--model', model, '--output-format', 'text'];
+    const opts = { cwd: os.tmpdir(), env: { ...process.env, COWAIT_INTERNAL: '1' }, windowsHide: true };
+    // The prompt goes over stdin, so the command line only ever holds these fixed, validated words.
+    const child = process.platform === 'win32' ? spawn(['claude', ...args].join(' '), { ...opts, shell: true }) : spawn('claude', args, opts);
     let out = '';
     let err = '';
     const timer = setTimeout(() => {

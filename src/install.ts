@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { dataDir, packageRoot } from './paths.js';
-import { ensureDir, readJson, writeJsonAtomic } from './fsutil.js';
+import { ensureDir, parseJson, readJson, writeJsonAtomic } from './fsutil.js';
 
 export const HOOK_MARK = '--cowait-hook';
 export const STATUS_MARK = '--cowait-statusline';
@@ -95,7 +95,7 @@ function readSettings(file: string): { settings: Settings; existed: boolean } {
   const raw = fs.readFileSync(file, 'utf8');
   if (!raw.trim()) return { settings: {}, existed: true };
   try {
-    return { settings: JSON.parse(raw), existed: true };
+    return { settings: parseJson<Settings>(raw), existed: true };
   } catch {
     throw new Error(`Cannot parse ${file} — please fix the JSON first.`);
   }

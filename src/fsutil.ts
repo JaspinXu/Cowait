@@ -5,9 +5,14 @@ export function ensureDir(dir: string): void {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+/** Parse JSON, tolerating the UTF-8 BOM that Windows tools (PowerShell 5, Notepad) like to add. */
+export function parseJson<T = unknown>(text: string): T {
+  return JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text) as T;
+}
+
 export function readJson<T>(file: string, fallback: T): T {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
+    return parseJson<T>(fs.readFileSync(file, 'utf8'));
   } catch {
     return fallback;
   }

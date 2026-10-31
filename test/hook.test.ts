@@ -139,3 +139,27 @@ describe('hook', () => {
     });
   });
 });
+
+describe('Windows-written files (UTF-8 BOM)', () => {
+  it('delivers a note file that starts with a BOM', () => {
+    const dir = path.join(home, 'feedback');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, '5-bom.json'), '﻿' + JSON.stringify({ id: 'bom', t: 5, text: 'from PowerShell' }));
+    const out = handleHook(JSON.stringify({ ...base, hook_event_name: 'UserPromptSubmit' }), 10);
+    expect(JSON.parse(out!).hookSpecificOutput.additionalContext).toContain('"from PowerShell"');
+  });
+
+  it('sets an unreadable note aside instead of deleting it', () => {
+    const dir = path.join(home, 'feedback');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, '6-bad.json'), '{ not json');
+    expect(handleHook(JSON.stringify({ ...base, hook_event_name: 'UserPromptSubmit' }), 10)).toBeNull();
+    expect(fs.readdirSync(dir)).toEqual(['6-bad.json.unreadable']);
+  });
+
+  it('honours a config.json saved with a BOM (e.g. by Notepad)', () => {
+    fs.writeFileSync(path.join(home, 'config.json'), '﻿{"feedback": false}');
+    addNote({ id: 'n9', t: 5, text: 'x' });
+    expect(handleHook(JSON.stringify({ ...base, hook_event_name: 'PostToolUse', tool_name: 'Read' }), 10)).toBeNull();
+  });
+});
