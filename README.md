@@ -93,16 +93,17 @@ card game or flashcards, and the game is paid for by reviewing.
 
 ## Quick start
 
-Requires **Node.js 20+** and Claude Code.
+Requires **Node.js 20+** and Claude Code. Nothing else: Cowait ships as two self-contained files in
+`dist/`, so there is no `npm install` and no dependency to download.
 
 ```bash
-git clone https://github.com/JaspinXu/cowait.git
-cd cowait
-npm install          # also builds
-npm link             # puts `cowait` on your PATH
+git clone https://github.com/JaspinXu/Cowait.git
+cd Cowait
+npm install -g .     # puts `cowait` on your PATH (or skip this and run `node dist/cli.js`)
 
-cowait install       # shows what it will change, asks, backs up, then adds the hooks
-cowait doctor        # checks Node, the hooks, and runs the hook once for real
+cowait install --project   # try it in one project first: writes only .claude/settings.local.json
+cowait install             # …or for every project; shows what it will change, asks, backs up
+cowait doctor              # checks Node, the hooks, and runs the hook once for real
 ```
 
 Restart any running Claude Code sessions so they pick up the hooks, then open the panel **next to**
@@ -233,7 +234,7 @@ you are typing a note never eats a keystroke.
 
 | Install | Data folder |
 |---|---|
-| Cloned (`git clone` + `npm link`) | `<install folder>/data` |
+| Cloned (`git clone`, with or without `npm install -g .`) | `<install folder>/data` |
 | Global npm install | `~/.cowait` |
 | Override | `COWAIT_HOME=/any/path` |
 
@@ -245,9 +246,9 @@ except when you ask for an AI deck, which sends the topic, or for `g` a few rece
 ## Development
 
 ```bash
-npm install
-npm test          # 60 tests: hook protocol, reducer, installer, game balance, UI interaction
-npm run build     # tsc → dist/
+npm install       # dev dependencies only (TypeScript, Ink, React, esbuild, Vitest)
+npm test          # bundles, then 60 tests: hook protocol, reducer, installer, game balance, UI interaction
+npm run build     # type-check, then esbuild → dist/cli.js + dist/hook.js (committed, so clones run as-is)
 node dist/cli.js demo
 ```
 

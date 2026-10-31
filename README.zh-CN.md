@@ -92,16 +92,17 @@ Cowait 反过来想。等 Claude 干活时，最有价值的事其实是**看看
 
 ## 快速开始
 
-需要 **Node.js 20+** 和 Claude Code。
+需要 **Node.js 20+** 和 Claude Code，别的都不用装：Cowait 打包成了 `dist/` 里两个自包含的文件，
+不需要 `npm install`，也不用下载任何依赖。
 
 ```bash
-git clone https://github.com/JaspinXu/cowait.git
-cd cowait
-npm install          # 会顺便编译
-npm link             # 把 cowait 命令加到 PATH
+git clone https://github.com/JaspinXu/Cowait.git
+cd Cowait
+npm install -g .     # 把 cowait 命令加到 PATH（也可以跳过，直接 node dist/cli.js）
 
-cowait install       # 先列出要改什么、问你确认、自动备份，再加 hooks
-cowait doctor        # 自检：Node、hooks，并真的跑一次 hook
+cowait install --project   # 先在一个项目里试：只写这个项目的 .claude/settings.local.json
+cowait install             # …或者对所有项目生效：先列出要改什么、问你确认、自动备份
+cowait doctor              # 自检：Node、hooks，并真的跑一次 hook
 ```
 
 重启正在运行的 Claude Code 会话让 hooks 生效，然后**在 Claude Code 旁边**打开面板：
@@ -224,7 +225,7 @@ Claude 完成或需要你确认时，面板会响铃并弹出提醒。弹出后�
 
 | 安装方式 | 数据目录 |
 |---|---|
-| clone 安装（`git clone` + `npm link`） | `<安装目录>/data` |
+| clone 安装（`git clone`，装没装 `npm install -g .` 都一样） | `<安装目录>/data` |
 | npm 全局安装 | `~/.cowait` |
 | 自定义 | 环境变量 `COWAIT_HOME=/任意路径` |
 
@@ -235,9 +236,9 @@ Claude 完成或需要你确认时，面板会响铃并弹出提醒。弹出后�
 ## 开发
 
 ```bash
-npm install
-npm test          # 60 个测试：hook 协议、reducer、安装器、游戏平衡、界面交互
-npm run build     # tsc → dist/
+npm install       # 只装开发依赖（TypeScript、Ink、React、esbuild、Vitest）
+npm test          # 先打包，再跑 60 个测试：hook 协议、reducer、安装器、游戏平衡、界面交互
+npm run build     # 类型检查 + esbuild 打包成 dist/cli.js 和 dist/hook.js（已提交，clone 下来就能用）
 node dist/cli.js demo
 ```
 

@@ -4,10 +4,9 @@
   "description": "Turn the time you spend waiting on Claude Code into useful time: review its changes, play a tiny roguelike, or learn something — in a side panel.",
   "main": "dist/cli.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "vitest run",
-    "dev": "tsc -p tsconfig.json --watch",
-    "prepare": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json --noEmit && node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node scripts/build.mjs && vitest run"
   },
   "keywords": [
     "claude-code",
@@ -23,15 +22,15 @@
   ],
   "author": "Zhaobin Xu (JaspinXu)",
   "license": "MIT",
-  "dependencies": {
-    "diff": "^9.0.0",
-    "ink": "^6.8.0",
-    "react": "^19.3.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
+    "diff": "^9.0.0",
+    "esbuild": "^0.28.2",
+    "ink": "^6.8.0",
     "ink-testing-library": "^4.0.0",
+    "react": "^19.3.1",
     "typescript": "5.9",
     "vitest": "^5.0.5"
   },
@@ -50,6 +49,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JaspinXu/cowait.git"
-  }
+    "url": "git+https://github.com/JaspinXu/Cowait.git"
+  },
+  "homepage": "https://github.com/JaspinXu/Cowait#readme"
 }
