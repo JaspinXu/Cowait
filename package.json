@@ -1,0 +1,55 @@
+{
+  "name": "cowait",
+  "version": "0.1.0",
+  "description": "Turn the time you spend waiting on Claude Code into useful time: review its changes, play a tiny roguelike, or learn something — in a side panel.",
+  "main": "dist/cli.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "dev": "tsc -p tsconfig.json --watch",
+    "prepare": "tsc -p tsconfig.json"
+  },
+  "keywords": [
+    "claude-code",
+    "claude",
+    "hooks",
+    "cli",
+    "tui",
+    "ai-agent",
+    "developer-tools",
+    "code-review",
+    "roguelike",
+    "flashcards"
+  ],
+  "author": "Zhaobin Xu (JaspinXu)",
+  "license": "MIT",
+  "dependencies": {
+    "diff": "^9.0.0",
+    "ink": "^6.8.0",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "ink-testing-library": "^4.0.0",
+    "typescript": "5.9",
+    "vitest": "^5.0.5"
+  },
+  "type": "module",
+  "bin": {
+    "cowait": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JaspinXu/cowait.git"
+  }
+}
