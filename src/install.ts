@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { dataDir, packageRoot } from './paths.js';
+import { isCompiled } from './runtime.js';
 import { ensureDir, parseJson, readJson, writeJsonAtomic } from './fsutil.js';
 
 export const HOOK_MARK = '--cowait-hook';
@@ -34,11 +35,14 @@ export function claudeSettingsPath(scope: Scope, cwd = process.cwd()): string {
 /** Forward slashes work in both Git Bash and cmd on Windows and need no escaping. */
 const fwd = (p: string) => p.replace(/\\/g, '/');
 
+/** Node + the tiny dist/hook.js bundle; a standalone binary runs itself with the `hook` subcommand. */
 export function hookCommand(): string {
+  if (isCompiled()) return `"${fwd(process.execPath)}" hook ${HOOK_MARK}`;
   return `"${fwd(process.execPath)}" "${fwd(path.join(packageRoot(), 'dist', 'hook.js'))}" ${HOOK_MARK}`;
 }
 
 export function statuslineCommand(): string {
+  if (isCompiled()) return `"${fwd(process.execPath)}" statusline ${STATUS_MARK}`;
   return `"${fwd(process.execPath)}" "${fwd(path.join(packageRoot(), 'dist', 'cli.js'))}" statusline ${STATUS_MARK}`;
 }
 

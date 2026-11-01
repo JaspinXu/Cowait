@@ -5,6 +5,9 @@
  *
  * Rules: never block the agent, never fail loudly. Always exit 0, finish in
  * milliseconds, and only print when there is a review note to hand to Claude.
+ *
+ * Two ways in, same code: `node dist/hook.js` (its own tiny bundle, used by clone and
+ * npm installs) and `cowait hook` (the standalone binary, which has no separate hook file).
  */
 import { pathToFileURL } from 'node:url';
 import { paths } from './paths.js';
@@ -87,8 +90,8 @@ async function main(): Promise<void> {
   if (out) await new Promise<void>((resolve) => process.stdout.write(out, () => resolve()));
 }
 
-const isEntry = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (isEntry) {
+/** Handle one hook call as a whole process: read stdin, maybe print, and always exit 0 within 4 s. */
+export function runHookProcess(): void {
   const guard = setTimeout(() => process.exit(0), 4000);
   main()
     .catch(() => undefined)
@@ -97,3 +100,13 @@ if (isEntry) {
       process.exit(0);
     });
 }
+
+/**
+ * scripts/build.mjs sets this to true for dist/hook.js and false for dist/cli.js: the CLI bundle
+ * contains this module too, and there import.meta.url is the CLI's own file, so the argv check
+ * alone would start a hook run inside every `cowait` command.
+ */
+declare const __COWAIT_HOOK_ENTRY__: boolean | undefined;
+const entryBundle = typeof __COWAIT_HOOK_ENTRY__ === 'undefined' || __COWAIT_HOOK_ENTRY__;
+const isEntry = entryBundle && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isEntry) runHookProcess();

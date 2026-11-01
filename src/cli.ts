@@ -14,14 +14,11 @@ import { grantDaily } from './engine/economy.js';
 import { claudeSettingsPath, hookCommand, hookStatus, install, ourHookCommand, readClaudeSettings, uninstall, type Scope } from './install.js';
 import { statusLine } from './statusline.js';
 import { detectProvider } from './learn/llm.js';
+import { runHookProcess } from './hook.js';
+import { appVersion, isCompiled, selfCommand, splitPlan } from './runtime.js';
+import { installKind, isNewer, latestVersion, updateCommand } from './update.js';
 
-function version(): string {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(packageRoot(), 'package.json'), 'utf8')).version;
-  } catch {
-    return '0.0.0';
-  }
-}
+const version = appVersion;
 
 function flag(args: string[], name: string): boolean {
   return args.includes(name);
@@ -132,8 +129,8 @@ async function cmdInstall(args: string[], lang: Lang): Promise<void> {
     info(zh ? '你已经有自定义状态栏，没有覆盖（加 --force 可替换，卸载时会还原）' : 'You already have a custom status line; kept it (use --force to replace; uninstall restores it)');
   console.log(
     zh
-      ? '\n下一步：\n  1. 重启正在运行的 Claude Code 会话，让新 hooks 生效\n  2. 在旁边开一个终端分屏运行 `cowait`（Windows Terminal / tmux 里可以直接 `cowait split`）\n  3. 不放心可以先跑 `cowait doctor` 自检，或 `cowait demo` 试玩\n'
-      : '\nNext:\n  1. Restart running Claude Code sessions so the hooks load\n  2. Run `cowait` in a pane next to Claude Code (`cowait split` does it in Windows Terminal / tmux)\n  3. `cowait doctor` checks the setup, `cowait demo` lets you try it\n',
+      ? '\n下一步：\n  1. 重启正在运行的 Claude Code 会话，让新 hooks 生效\n  2. 在旁边开一个终端分屏运行 `cowait`（Windows Terminal、tmux、zellij、WezTerm、kitty、iTerm2 里可以直接 `cowait split`）\n  3. 不放心可以先跑 `cowait doctor` 自检，或 `cowait demo` 试玩\n'
+      : '\nNext:\n  1. Restart running Claude Code sessions so the hooks load\n  2. Run `cowait` in a pane next to Claude Code (`cowait split` does it in Windows Terminal, tmux, zellij, WezTerm, kitty and iTerm2)\n  3. `cowait doctor` checks the setup, `cowait demo` lets you try it\n',
   );
 }
 
@@ -166,10 +163,15 @@ function smokeTest(command: string): { ok: boolean; ms: number; detail: string }
 function cmdDoctor(lang: Lang): void {
   const zh = lang === 'zh';
   console.log(zh ? '\nCowait 自检\n' : '\nCowait doctor\n');
-  const major = Number(process.versions.node.split('.')[0]);
-  (major >= 20 ? ok : bad)(`Node ${process.version} ${zh ? '（需要 ≥ 20）' : '(need ≥ 20)'}`);
-  const hookJs = path.join(packageRoot(), 'dist', 'hook.js');
-  (fs.existsSync(hookJs) ? ok : bad)(`${zh ? 'hook 脚本' : 'hook script'}: ${hookJs}`);
+  if (isCompiled()) {
+    // The binary carries its own runtime and runs the hook itself (`cowait hook`).
+    ok(`${zh ? '独立可执行文件' : 'standalone binary'} v${version()}: ${process.execPath}`);
+  } else {
+    const major = Number(process.versions.node.split('.')[0]);
+    (major >= 20 ? ok : bad)(`Node ${process.version} ${zh ? '（需要 ≥ 20）' : '(need ≥ 20)'}`);
+    const hookJs = path.join(packageRoot(), 'dist', 'hook.js');
+    (fs.existsSync(hookJs) ? ok : bad)(`${zh ? 'hook 脚本' : 'hook script'}: ${hookJs}`);
+  }
 
   let command: string | null = null;
   const inProject = hookStatus(readClaudeSettings('project')).installed.length > 0;
@@ -256,21 +258,86 @@ async function cmdLearn(args: string[], lang: Lang): Promise<void> {
   ok(zh ? `好了，共 ${d.cards.length} 张，已设为当前卡组` : `Done: ${d.cards.length} cards, set as the current deck`);
 }
 
+const SPLIT_NAMES = { tmux: 'tmux', zellij: 'zellij', wezterm: 'WezTerm', kitty: 'kitty', iterm2: 'iTerm2', 'windows-terminal': 'Windows Terminal' };
+
 function cmdSplit(lang: Lang): void {
-  const cli = path.join(packageRoot(), 'dist', 'cli.js');
   const zh = lang === 'zh';
-  if (process.env.WT_SESSION) {
-    spawn('wt.exe', ['-w', '0', 'sp', '-V', '-s', '0.4', '-d', process.cwd(), process.execPath, cli], { detached: true, stdio: 'ignore' }).unref();
-    ok(zh ? '已在 Windows Terminal 右侧分屏打开 Cowait' : 'Opened Cowait in a Windows Terminal split');
-  } else if (process.env.TMUX) {
-    spawnSync('tmux', ['split-window', '-h', '-l', '40%', `"${process.execPath}" "${cli}"`], { stdio: 'inherit' });
-  } else {
+  const plan = splitPlan(selfCommand(), process.cwd());
+  if (!plan) {
     console.log(
       zh
-        ? '没检测到 Windows Terminal 或 tmux。请自己开一个新终端窗口或分屏，运行：cowait'
-        : 'No Windows Terminal or tmux detected. Open another terminal pane and run: cowait',
+        ? '没检测到能自动分屏的终端（Windows Terminal、tmux、zellij、WezTerm、kitty、iTerm2）。请自己开一个新终端窗口或分屏，运行：cowait'
+        : 'No terminal that Cowait can split was detected (Windows Terminal, tmux, zellij, WezTerm, kitty, iTerm2). Open another pane and run: cowait',
     );
+    return;
   }
+  const name = SPLIT_NAMES[plan.via];
+  const opened = () => ok(zh ? `已在 ${name} 右侧分屏打开 Cowait` : `Opened Cowait in a ${name} split`);
+  if (plan.detached) {
+    const child = spawn(plan.bin, plan.args, { detached: true, stdio: 'ignore' });
+    child.on('error', () => undefined);
+    child.unref();
+    opened();
+    return;
+  }
+  const r = spawnSync(plan.bin, plan.args, { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8', timeout: 15000 });
+  if (r.status === 0) {
+    opened();
+    return;
+  }
+  bad(`${zh ? `${name} 分屏失败` : `${name} split failed`}: ${(r.error?.message || r.stderr || `exit ${r.status}`).toString().trim().slice(0, 300)}`);
+  if (plan.via === 'kitty')
+    info(
+      zh
+        ? 'kitty 需要开启远程控制：在 kitty.conf 里加 allow_remote_control yes（左右分屏还要 enabled_layouts splits），然后重启 kitty'
+        : 'kitty needs remote control: add `allow_remote_control yes` to kitty.conf (and `enabled_layouts splits` for a side-by-side split), then restart kitty',
+    );
+  if (plan.via === 'iterm2')
+    info(
+      zh
+        ? 'macOS 会询问是否允许控制 iTerm2：在 系统设置 → 隐私与安全性 → 自动化 里允许你的终端控制 iTerm2'
+        : 'macOS must allow controlling iTerm2: System Settings → Privacy & Security → Automation',
+    );
+  info(zh ? '也可以自己开一个分屏，运行：cowait' : 'Or open a pane yourself and run: cowait');
+  process.exitCode = 1;
+}
+
+async function cmdUpdate(args: string[], lang: Lang): Promise<void> {
+  const zh = lang === 'zh';
+  const kind = installKind();
+  const current = version();
+  const kindName = {
+    binary: zh ? '独立可执行文件' : 'standalone binary',
+    npm: zh ? 'npm 全局安装' : 'npm global install',
+    clone: zh ? 'git 克隆' : 'git clone',
+  }[kind];
+  console.log(zh ? `\nCowait v${current}（${kindName}）` : `\nCowait v${current} (${kindName})`);
+  const latest = await latestVersion();
+  const cmd = updateCommand(kind, lang);
+  if (latest === null) info(zh ? '查不到最新版本（离线、网络慢，或者还没发布到 npm）' : 'Could not check the latest version (offline, slow network, or not on npm yet)');
+  else if (isNewer(latest, current)) ok(zh ? `有新版本：v${latest}` : `New version available: v${latest}`);
+  else ok(zh ? `已经是最新版（npm 上最新是 v${latest}）` : `Up to date (latest on npm: v${latest})`);
+
+  if (kind === 'clone') {
+    // A clone follows the repository, not npm: pulling is always the update.
+    if (!flag(args, '--yes') && !flag(args, '-y')) {
+      info(zh ? `更新：${cmd}（或者 cowait update --yes 让 Cowait 来运行）` : `To update: ${cmd} (or cowait update --yes to run it)`);
+      console.log('');
+      return;
+    }
+    console.log(`\n> ${cmd}`);
+    const r = spawnSync('git', ['-C', packageRoot(), 'pull', '--ff-only'], { stdio: 'inherit' });
+    if (r.status !== 0) {
+      bad(zh ? 'git pull 没有成功，见上面的输出' : 'git pull did not succeed, see above');
+      process.exitCode = 1;
+      return;
+    }
+    ok(zh ? '已更新（dist/ 随仓库提交，不用重新构建）。面板要关掉再打开才会用上新版本' : 'Updated (dist/ is committed, nothing to build). Reopen the panel to run the new version');
+    console.log('');
+    return;
+  }
+  if (latest === null || isNewer(latest, current)) info(zh ? `更新命令：${cmd}` : `To update, run: ${cmd}`);
+  console.log('');
 }
 
 function cmdConfig(args: string[], lang: Lang): void {
@@ -330,7 +397,8 @@ function help(lang: Lang): void {
   cowait uninstall       移除 hooks（其他配置不动）
   cowait doctor          自检
   cowait demo [--fast]   用模拟的 Claude 会话试玩，不需要 Claude Code
-  cowait split           在 Windows Terminal / tmux 里分屏打开面板
+  cowait split           在右侧分屏打开面板（Windows Terminal / tmux / zellij / WezTerm / kitty / iTerm2）
+  cowait update [--yes]  检查新版本并给出更新命令（git 克隆安装加 --yes 直接 git pull）
   cowait learn "主题"    让 AI 出一组卡片 [-n 12]
   cowait stats           查看统计（含 AI 代码人工审阅覆盖率）
   cowait config [键 值]  查看或修改配置
@@ -346,7 +414,8 @@ Usage:
   cowait uninstall       remove the hooks (nothing else is touched)
   cowait doctor          check the setup
   cowait demo [--fast]   try it with a simulated Claude session, no Claude Code needed
-  cowait split           open the panel in a Windows Terminal / tmux split
+  cowait split           open the panel in a split (Windows Terminal / tmux / zellij / WezTerm / kitty / iTerm2)
+  cowait update [--yes]  check for a newer version and show how to update (--yes: git pull for clones)
   cowait learn "topic"   have AI write a flashcard deck [-n 12]
   cowait stats           stats, including human review coverage of AI code
   cowait config [k v]    show or change settings
@@ -356,6 +425,8 @@ Usage:
 
 async function main(): Promise<void> {
   const [cmd, ...args] = process.argv.slice(2);
+  // Claude Code runs this on every tool call (standalone binary): go straight to the hook, read nothing else.
+  if (cmd === 'hook') return runHookProcess();
   const lang = resolveLang(loadConfig());
   switch (cmd) {
     case undefined:
@@ -376,6 +447,8 @@ async function main(): Promise<void> {
       return cmdLearn(args, lang);
     case 'split':
       return cmdSplit(lang);
+    case 'update':
+      return cmdUpdate(args, lang);
     case 'config':
       return cmdConfig(args, lang);
     case 'statusline':
