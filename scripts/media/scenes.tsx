@@ -240,7 +240,9 @@ export async function meShot(home: string, lang: Lang, cols = 76, rows = 24): Pr
   const { app } = open(home, lang, cols, rows, s);
   const { keys } = keyboard(app);
   await sleep(300);
-  await keys('\t\t\t', 500);
+  // Auto mode picks the starting tab; step through until the Me tab is on screen.
+  for (let i = 0; i < 4 && !/github\.com\/JaspinXu\/Cowait/.test(app.lastFrame()); i++) await keys('\t', 300);
+  await sleep(300);
   const f = app.lastFrame();
   app.unmount();
   return f;

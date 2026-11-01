@@ -11,11 +11,11 @@
 <p>
 <img src="https://img.shields.io/badge/Claude%20Code-hooks-D97757?logo=anthropic&logoColor=white" alt="Claude Code hooks">
 <img src="https://img.shields.io/badge/%E7%B3%BB%E7%BB%9F-Windows%20%7C%20macOS%20%7C%20Linux-555" alt="Windows, macOS, Linux">
-<img src="https://img.shields.io/badge/%E5%AE%89%E8%A3%85-npm%20%7C%20%E7%8B%AC%E7%AB%8B%E5%8F%AF%E6%89%A7%E8%A1%8C%E6%96%87%E4%BB%B6-CB3837?logo=npm&logoColor=white" alt="npm 或独立可执行文件">
+<img src="https://img.shields.io/badge/%E5%BC%80%E6%BA%90-%E5%85%8D%E8%B4%B9-2ea44f" alt="开源、免费">
 <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
 <img src="https://img.shields.io/badge/%E7%BB%88%E7%AB%AF%E7%95%8C%E9%9D%A2-Ink%20%2B%20React-61DAFB?logo=react&logoColor=black" alt="Ink + React">
 <img src="https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-%E4%B8%AD%E6%96%87%20%2F%20English-6543ee" alt="中文 / English">
-<img src="https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-233%20%E9%80%9A%E8%BF%87-2ea44f" alt="233 个测试通过">
+<img src="https://img.shields.io/badge/%E6%B5%8B%E8%AF%95-207%20%E9%80%9A%E8%BF%87-2ea44f" alt="207 个测试通过">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT License"></a>
 </p>
 
@@ -23,7 +23,7 @@
 <a href="#安装">安装</a> ·
 <a href="#四个页面">四个页面</a> ·
 <a href="#每天都有理由回来">每天都有理由回来</a> ·
-<a href="#免费与-pro">免费与 Pro</a> ·
+<a href="#开源">开源</a> ·
 <a href="#隐私">隐私</a>
 </h3>
 
@@ -56,7 +56,7 @@ Cowait 反过来想。等 Claude 干活时，最有价值的事是**看看它在
 - [四个页面](#四个页面)
 - [每天都有理由回来](#每天都有理由回来)
 - [两种货币](#两种货币)
-- [免费与 Pro](#免费与-pro)
+- [开源](#开源)
 - [它是怎么工作的](#它是怎么工作的)
 - [命令](#命令)
 - [配置](#配置)
@@ -84,28 +84,26 @@ Cowait 反过来想。等 Claude 干活时，最有价值的事是**看看它在
 </tr>
 <tr>
 <td width="33%" valign="top"><b>按成果给奖励，不按时长</b><br>💰 金币只看 Claude 的成果：真正干活的一轮 +3，测试通过再 +10。等再久也不会多给。</td>
-<td width="33%" valign="top"><b>一条命令装好，到处能跑</b><br>npm 或者独立可执行文件（不需要 Node）。第一次打开按一下 Enter 就接入当前项目；<code>cowait split</code> 支持 Windows Terminal、tmux、zellij、WezTerm、kitty、iTerm2。</td>
+<td width="33%" valign="top"><b>按一个键接入，到处能跑</b><br>Windows、macOS、Linux 都能用。第一次打开按一下 Enter 就接入当前项目；<code>cowait split</code> 能在 Windows Terminal、tmux、zellij、WezTerm、kitty、iTerm2 里自动分屏。</td>
 <td width="33%" valign="top"><b>放心安装</b><br>改 <code>settings.json</code> 前先备份，不碰你自己的 hooks，卸载得干干净净。hook 永远以 0 退出、几十毫秒内结束，不可能卡住 Claude。</td>
 </tr>
 </table>
 
 ## 安装
 
-三种方式，任选其一：
+需要 Node.js 20 或更新版本。`dist/` 已经打包好并提交在仓库里，不需要 `npm install`，也不用下载任何依赖：
 
 ```bash
-# 1. npm（需要 Node.js 20+）
-npm install -g cowait
-
-# 2. 独立可执行文件，不需要 Node
-curl -fsSL https://github.com/JaspinXu/Cowait/releases/latest/download/install.sh | sh        # macOS / Linux
-irm https://github.com/JaspinXu/Cowait/releases/latest/download/install.ps1 | iex             # Windows PowerShell
-
-# 3. 从源码（dist/ 已经打包好，不需要 npm install）
-git clone https://github.com/JaspinXu/Cowait.git && cd Cowait && npm install -g .
+git clone https://github.com/JaspinXu/Cowait.git
+cd Cowait
+npm install -g .      # 把 cowait 命令加到 PATH（也可以跳过，直接 node dist/cli.js）
 ```
 
-安装脚本会校验 SHA-256，装到用户目录（不需要管理员权限），重复运行就是升级。`cowait update` 会告诉你有没有新版本、该用哪条命令升级。
+以后升级：`cowait update --yes`（就是在安装目录里 `git pull`）。
+
+> [!NOTE]
+> npm 包和不需要 Node 的独立可执行文件还没有发布。打包脚本、安装脚本（`scripts/install.sh`、`scripts/install.ps1`）和发布流程都已经写好，
+> 发布后就能用 `npm install -g cowait`，或者一条命令装上独立可执行文件。
 
 ## 第一次打开
 
@@ -147,7 +145,7 @@ Claude 干完一轮时，面板响铃并弹出提醒（用时、改了几个文�
 
 三个游戏，都是一个键一步、随时能停，Claude 一干完就能放下：
 
-- **捉虫地牢**（一局 10–20 分钟）：回合制卡牌闯关，往下打穿 6 层 Bug，最后修好「栈溢出」。**海森堡虫**没被 `console.log` 观测时会躲开你的第一下，**内存泄漏团**每回合都在长大；手牌是**小黄鸭**、**git bisect**、**结对编程**、**周五上线**……裸装通关率约 44%，满装备约 94%。Pro 有更难的「加班模式」。
+- **捉虫地牢**（一局 10–20 分钟）：回合制卡牌闯关，往下打穿 6 层 Bug，最后修好「栈溢出」。**海森堡虫**没被 `console.log` 观测时会躲开你的第一下，**内存泄漏团**每回合都在长大；手牌是**小黄鸭**、**git bisect**、**结对编程**、**周五上线**……裸装通关率约 44%，满装备约 94%。打通了还有更难的「加班模式」（按 `o`）。
 - **栈机谜题**（2–5 分钟）：一台只有栈的老机器，按按钮让栈正好变成目标的样子。**每天一道，所有人同一题**，解出来可以复制一行不剧透的战绩分享出去；卡住了按 `h` 看提示。另外还能做练习题。
 - **代码速打**（1 分钟）：照着打 5 行真实的代码。只要有素材，打的就是 **Claude 刚写的代码**，顺便又看了一遍。停下的时间不算进速度。
 
@@ -182,24 +180,17 @@ AI 出题用便宜的小模型（Haiku）：有 `ANTHROPIC_API_KEY` 就走 API�
 | ⚡ **能量** | **靠你自己**：认真审过一个文件 +1，针对文件给 Claude 写一句话 +2，刷一张卡 +1，今日任务 +2，成就 +3，每天第一次打开 +5，通关地牢 +5。没看就过、一眨眼就打分的不算 | 开一局捉虫地牢（3⚡）、代码速打（1⚡）、练习谜题（1⚡）。每日谜题免费 |
 | 💰 **金币** | **只看 Claude 的成果**：真正干活的一轮 +3，这一轮测试通过再 +10。只聊天不干活的一轮，等多久都是 0 | 捉虫地牢的永久装备：人体工学椅、降噪耳机、意式咖啡机、双显示器、机械键盘 |
 
-## 免费与 Pro
+## 开源
 
-核心功能永远免费：审阅、留言、三个游戏、学习、进度系统，全都在免费版里。
+Cowait 完全开源（[MIT](LICENSE)），所有功能都免费，没有付费版，也没有账号。
 
-| | Free | Pro | Team |
-|---|---|---|---|
-| 审阅、留言、覆盖率、每日谜题、学习、进度 | ✓ | ✓ | ✓ |
-| 栈机谜题练习 | 每天 3 道 | 不限 | 不限 |
-| 捉虫地牢「加班模式」 | | ✓ | ✓ |
-| `cowait report`：可分享的审阅报告网页 | 只看摘要 | ✓ | ✓ |
-| 团队审阅看板（规划中） | | | ✓ |
-| 价格 | 免费 | US$4/月 或 US$36/年 | US$8/人/月 |
+欢迎一起改进它：
 
-付费由 [Polar](https://polar.sh) 处理（他们是 merchant of record，税务和发票都由他们负责）。买好后运行 `cowait activate <密钥>`；
-`cowait license` 查看，`cowait deactivate` 在这台电脑上停用以便换电脑。离线也能用：密钥每几天在后台核验一次，30 天连不上才会回到免费版。
+- **用着哪里别扭、想要什么功能**，开一个 [issue](https://github.com/JaspinXu/Cowait/issues)，说说当时在做什么、期望发生什么。
+- **想直接改代码**，先跑一遍 `npm test`，再提 PR。界面改动请在 60 列宽的窄分屏里看一眼中英文两种语言，并用 `npm run media` 重录配图。
+- **用 AI agent 开发**（Claude Code、Codex 等）：让它先读 [`AGENTS.md`](AGENTS.md)，约定、架构和踩过的坑都在里面。
 
-> [!NOTE]
-> 付费渠道开放之前，Pro 功能对所有人开放。
+觉得有用的话，给仓库点个 Star，能让更多用 Claude Code 的人看到它。
 
 ## 它是怎么工作的
 
@@ -234,7 +225,8 @@ flowchart LR
 | `cowait report [--days 7] [--md] [--out 文件]` | 生成审阅报告：每天、每个项目，Claude 改了多少、你认真看了多少 |
 | `cowait learn "主题" [-n 12]` | 在命令行里让 AI 出一组卡 |
 | `cowait update [--yes]` | 检查新版本，给出对应安装方式的升级命令 |
-| `cowait upgrade` / `activate` / `license` / `deactivate` | 了解 Pro、激活密钥、查看方案、在本机停用 |
+>>>>
+
 | `cowait config [键 值]` | 查看或修改配置 |
 
 ## 配置
@@ -265,7 +257,7 @@ flowchart LR
 **存在本机的**：事件日志（超过 2MB 自动滚动清理）、面板状态、每一轮你消息的**第一行**（最多 60 个字，作为标题；可以关掉）、Claude 的改动（截断到几千字以内）、留言、AI 生成的卡组。
 **不会存的**：你消息的其余部分、Claude 读过的文件内容、命令输出。
 
-**会联网的只有这几件事，都可以不用**：每天最多一次去 npm 查新版本（`updateCheck`）；Pro 用户每几天核验一次密钥（只发送密钥）；你让 AI 出题时把主题或最近几处 diff 发给模型。没有统计、没有遥测、没有广告。
+**会联网的只有这两件事，都可以不用**：每天最多一次去 npm 查新版本（`updateCheck`）；你让 AI 出题时把主题或最近几处 diff 发给模型。没有账号、没有统计、没有遥测、没有广告。
 
 ## 开发
 
@@ -273,7 +265,7 @@ flowchart LR
 
 ```bash
 npm install       # 只装开发依赖（TypeScript、Ink、React、esbuild、Vitest）
-npm test          # 先打包，再跑 233 个测试：hook 协议、留言路由、按轮审阅、进度系统、三个游戏、许可证、60 列窄屏界面
+npm test          # 先打包，再跑 207 个测试：hook 协议、留言路由、按轮审阅、进度系统、三个游戏、60 列窄屏界面
 npm run build     # 类型检查 + esbuild 打包成 dist/cli.js 和 dist/hook.js（已提交，clone 下来就能用）
 npm run compile   # 用 Bun 编出五个平台的独立可执行文件到 release/
 npm run media     # 用真实面板重新录制 docs/media 里的配图（需要 Chrome 或 Edge，以及 ffmpeg）
@@ -290,7 +282,6 @@ src/
   game/                 捉虫地牢、栈机谜题、代码速打（纯函数、带种子、可序列化）
   learn/                间隔重复、内置卡组、AI 出题
   ui/                   Ink 组件：App、Review、Game（列表）、Dungeon、Puzzle、Sprint、Learn、Me
-  license.ts / plan.ts  Polar 许可证、Pro 功能开关
   report.ts             审阅报告（HTML / Markdown）
   install.ts / update.ts / runtime.ts   接入 Claude Code、升级、独立可执行文件
 scripts/                打包、编译、安装脚本、录制配图

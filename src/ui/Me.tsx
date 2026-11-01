@@ -3,19 +3,19 @@ import { Box, Text, useInput } from 'ink';
 import { ACHIEVEMENTS, weekKey, weekStats } from '../engine/progress.js';
 import { localDay } from '../engine/state.js';
 import type { Config } from '../config.js';
-import { CHECKOUT, PRICES, licensingConfigured } from '../product.js';
-import { loadLicense, maskKey } from '../license.js';
-import { openUrl } from '../open.js';
+import { appVersion } from '../runtime.js';
 import { t, pct, type Key } from '../i18n.js';
-import { Para, padTo, useHint, useRefState, type ModeProps } from './common.js';
+import { padTo, useHint, useRefState, type ModeProps } from './common.js';
 import { Today } from './Today.js';
 
-type Screen = 'main' | 'achievements' | 'settings' | 'pro';
+type Screen = 'main' | 'achievements' | 'settings';
 
 type Toggle = { key: keyof Config; label: Key; value: (c: Config) => string; next: (c: Config) => Config };
 
+export const REPO = 'github.com/JaspinXu/Cowait';
+
 export function Me(props: ModeProps) {
-  const { st, cfg, lang, active, blocked, width, height, now, setHint, setCfg, plan, toast } = props;
+  const { st, cfg, lang, active, blocked, width, height, now, setHint, setCfg } = props;
   const [screen, setScreen, screenRef] = useRefState<Screen>('main');
   const [cursor, setCursor] = useState(0);
   const [scroll, setScroll] = useState(0);
@@ -47,7 +47,6 @@ export function Me(props: ModeProps) {
       if (sc === 'main') {
         if (input === 'c') open('achievements');
         else if (input === 's') open('settings');
-        else if (input === 'u') open('pro');
       } else if (sc === 'settings') {
         if (key.upArrow || input === 'k') setCursor((c) => (c + toggles.length - 1) % toggles.length);
         else if (key.downArrow || input === 'j') setCursor((c) => (c + 1) % toggles.length);
@@ -56,25 +55,12 @@ export function Me(props: ModeProps) {
         const max = Math.max(0, ACHIEVEMENTS.length - Math.floor(achRows / 2));
         if (key.downArrow || input === 'j') setScroll((x) => Math.min(max, x + 1));
         else if (key.upArrow || input === 'k') setScroll((x) => Math.max(0, x - 1));
-      } else if (sc === 'pro') {
-        if (key.return && plan === 'free' && CHECKOUT.pro) {
-          toast(openUrl(CHECKOUT.pro) ? t(lang, 'pro_opened') : CHECKOUT.pro, 'cyan');
-        }
       }
     },
     { isActive: active },
   );
 
-  const hint =
-    screen === 'main'
-      ? t(lang, 'me_keys')
-      : screen === 'settings'
-        ? t(lang, 'set_keys')
-        : screen === 'achievements'
-          ? t(lang, 'ach_keys')
-          : plan === 'free' && CHECKOUT.pro
-            ? `${t(lang, 'pro_buy')} · ${t(lang, 'me_back')}`
-            : t(lang, 'me_back');
+  const hint = screen === 'main' ? t(lang, 'me_keys') : screen === 'settings' ? t(lang, 'set_keys') : t(lang, 'ach_keys');
   useHint(setHint, hint, active);
 
   const w = width - 1;
@@ -128,47 +114,9 @@ export function Me(props: ModeProps) {
     );
   }
 
-  // ---------------------------------------------------------------- pro
-  if (screen === 'pro') {
-    const planName = t(lang, plan === 'team' ? 'me_plan_team' : plan === 'pro' ? 'me_plan_pro' : 'me_plan_free');
-    const lic = plan !== 'free' ? loadLicense() : null;
-    return (
-      <Box flexDirection="column">
-        <Text bold color="magenta">
-          {t(lang, 'pro_title')}
-        </Text>
-        <Text color="gray">{t(lang, 'pro_current', { plan: planName })}</Text>
-        <Text> </Text>
-        {plan === 'free' ? (
-          <>
-            <Para text={t(lang, 'pro_pitch')} width={w} />
-            {(['pro_f1', 'pro_f2', 'pro_f3', 'pro_f4'] as Key[]).map((k) => (
-              <Para key={k} text={`  ✦ ${t(lang, k)}`} width={w} color="gray" />
-            ))}
-            <Text> </Text>
-            {licensingConfigured() ? (
-              <>
-                <Text color="cyan">{t(lang, 'pro_price', { c: PRICES.currency, m: PRICES.pro.monthly, y: PRICES.pro.yearly })}</Text>
-                <Para text={t(lang, 'pro_activate')} width={w} color="gray" />
-              </>
-            ) : (
-              <Para text={t(lang, 'pro_soon')} width={w} color="green" />
-            )}
-          </>
-        ) : (
-          <>
-            <Text color="green">{t(lang, 'pro_thanks')}</Text>
-            {lic ? <Text color="gray">{t(lang, 'pro_key', { k: maskKey(lic.key) })}</Text> : null}
-          </>
-        )}
-      </Box>
-    );
-  }
-
   // ---------------------------------------------------------------- main
   const r = weekStats(st, weekKey(now));
   const latest = [...unlocked].sort((a, b) => st.achievements[b.id] - st.achievements[a.id])[0];
-  const planName = t(lang, plan === 'team' ? 'me_plan_team' : plan === 'pro' ? 'me_plan_pro' : 'me_plan_free');
   return (
     <Box flexDirection="column">
       <Today st={st} lang={lang} width={w} now={now} />
@@ -180,8 +128,8 @@ export function Me(props: ModeProps) {
         <Text>{t(lang, 'me_ach', { n: unlocked.length, m: ACHIEVEMENTS.length })}</Text>
         {latest ? <Text color="gray"> · {t(lang, 'me_ach_recent', { name: latest.name[lang] })}</Text> : null}
       </Text>
-      <Text wrap="truncate-end">
-        <Text color={plan === 'free' ? 'gray' : 'magenta'}>{t(lang, 'me_plan_line', { plan: planName })}</Text>
+      <Text color="gray" wrap="truncate-end">
+        {t(lang, 'me_about', { v: appVersion(), repo: REPO })}
       </Text>
     </Box>
   );

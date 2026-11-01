@@ -11,11 +11,11 @@
 <p>
 <img src="https://img.shields.io/badge/Claude%20Code-hooks-D97757?logo=anthropic&logoColor=white" alt="Claude Code hooks">
 <img src="https://img.shields.io/badge/OS-Windows%20%7C%20macOS%20%7C%20Linux-555" alt="Windows, macOS, Linux">
-<img src="https://img.shields.io/badge/install-npm%20%7C%20standalone%20binary-CB3837?logo=npm&logoColor=white" alt="npm or standalone binary">
+<img src="https://img.shields.io/badge/open%20source-free-2ea44f" alt="Open source and free">
 <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
 <img src="https://img.shields.io/badge/TUI-Ink%20%2B%20React-61DAFB?logo=react&logoColor=black" alt="Ink + React">
 <img src="https://img.shields.io/badge/UI-English%20%2F%20%E4%B8%AD%E6%96%87-6543ee" alt="English / Chinese">
-<img src="https://img.shields.io/badge/tests-233%20passing-2ea44f" alt="233 tests passing">
+<img src="https://img.shields.io/badge/tests-207%20passing-2ea44f" alt="207 tests passing">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT License"></a>
 </p>
 
@@ -23,7 +23,7 @@
 <a href="#install">Install</a> ·
 <a href="#the-four-tabs">The four tabs</a> ·
 <a href="#a-reason-to-come-back-every-day">Every day</a> ·
-<a href="#free-and-pro">Free and Pro</a> ·
+<a href="#open-source">Open source</a> ·
 <a href="#privacy">Privacy</a>
 </h3>
 
@@ -60,7 +60,7 @@ for waiting and flashcards, and the energy to play is earned by actually reviewi
 - [The four tabs](#the-four-tabs)
 - [A reason to come back every day](#a-reason-to-come-back-every-day)
 - [Two currencies](#two-currencies)
-- [Free and Pro](#free-and-pro)
+- [Open source](#open-source)
 - [How it works](#how-it-works)
 - [Commands](#commands)
 - [Configuration](#configuration)
@@ -88,28 +88,27 @@ for waiting and flashcards, and the energy to play is earned by actually reviewi
 </tr>
 <tr>
 <td width="33%" valign="top"><b>Rewards for results, not minutes</b><br>💰 coins only come from Claude's results: +3 for a turn that did work, +10 more when its tests pass. Waiting longer never pays more.</td>
-<td width="33%" valign="top"><b>One command, runs anywhere</b><br>npm or a standalone binary (no Node needed). The first run hooks up your project with one key; <code>cowait split</code> works in Windows Terminal, tmux, zellij, WezTerm, kitty and iTerm2.</td>
+<td width="33%" valign="top"><b>One key to set up, runs anywhere</b><br>Windows, macOS and Linux. The first run hooks up your project with one key; <code>cowait split</code> opens the pane in Windows Terminal, tmux, zellij, WezTerm, kitty and iTerm2.</td>
 <td width="33%" valign="top"><b>Safe to install</b><br>Backs up <code>settings.json</code> before touching it, never touches your own hooks, uninstalls cleanly. The hook always exits 0 within milliseconds and cannot block Claude.</td>
 </tr>
 </table>
 
 ## Install
 
-Pick one:
+Needs Node.js 20 or newer. `dist/` is prebuilt and committed, so there is no `npm install` and nothing to download:
 
 ```bash
-# 1. npm (Node.js 20+)
-npm install -g cowait
-
-# 2. Standalone binary, no Node needed
-curl -fsSL https://github.com/JaspinXu/Cowait/releases/latest/download/install.sh | sh        # macOS / Linux
-irm https://github.com/JaspinXu/Cowait/releases/latest/download/install.ps1 | iex             # Windows PowerShell
-
-# 3. From source (dist/ is prebuilt, no npm install needed)
-git clone https://github.com/JaspinXu/Cowait.git && cd Cowait && npm install -g .
+git clone https://github.com/JaspinXu/Cowait.git
+cd Cowait
+npm install -g .      # puts the cowait command on your PATH (or skip it and run node dist/cli.js)
 ```
 
-The install scripts check SHA-256 sums, install into your user folder (no admin rights) and update in place when run again. `cowait update` tells you whether a newer version exists and the exact command for your kind of install.
+To update later: `cowait update --yes` (a `git pull` in the install folder).
+
+> [!NOTE]
+> The npm package and the standalone binaries (no Node needed) are not published yet. The build, the install scripts
+> (`scripts/install.sh`, `scripts/install.ps1`) and the release workflow are ready; once published, it is `npm install -g cowait`
+> or a one-line install of a standalone binary.
 
 ## First run
 
@@ -151,7 +150,7 @@ Changes nobody looked at for over a day are archived (counted as skipped), so th
 
 Three games, one key per step, drop them the moment Claude is done:
 
-- **Debug Dungeon** (10–20 min a run): a turn-based card roguelike. Fight down 6 floors of bugs and fix the Stack Overflow. The **Heisenbug** dodges your first hit unless you `console.log` it first, the **Memory Leak Blob** grows every turn; your hand is **Rubber Duck**, **git bisect**, **Pair Programming**, **Ship on Friday**… A greedy bot wins about 44% bare, 94% fully geared. Pro adds a harder overtime mode.
+- **Debug Dungeon** (10–20 min a run): a turn-based card roguelike. Fight down 6 floors of bugs and fix the Stack Overflow. The **Heisenbug** dodges your first hit unless you `console.log` it first, the **Memory Leak Blob** grows every turn; your hand is **Rubber Duck**, **git bisect**, **Pair Programming**, **Ship on Friday**… A greedy bot wins about 44% bare, 94% fully geared. Beat it and there is a harder overtime mode (press `o`).
 - **Stack Puzzle** (2–5 min): an old machine with only a stack; press buttons until the stack is exactly the goal. **One puzzle a day, the same for everyone**, with a spoiler-free result line to share; `h` gives a hint. Practice puzzles too.
 - **Code Sprint** (1 min): type 5 real lines of code. When there is material, the lines are **the code Claude just wrote**, one more look at it. Pauses don't count against your speed.
 
@@ -186,24 +185,17 @@ Level and XP, your streak, today's quests, how much Claude did this week and how
 | ⚡ **Energy** | **You**: +1 per file actually read, +2 for a note about a file, +1 per flashcard, +2 per daily quest, +3 per achievement, +5 on the first open of the day, +5 for beating the dungeon. Unread approvals and instant ratings earn nothing | A Debug Dungeon run (3⚡), a Code Sprint round (1⚡), a practice puzzle (1⚡). The daily puzzle is free |
 | 💰 **Coins** | **Claude's results only**: +3 for a turn that used tools, +10 more when its tests pass. A chat-only turn earns 0 however long it takes | Permanent Debug Dungeon gear: ergonomic chair, noise-cancelling headphones, espresso machine, second monitor, mechanical keyboard |
 
-## Free and Pro
+## Open source
 
-The core is free forever: reviewing, notes, all three games, learning and progress are in the free version.
+Cowait is fully open source ([MIT](LICENSE)). Every feature is free; there is no paid tier and no account.
 
-| | Free | Pro | Team |
-|---|---|---|---|
-| Review, notes, coverage, daily puzzle, learning, progress | ✓ | ✓ | ✓ |
-| Stack Puzzle practice | 3 a day | unlimited | unlimited |
-| Debug Dungeon overtime mode | | ✓ | ✓ |
-| `cowait report`: a shareable review report page | summary only | ✓ | ✓ |
-| Team review dashboard (planned) | | | ✓ |
-| Price | free | US$4/month or US$36/year | US$8/seat/month |
+Help make it better:
 
-Payments go through [Polar](https://polar.sh), the merchant of record (they handle tax and invoices). After buying, run `cowait activate <key>`;
-`cowait license` shows your plan and `cowait deactivate` frees this machine for another. It works offline: the key is re-checked in the background every few days, and only 30 days without reaching the server falls back to free.
+- **Something feels off, or you want a feature?** Open an [issue](https://github.com/JaspinXu/Cowait/issues) and say what you were doing and what you expected.
+- **Want to change the code?** Run `npm test`, then send a PR. For UI changes, look at both languages in a 60-column pane and re-record the pictures with `npm run media`.
+- **Working with an AI agent** (Claude Code, Codex, …)? Point it at [`AGENTS.md`](AGENTS.md) first: conventions, architecture and known pitfalls.
 
-> [!NOTE]
-> Until paid plans open, the Pro features are open to everyone.
+If Cowait helps you, a star on the repository helps other Claude Code users find it.
 
 ## How it works
 
@@ -238,7 +230,8 @@ The whole loop has run end to end with real Claude Code sessions on Linux and Wi
 | `cowait report [--days 7] [--md] [--out file]` | a review report: per day and per project, what Claude changed and what you read |
 | `cowait learn "topic" [-n 12]` | have AI write a deck from the command line |
 | `cowait update [--yes]` | check for a newer version and print the update command for your install |
-| `cowait upgrade` / `activate` / `license` / `deactivate` | about Pro, activate a key, show your plan, free this machine |
+>>>>
+
 | `cowait config [key value]` | show or change settings |
 
 ## Configuration
@@ -269,7 +262,7 @@ Most settings can be switched in the panel under Me → Settings. From the comma
 **Kept on your machine**: the event log (rotated past 2 MB), panel state, the **first line** of each message you send Claude (up to 60 characters, as the turn's title; can be switched off), Claude's changes (clipped to a few thousand characters), your notes, AI-written decks.
 **Never kept**: the rest of your messages, file contents Claude read, command output.
 
-**The only network calls, all optional**: at most one npm lookup a day for a newer version (`updateCheck`); for Pro users, a license check every few days (sends only the key); when you ask the AI for a deck, the topic or your last few diffs go to the model. No analytics, no telemetry, no ads.
+**The only network calls, both optional**: at most one npm lookup a day for a newer version (`updateCheck`); when you ask the AI for a deck, the topic or your last few diffs go to the model. No account, no analytics, no telemetry, no ads.
 
 ## Development
 
@@ -277,7 +270,7 @@ Picking this up with an AI agent (Claude Code, Codex, …)? Start with [`AGENTS.
 
 ```bash
 npm install       # dev dependencies only (TypeScript, Ink, React, esbuild, Vitest)
-npm test          # build, then 233 tests: hook protocol, note routing, turn-based review, progress, the three games, licensing, the 60-column UI
+npm test          # build, then 207 tests: hook protocol, note routing, turn-based review, progress, the three games, the 60-column UI
 npm run build     # typecheck + esbuild into dist/cli.js and dist/hook.js (committed, so a clone just works)
 npm run compile   # standalone binaries for five platforms into release/, with Bun
 npm run media     # re-record docs/media from the real panel (needs Chrome or Edge, and ffmpeg)
@@ -294,7 +287,8 @@ src/
   game/                 Debug Dungeon, Stack Puzzle, Code Sprint (pure, seeded, serialisable)
   learn/                spaced repetition, built-in decks, AI decks
   ui/                   Ink components: App, Review, Game (list), Dungeon, Puzzle, Sprint, Learn, Me
-  license.ts / plan.ts  Polar license keys, Pro feature switch
+>>>>
+
   report.ts             review report (HTML / Markdown)
   install.ts / update.ts / runtime.ts   hooking into Claude Code, updates, standalone binaries
 scripts/                build, compile, install scripts, media recording

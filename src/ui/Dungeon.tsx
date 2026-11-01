@@ -18,7 +18,6 @@ import { settleRun, snapshot } from '../game/meta.js';
 import { ECON } from '../engine/economy.js';
 import type { State } from '../engine/state.js';
 import { t, type Lang } from '../i18n.js';
-import { proUnlocked } from '../plan.js';
 import { Bar, Para, useHint, type ModeProps } from './common.js';
 
 function intentText(it: Intent, lang: Lang): string {
@@ -35,7 +34,7 @@ function intentText(it: Intent, lang: Lang): string {
 }
 
 /** Debug Dungeon: the card roguelike. `onExit` goes back to the game list (the run is kept). */
-export function Dungeon({ st, update, cfg, lang, active, blocked, width, height, setHint, plan, onExit }: ModeProps & { onExit: () => void }) {
+export function Dungeon({ st, update, cfg, lang, active, blocked, width, height, setHint, onExit }: ModeProps & { onExit: () => void }) {
   const [screen, setScreen] = useState<'main' | 'shop'>('main');
   const [msg, setMsg] = useState('');
   const run = st.game;
@@ -48,10 +47,6 @@ export function Dungeon({ st, update, cfg, lang, active, blocked, width, height,
     });
 
   const startRun = (overtime = false) => {
-    if (overtime && !proUnlocked(plan)) {
-      setMsg(t(lang, 'pro_only'));
-      return;
-    }
     if (st.energy < cfg.runCost) {
       setMsg(t(lang, 'gm_poor'));
       return;
@@ -319,7 +314,7 @@ export function Dungeon({ st, update, cfg, lang, active, blocked, width, height,
         <Text color="gray">{'   '}</Text>
         <Text color="cyan">{t(lang, 'gm_shop')}</Text>
       </Text>
-      <Para text={t(lang, 'gm_overtime', { c: cfg.runCost })} width={width - 1} color={proUnlocked(plan) ? 'magenta' : 'gray'} />
+      <Para text={t(lang, 'gm_overtime', { c: cfg.runCost })} width={width - 1} color="magenta" />
       {msgLine}
     </Box>
   );

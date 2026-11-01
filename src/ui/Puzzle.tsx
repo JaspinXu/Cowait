@@ -18,20 +18,18 @@ import {
   type PuzzleRun,
 } from '../game/stack.js';
 import { t } from '../i18n.js';
-import { proUnlocked } from '../plan.js';
 import { Para, padTo, useHint, type ModeProps } from './common.js';
 
 const starText = (n: number) => '★'.repeat(n) + '☆'.repeat(3 - n);
 const stackText = (xs: number[]) => (xs.length ? `[ ${xs.join('  ')} ]` : '[ ]');
 
 /** Stack Puzzle: one daily puzzle for everyone, plus practice puzzles. */
-export function Puzzle({ st, update, lang, active, blocked, width, now, setHint, plan, onExit }: ModeProps & { onExit: () => void }) {
+export function Puzzle({ st, update, lang, active, blocked, width, now, setHint, onExit }: ModeProps & { onExit: () => void }) {
   const [msg, setMsg] = useState<{ text: string; color: string } | null>(null);
   const today = localDay(now);
   const run: PuzzleRun | null = st.puzzle;
   const day = st.days[today];
   const dailyStars = day?.puzzle ?? 0;
-  const practiceLeft = proUnlocked(plan) ? Infinity : Math.max(0, ECON.freePractice - (day?.practice ?? 0));
   // A finished or stale run is not "in progress": show the menu.
   const live = run && !run.solved && (run.mode === 'practice' || run.day === today) ? run : null;
   const justSolved = run?.solved && (run.mode === 'practice' || run.day === today) ? run : null;
@@ -61,7 +59,6 @@ export function Puzzle({ st, update, lang, active, blocked, width, now, setHint,
   };
 
   const startPractice = () => {
-    if (practiceLeft <= 0) return setMsg({ text: t(lang, 'pz_practice_out'), color: 'yellow' });
     if (st.energy < ECON.practiceCost) return setMsg({ text: t(lang, 'gm_poor_any'), color: 'yellow' });
     // Practice follows your level: the more you have solved, the harder it gets.
     const d = (Math.min(3, 1 + Math.floor(st.totals.puzzles / 4)) as Difficulty) || 1;
@@ -183,7 +180,7 @@ export function Puzzle({ st, update, lang, active, blocked, width, now, setHint,
         <Text> </Text>
         <Para text={t(lang, 'pz_share', { s: shareText(justSolved, lang) })} width={w} color="cyan" />
         <Text> </Text>
-        <Para text={practiceLeft === Infinity ? t(lang, 'pz_menu_practice', { c: `${ECON.practiceCost}⚡` }) : practiceLeft > 0 ? t(lang, 'pz_practice_left', { n: practiceLeft }) : t(lang, 'pz_practice_out')} width={w} color="gray" />
+        <Text color="gray">{t(lang, 'pz_menu_practice', { c: `${ECON.practiceCost}⚡` })}</Text>
         {msgLine}
       </Box>
     );
@@ -203,10 +200,7 @@ export function Puzzle({ st, update, lang, active, blocked, width, now, setHint,
           {t(lang, 'pz_menu_daily')}
         </Text>
       )}
-      <Text color={practiceLeft > 0 ? 'cyan' : 'gray'}>{t(lang, 'pz_menu_practice', { c: `${ECON.practiceCost}⚡` })}</Text>
-      {practiceLeft !== Infinity ? (
-        <Text color="gray">{practiceLeft > 0 ? t(lang, 'pz_practice_left', { n: practiceLeft }) : t(lang, 'pz_practice_out')}</Text>
-      ) : null}
+      <Text color="cyan">{t(lang, 'pz_menu_practice', { c: `${ECON.practiceCost}⚡` })}</Text>
       <Text> </Text>
       {msgLine}
     </Box>

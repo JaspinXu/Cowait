@@ -17,10 +17,6 @@ import { detectProvider } from './learn/llm.js';
 import { runHookProcess } from './hook.js';
 import { appVersion, isCompiled, selfCommand, splitPlan } from './runtime.js';
 import { installKind, isNewer, latestVersion, updateCommand } from './update.js';
-import { activePlan, proUnlocked, refreshLicense } from './plan.js';
-import { activateLicense, deactivateLicense, loadLicense, maskKey, validateLicense } from './license.js';
-import { CHECKOUT, PRICES, SITE, licensingConfigured } from './product.js';
-import { openUrl } from './open.js';
 import { levelInfo, levelTitle, streak } from './engine/progress.js';
 
 const version = appVersion;
@@ -76,8 +72,6 @@ async function runPanel(opts: { demo?: boolean; fast?: boolean } = {}): Promise<
     releaseLock();
   };
   process.on('exit', restore);
-  // Re-check a paid license every few days, quietly; the result counts from the next launch.
-  void refreshLicense();
   const app = render(
     React.createElement(App, {
       cfg,
@@ -85,7 +79,6 @@ async function runPanel(opts: { demo?: boolean; fast?: boolean } = {}): Promise<
       initial: state,
       daily,
       setupHint,
-      plan: activePlan(),
       cwd: process.cwd(),
       checkUpdate: opts.demo ? undefined : () => checkUpdateCached(lang),
     }),
@@ -114,87 +107,7 @@ async function checkUpdateCached(lang: Lang): Promise<{ version: string; command
   return latest && isNewer(latest, version()) ? { version: latest, command: updateCommand(installKind(), lang) } : null;
 }
 
-// ------------------------------------------------------------------ plans
-
-const failText = (reason: string, detail: string | undefined, zh: boolean): string =>
-  ({
-    not_configured: zh ? '付费渠道还没开放，现在所有功能都可以免费用' : 'Paid plans are not open yet; everything is free to use for now',
-    invalid: zh ? '这个密钥无效（检查一下有没有复制完整）' : 'That key is not valid (check it was copied in full)',
-    limit: zh ? '这个密钥激活的设备数已经满了：先在旧设备上运行 cowait deactivate' : 'This key is active on as many machines as it allows: run cowait deactivate on an old one first',
-    revoked: detail === 'expired' ? (zh ? '这个密钥已过期' : 'This key has expired') : zh ? '这个密钥已停用（订阅结束或退款）' : 'This key is no longer active (subscription ended or refunded)',
-    network: zh ? `连不上授权服务器${detail ? `（${detail}）` : ''}，稍后再试` : `Could not reach the license server${detail ? ` (${detail})` : ''}; try again later`,
-    server: zh ? `授权服务器出错${detail ? `（${detail}）` : ''}，稍后再试` : `The license server had a problem${detail ? ` (${detail})` : ''}; try again later`,
-  })[reason] ?? reason;
-
-async function cmdActivate(args: string[], lang: Lang): Promise<void> {
-  const zh = lang === 'zh';
-  const key = args.find((a) => !a.startsWith('-'));
-  if (!key) {
-    console.log(zh ? '用法：cowait activate <密钥>' : 'Usage: cowait activate <key>');
-    process.exitCode = 1;
-    return;
-  }
-  const r = await activateLicense(key);
-  if (!r.ok) {
-    (r.reason === 'not_configured' ? info : bad)(failText(r.reason, r.detail, zh));
-    process.exitCode = r.reason === 'not_configured' ? 0 : 1;
-    return;
-  }
-  const plan = r.license.plan === 'team' ? 'Team' : 'Pro';
-  ok(zh ? `Cowait ${plan} 已激活 ✓（${r.license.label}）谢谢支持！` : `Cowait ${plan} is active ✓ (${r.license.label}). Thank you!`);
-  info(zh ? '重新打开面板就能用上 Pro 功能' : 'Reopen the panel to use the Pro features');
-}
-
-async function cmdLicense(args: string[], lang: Lang): Promise<void> {
-  const zh = lang === 'zh';
-  let lic = loadLicense();
-  if (lic && flag(args, '--check')) {
-    const r = await validateLicense(lic);
-    if (!r.ok) bad(failText(r.reason, r.detail, zh));
-    lic = loadLicense();
-  }
-  const plan = activePlan();
-  console.log(zh ? `\n当前方案：${plan === 'free' ? 'Free' : plan === 'team' ? 'Team' : 'Pro'}` : `\nPlan: ${plan === 'free' ? 'Free' : plan === 'team' ? 'Team' : 'Pro'}`);
-  if (lic) {
-    info(`${zh ? '密钥' : 'key'}: ${maskKey(lic.key)} · ${lic.status} · ${lic.label}`);
-    info(`${zh ? '上次核验' : 'last checked'}: ${new Date(lic.checkedAt).toLocaleString()}`);
-  } else if (!licensingConfigured()) {
-    info(zh ? '付费渠道即将开放；在那之前 Pro 功能对所有人开放' : 'Paid plans open soon; until then the Pro features are open to everyone');
-  } else {
-    info(zh ? '升级：cowait upgrade · 激活：cowait activate <密钥>' : 'Upgrade: cowait upgrade · Activate: cowait activate <key>');
-  }
-  console.log('');
-}
-
-async function cmdDeactivate(lang: Lang): Promise<void> {
-  const zh = lang === 'zh';
-  const lic = loadLicense();
-  if (!lic) {
-    info(zh ? '这台电脑上没有激活的密钥' : 'No license is active on this machine');
-    return;
-  }
-  const r = await deactivateLicense(lic);
-  if (r.ok) ok(zh ? '已在这台电脑上停用，密钥可以拿去别的电脑激活' : 'Deactivated here; the key can now be activated on another machine');
-  else {
-    bad(zh ? `停用失败：${r.detail ?? ''}` : `Could not deactivate: ${r.detail ?? ''}`);
-    process.exitCode = 1;
-  }
-}
-
-function cmdUpgrade(lang: Lang): void {
-  const zh = lang === 'zh';
-  const url = CHECKOUT.pro || SITE;
-  console.log(
-    zh
-      ? `\nCowait Pro：${PRICES.currency}${PRICES.pro.monthly}/月 或 ${PRICES.currency}${PRICES.pro.yearly}/年`
-      : `\nCowait Pro: ${PRICES.currency}${PRICES.pro.monthly}/month or ${PRICES.currency}${PRICES.pro.yearly}/year`,
-  );
-  if (!licensingConfigured()) info(zh ? '付费渠道即将开放；在那之前 Pro 功能对所有人开放' : 'Paid plans open soon; until then the Pro features are open to everyone');
-  if (openUrl(url)) ok(zh ? `已在浏览器打开 ${url}` : `Opened ${url}`);
-  else info(url);
-  if (licensingConfigured()) info(zh ? '买好后运行：cowait activate <密钥>' : 'Then run: cowait activate <key>');
-  console.log('');
-}
+// ------------------------------------------------------------------ report
 
 async function cmdReport(args: string[], lang: Lang): Promise<void> {
   const zh = lang === 'zh';
@@ -208,11 +121,6 @@ async function cmdReport(args: string[], lang: Lang): Promise<void> {
       ? `\n${r.from} – ${r.to}：Claude 干活 ${r.turns} 轮，改了 ${r.files} 个文件；你认真看过 ${r.read} 个（${pctText}），标出问题 ${r.flagged} 个`
       : `\n${r.from} – ${r.to}: Claude worked ${r.turns} turns and changed ${r.files} files; you read ${r.read} (${pctText}) and flagged ${r.flagged}`,
   );
-  if (!proUnlocked(activePlan())) {
-    info(zh ? '完整的报告（每天、每个项目，可以分享的网页）是 Pro 功能：cowait upgrade' : 'The full report (per day, per project, a page you can share) is a Pro feature: cowait upgrade');
-    console.log('');
-    return;
-  }
   const md = flag(args, '--md');
   const body = md ? reportMarkdown(r, lang, version()) : reportHtml(r, lang, version());
   const out = opt(args, '--out') ?? path.join(dataDir(), 'reports', `cowait-report-${r.to}.${md ? 'md' : 'html'}`);
@@ -550,8 +458,6 @@ function help(lang: Lang): void {
   cowait stats           查看统计（含 AI 代码人工审阅覆盖率）
   cowait report          生成审阅报告网页 [--days 7] [--md] [--out 文件]
   cowait config [键 值]  查看或修改配置
-  cowait upgrade         了解 Cowait Pro
-  cowait activate <密钥> 激活 Pro（cowait license 查看，cowait deactivate 在本机停用）
 `
       : `Cowait v${version()} — turn time spent waiting on Claude Code into useful time
 
@@ -570,8 +476,6 @@ Usage:
   cowait stats           stats, including human review coverage of AI code
   cowait report          a review report page [--days 7] [--md] [--out file]
   cowait config [k v]    show or change settings
-  cowait upgrade         about Cowait Pro
-  cowait activate <key>  activate Pro (cowait license shows it, cowait deactivate frees this machine)
 `,
   );
 }
@@ -602,15 +506,6 @@ async function main(): Promise<void> {
       return cmdSplit(lang);
     case 'update':
       return cmdUpdate(args, lang);
-    case 'activate':
-      return cmdActivate(args, lang);
-    case 'deactivate':
-      return cmdDeactivate(lang);
-    case 'license':
-      return cmdLicense(args, lang);
-    case 'upgrade':
-    case 'pro':
-      return cmdUpgrade(lang);
     case 'report':
       return cmdReport(args, lang);
     case 'config':

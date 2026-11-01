@@ -152,7 +152,7 @@ export interface Battle {
 export type Phase = 'battle' | 'reward' | 'dead' | 'victory';
 
 export interface Run {
-  /** Overtime mode (Pro): tougher bugs, double the win reward. */
+  /** Overtime mode: tougher bugs, double the win reward. */
   overtime?: boolean;
   seed: number;
   rng: number;

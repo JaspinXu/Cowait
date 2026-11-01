@@ -248,7 +248,11 @@ await build({
   logLevel: 'warning',
   jsx: 'automatic',
   banner: { js: "import { createRequire as __r } from 'node:module'; const require = __r(import.meta.url);" },
-  define: { 'process.env.NODE_ENV': '"production"' },
+  define: {
+    'process.env.NODE_ENV': '"production"',
+    // The bundle lives in data/.media, away from package.json: bake the version in, like scripts/build.mjs.
+    __COWAIT_VERSION__: JSON.stringify(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version),
+  },
   plugins: [
     {
       name: 'stub-devtools',

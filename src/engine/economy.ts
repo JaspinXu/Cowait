@@ -22,8 +22,6 @@ export const ECON = {
   /** A Code Sprint round, and a practice Stack Puzzle (the daily puzzle is free). */
   sprintCost: 1,
   practiceCost: 1,
-  /** Practice puzzles a day on the free plan. */
-  freePractice: 3,
   maxCards: 150,
   /** Changes left unreviewed this long are archived (counted as skipped), so the queue never becomes a guilt pile. */
   expireMs: 24 * 60 * 60 * 1000,

@@ -5,7 +5,6 @@ import { wrapText } from '../text.js';
 import type { State } from '../engine/state.js';
 import type { Config } from '../config.js';
 import type { Lang } from '../i18n.js';
-import type { Plan } from '../license.js';
 
 export interface ModeProps {
   st: State;
@@ -32,7 +31,6 @@ export interface ModeProps {
   setHint: (text: string) => void;
   /** Change and save settings. */
   setCfg: (cfg: Config) => void;
-  plan: Plan;
   /** Review: jump to the first waiting file of this turn (set from the "Claude finished" alert). */
   focusTurn: string | null;
   clearFocus: () => void;

@@ -10,7 +10,6 @@ import { chooseMode, predictWait, MODES, type Mode } from '../engine/predict.js'
 import { ACHIEVEMENT_ENERGY, QUEST_ENERGY, recapDue, settleProgress, streak, track, weekKey, type ProgressEvent, type Recap } from '../engine/progress.js';
 import { addNote } from '../feedback.js';
 import { install, type Scope } from '../install.js';
-import type { Plan } from '../license.js';
 import { normPath } from '../paths.js';
 import { t, fmtDur, helpContent, pct, type Lang } from '../i18n.js';
 import { Review } from './Review.js';
@@ -40,7 +39,6 @@ export interface AppProps {
   pollMs?: number;
   /** Nothing is hooked up yet: show how to connect Cowait to Claude Code. */
   setupHint?: boolean;
-  plan?: Plan;
   /** The project folder the panel was opened in (where "hook up this project" writes). */
   cwd?: string;
   /** Resolves to a line announcing a newer version, if there is one. */
@@ -169,7 +167,7 @@ function RecapView({ r, lang, width }: { r: Recap; lang: Lang; width: number }) 
   );
 }
 
-export function App({ cfg: initialCfg, lang: autoLang, initial, daily, pollMs = 400, setupHint = false, plan = 'free', cwd = process.cwd(), checkUpdate }: AppProps) {
+export function App({ cfg: initialCfg, lang: autoLang, initial, daily, pollMs = 400, setupHint = false, cwd = process.cwd(), checkUpdate }: AppProps) {
   const { exit } = useApp();
   const { cols, rows } = useSize();
   const [cfg, setCfgState] = useState(initialCfg);
@@ -570,7 +568,6 @@ export function App({ cfg: initialCfg, lang: autoLang, initial, daily, pollMs = 
     toast: showToast,
     setHint,
     setCfg,
-    plan,
     focusTurn,
     clearFocus: () => setFocusTurn(null),
   };

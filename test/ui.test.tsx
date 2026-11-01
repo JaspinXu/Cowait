@@ -614,7 +614,7 @@ describe('narrow side panel (60 columns)', () => {
       await snap('me', '\t');
       await snap('settings', 's');
       await snap('achievements', '\x1bc');
-      await snap('pro', '\x1bu');
+      await snap('me again', '\x1b');
       emit({ t: t + 9000, k: 'stop', sid: 's', cwd: '/home/dev/shop-api' });
       await snap('alert', '', 150);
       for (const [name, frame] of screens) expect(widest(frame), `${name}:\n${frame}`).toBeLessThanOrEqual(60);
