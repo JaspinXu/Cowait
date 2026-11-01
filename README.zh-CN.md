@@ -9,6 +9,7 @@
 <img src="docs/media/demo-zh.gif" alt="Claude 干活时的 Cowait 面板：一轮改动按文件列出、同一个文件的两处修改合在一起、给 Claude 的留言在它下一步就送达、完成提醒里按 Enter 直接去看、整轮通过、解出今日栈机谜题、“我”页的等级和连续天数" width="100%">
 
 <p>
+<a href="https://www.npmjs.com/package/cowait-cli"><img src="https://img.shields.io/npm/v/cowait-cli?logo=npm&color=CB3837" alt="npm"></a>
 <img src="https://img.shields.io/badge/Claude%20Code-hooks-D97757?logo=anthropic&logoColor=white" alt="Claude Code hooks">
 <img src="https://img.shields.io/badge/%E7%B3%BB%E7%BB%9F-Windows%20%7C%20macOS%20%7C%20Linux-555" alt="Windows, macOS, Linux">
 <img src="https://img.shields.io/badge/%E5%BC%80%E6%BA%90-%E5%85%8D%E8%B4%B9-2ea44f" alt="开源、免费">

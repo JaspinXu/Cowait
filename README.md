@@ -9,6 +9,7 @@
 <img src="docs/media/demo-en.gif" alt="The Cowait panel while Claude works: a turn's files as they come in, two edits to one file folded together, a note Claude receives on its next step, Enter on the 'finished' alert jumps to that turn, approving the turn, solving today's Stack Puzzle, the Me tab with level and streak" width="100%">
 
 <p>
+<a href="https://www.npmjs.com/package/cowait-cli"><img src="https://img.shields.io/npm/v/cowait-cli?logo=npm&color=CB3837" alt="npm"></a>
 <img src="https://img.shields.io/badge/Claude%20Code-hooks-D97757?logo=anthropic&logoColor=white" alt="Claude Code hooks">
 <img src="https://img.shields.io/badge/OS-Windows%20%7C%20macOS%20%7C%20Linux-555" alt="Windows, macOS, Linux">
 <img src="https://img.shields.io/badge/open%20source-free-2ea44f" alt="Open source and free">

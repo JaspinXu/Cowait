@@ -24,7 +24,7 @@ Cowait 是放在 Claude Code 旁边分屏里的终端面板，把等 Claude 干�
 |---|---|
 | 版本 | **1.0.0**（见 `CHANGELOG.md`） |
 | 仓库 | **公开** `https://github.com/JaspinXu/Cowait`，MIT 开源（仓库名首字母大写是用户要求） |
-| npm | 包名 **`cowait-cli`**（命令仍是 `cowait`）。`cowait` 被 npm 拒了：和一个已有的空包 `co-wait` 太像（npm 防仿冒规则），用户选了 `cowait-cli`。npm 账号 `jaspin`，开了两步验证 |
+| npm | 包名 **`cowait-cli`**（命令仍是 `cowait`），**1.0.0 已于 2026-11-01 发布**，从 npm 装到干净目录实测可用（`--version`、`doctor` 的 hook 实测都通过）。`cowait` 被 npm 拒了：和一个已有的空包 `co-wait` 太像（npm 防仿冒规则），用户选了 `cowait-cli`。npm 账号 `jaspin`，开了两步验证 |
 | 测试 | 207 个，全部通过（`npm test`） |
 | 分发渠道 | npm（见上）和从源码装（`git clone` + `npm install -g .`）。独立可执行文件（release workflow）、官网（Pages）的代码和 CI 都已就绪，但**还没发布**。发布清单见第 8 节，每一步都要先问用户 |
 | 付费 | **没有**。1.0.0 开发中做过一版 Polar 许可证和 Pro/Team 方案，用户决定开源后整体删掉了（在 git 历史里，提交 `a99641e` 之后） |
