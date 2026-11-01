@@ -10,6 +10,7 @@
 
 <p>
 <a href="https://www.npmjs.com/package/cowait-cli"><img src="https://img.shields.io/npm/v/cowait-cli?logo=npm&color=CB3837" alt="npm"></a>
+<a href="https://www.producthunt.com/products/cowait"><img src="https://img.shields.io/badge/Product%20Hunt-Cowait-DA552F?logo=producthunt&logoColor=white" alt="Cowait on Product Hunt"></a>
 <img src="https://img.shields.io/badge/Claude%20Code-hooks-D97757?logo=anthropic&logoColor=white" alt="Claude Code hooks">
 <img src="https://img.shields.io/badge/%E7%B3%BB%E7%BB%9F-Windows%20%7C%20macOS%20%7C%20Linux-555" alt="Windows, macOS, Linux">
 <img src="https://img.shields.io/badge/%E5%BC%80%E6%BA%90-%E5%85%8D%E8%B4%B9-2ea44f" alt="开源、免费">

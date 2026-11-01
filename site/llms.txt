@@ -23,3 +23,4 @@ Key facts:
 - [AGENTS.md](https://raw.githubusercontent.com/JaspinXu/Cowait/main/AGENTS.md): architecture, conventions and pitfalls for AI agents working on the code (in Chinese)
 - [Founding research](https://raw.githubusercontent.com/JaspinXu/Cowait/main/docs/history/2026-11-01-founding-session.md): the market scan and the decisions behind the design (in Chinese)
 - [npm package](https://www.npmjs.com/package/cowait-cli)
+- [Product Hunt page](https://www.producthunt.com/products/cowait)
