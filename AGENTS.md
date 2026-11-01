@@ -24,7 +24,7 @@ Cowait 是放在 Claude Code 旁边分屏里的终端面板，把等 Claude 干�
 |---|---|
 | 版本 | **1.0.0**（见 `CHANGELOG.md`） |
 | 仓库 | **公开** `https://github.com/JaspinXu/Cowait`，MIT 开源（仓库名首字母大写是用户要求） |
-| npm | 包名 **`cowait-cli`**（命令仍是 `cowait`），**1.0.0 已于 2026-11-01 发布**，从 npm 装到干净目录实测可用（`--version`、`doctor` 的 hook 实测都通过）。`cowait` 被 npm 拒了：和一个已有的空包 `co-wait` 太像（npm 防仿冒规则），用户选了 `cowait-cli`。npm 账号 `jaspin`，开了两步验证 |
+| npm | 包名 **`cowait-cli`**（命令仍是 `cowait`），**1.0.0 已于 2026-11-01 发布**（npm 页面上的 README 是发布时那一版，之后 README 的改动要等下次发版才会同步过去），从 npm 装到干净目录实测可用（`--version`、`doctor` 的 hook 实测都通过）。`cowait` 被 npm 拒了：和一个已有的空包 `co-wait` 太像（npm 防仿冒规则），用户选了 `cowait-cli`。npm 账号 `jaspin`，开了两步验证 |
 | 测试 | 207 个，全部通过（`npm test`） |
 | 分发渠道 | npm（见上）和从源码装（`git clone` + `npm install -g .`）。**官网已上线** https://jaspinxu.github.io/Cowait/ （Pages 用 Actions 部署，改 `site/` 或 `docs/media/` 就会自动发布；有 `llms.txt`、站点地图、schema.org 结构化数据）。**独立可执行文件已发布**：GitHub Release `v1.0.0`（5 个平台 + 安装脚本 + SHA256SUMS，Linux x64 和 macOS arm64 冒烟测试通过；Windows 版从 Release 用 install.ps1 装到测试目录实测通过）。以后的发布标签要用户自己推（Claude Code 自动模式不允许 Claude 推发布标签） |
 | 可被找到 | 统一叫 “Cowait for Claude Code”；`docs/compare.md`（+ zh-CN）和同类工具对比；仓库描述、话题、主页都设好了。推广材料和教程在 `data/launch/`（不进 Git）：awesome-claude-code 最早 **2026-11-15** 能提交（要满 14 天且第一天之后有提交），Product Hunt、Google/Bing 收录由用户本人做 |
@@ -180,7 +180,6 @@ cowait report --days 7   # 审阅报告，存到 <数据目录>/reports/
 
 1.0.0 用过的 agent 工作区、`worktree-agent-*` 分支、Bun 缓存和 `data\scratch` 已在 2026-11-01 经用户同意清理掉了。以后再用 worktree 并行开发：工作区里的 `node_modules` 如果是指向主仓库的 junction，删之前先单独删 junction（`cmd /c rmdir <工作区>\node_modules`，只删链接），再 `git worktree remove`，否则可能把主仓库的依赖一起删了。`npm run compile` 会重新下载 Bun 缓存（约 380 MB，在 `node_modules/.cache/bun`）。
 
-还剩：
-- `G:\Cowait\data\` 里的 `site\`（`node scripts/site.mjs` 生成的官网预览）、`e2e-test\`、`e2e-home\`、`latency-test\`、`bomtest.json`（测试残留，gitignore 了）。
+`data\` 里的早期测试残留（`e2e-test`、`e2e-home`、`latency-test`、`bomtest.json`）和官网预览 `site\` 也已在 2026-11-01 收尾时删掉。现在 `data\` 里只有面板自己的数据和 `launch\`（推广教程，awesome-claude-code 提交完就可以删）。
 - C 盘 `%TEMP%` 里 0.2.0 之前测试留下的 `cowait-test-*`、`claude-cfg-*` 小文件夹（合计约 120 KB），可以请用户自己运行：
   `Get-ChildItem $env:TEMP -Directory | Where-Object Name -match '^(cowait-(test|frames)-|claude-cfg-)' | Remove-Item -Recurse -Force`

@@ -80,3 +80,20 @@
 - 「我」页底部改成一行“Cowait vX · 开源免费 · github.com/JaspinXu/Cowait”。
 - README 和官网：“免费与 Pro / 价格”换成“开源”（怎么提 issue、PR、用 AI agent 开发、点 Star）；安装方式改成从源码安装，并注明 npm 包和独立可执行文件还没发布。
 - 打包、安装脚本、release workflow、官网 workflow 都保留，发布前问用户。
+
+## 8. 发布和推广（同一天下午）
+
+| 用户说 / 发生了什么 | 处理 |
+|---|---|
+| “发布 npm 包需要很麻烦吗” | 不麻烦。用户自己 `npm login`（这台电脑的默认源是 npmmirror，要加 `--registry https://registry.npmjs.org`） |
+| 第一次发布：403，要求两步验证 | 用户在 npmjs.com 开了两步验证（安全密钥）。在 Claude 的命令通道里完成不了网页验证，改由用户在自己的 PowerShell 里运行 `npm publish` |
+| 第二次发布：包名 `cowait` 和已有的空包 `co-wait` 太像，被 npm 防仿冒规则拒绝 | 用户在 `@jaspin/cowait`、`cowait-cli`、`cowaitcc` 里选了 **`cowait-cli`**（命令仍是 `cowait`）。改了 package.json、更新检查、README、官网、安装脚本 |
+| `cowait-cli@1.0.0` 发布成功 | 装到干净目录实测：只有这一个包、`--version`、`doctor` 的 hook 实测都正常 |
+| “以后别人做同样的市场调研，AI 能找到我们吗” | 当时搜不到（仓库刚公开）。解释了 AI 找项目的两条路（联网搜索、训练数据），列出仓库里能做的和需要用户本人做的 |
+| “先把仓库里能做的四项做了，后面只做 1、3、5 并给我教程” | 统一叫 “Cowait for Claude Code”；官网加 `llms.txt`、schema.org 结构化数据、站点地图、绝对地址的分享卡片；写了 `docs/compare.md`（+ 中文）和同类工具客观对比；开启 GitHub Pages，官网上线 https://jaspinxu.github.io/Cowait/ ；推广材料和教程放在 `data/launch/`（不进 Git） |
+| 推 `v1.0.0` 发布标签被 Claude Code 自动模式拦下（会公开发布可下载的程序） | 没有绕过，请用户自己用 `!` 运行 `git tag` 和 `git push origin v1.0.0` |
+| release workflow 成功 | 5 个平台的独立可执行文件 + 安装脚本 + SHA256SUMS；Linux x64、macOS arm64 冒烟测试通过；Windows 版用 install.ps1 从 Release 装到测试目录实测通过；Release 说明换成 CHANGELOG 内容；README 和官网补上一行安装命令 |
+| 用户在 Google Search Console 拿到验证码 | 加进 `site/index.html` 的 `<head>`（**不能删**），Google 和 Bing 都验证通过、提交了站点地图、请求了收录 |
+| 用户建好 Product Hunt 页面，预约 2026-11-02 太平洋时间 0:01 上线 | README 徽章、官网页脚、结构化数据、`llms.txt` 都链接到 https://www.producthunt.com/products/cowait |
+
+还剩：awesome-claude-code（规则要求满 14 天且第一天之后有提交，最早 11 月 15 日，只能用户本人在网页表单提交，材料在 `data/launch/发布指南.md`）。
