@@ -1,0 +1,126 @@
+name: Release
+
+# Push a tag like v0.3.0 (matching package.json) to build the standalone binaries,
+# publish a GitHub Release with them, and publish to npm when an NPM_TOKEN secret exists.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: 1.4.4
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: npm ci
+      - name: Tag matches package.json
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if [ "v$v" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $v"
+            exit 1
+          fi
+      - run: npm run typecheck
+      - run: npm test
+      # Cross-compiles all five targets from Linux.
+      - run: node scripts/compile.mjs
+      - name: Smoke test the Linux binary
+        run: |
+          bin=release/cowait-linux-x64
+          chmod +x "$bin"
+          test "$("$bin" --version)" = "${GITHUB_REF_NAME#v}"
+          "$bin" help >/dev/null
+          export COWAIT_HOME="$RUNNER_TEMP/cowait-home"
+          printf '%s' '{"hook_event_name":"UserPromptSubmit","session_id":"ci","cwd":"/tmp","prompt":"x"}' | "$bin" hook --cowait-hook
+          grep -q '"sid":"ci"' "$COWAIT_HOME/events.jsonl"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: release/cowait-*
+          if-no-files-found: error
+
+  sign-macos:
+    # macOS refuses to run unsigned arm64 binaries; an ad-hoc signature is enough.
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: release
+      - name: Ad-hoc sign
+        run: |
+          for f in release/cowait-darwin-x64 release/cowait-darwin-arm64; do
+            codesign --force --sign - "$f"
+            codesign --verify --verbose "$f"
+          done
+      - name: Smoke test the arm64 binary
+        run: |
+          chmod +x release/cowait-darwin-arm64
+          test "$(release/cowait-darwin-arm64 --version)" = "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-darwin-signed
+          path: release/cowait-darwin-*
+          if-no-files-found: error
+
+  publish:
+    needs: [build, sign-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub Release
+      id-token: write # npm provenance
+    env:
+      # Secrets cannot be used in `if:` directly; expose whether one is set through the environment.
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: release
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries-darwin-signed
+          path: signed
+      - name: Checksums and install scripts
+        run: |
+          # The signed macOS binaries replace the unsigned ones.
+          cp -f signed/cowait-darwin-* release/
+          node scripts/compile.mjs --sums
+          cp scripts/install.sh scripts/install.ps1 release/
+          cat release/SHA256SUMS
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=""
+          case "$GITHUB_REF_NAME" in *-*) pre="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" release/cowait-* release/SHA256SUMS release/install.sh release/install.ps1 \
+            --title "Cowait $GITHUB_REF_NAME" --generate-notes --verify-tag $pre
+      - name: Publish to npm
+        if: env.HAS_NPM_TOKEN == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm ci
+          tag="latest"
+          case "$GITHUB_REF_NAME" in *-*) tag="next" ;; esac
+          npm publish --provenance --access public --tag "$tag"

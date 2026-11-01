@@ -7,7 +7,9 @@
     "build": "tsc -p tsconfig.json --noEmit && node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node scripts/build.mjs && vitest run",
-    "media": "node scripts/media/record.mjs"
+    "compile": "node scripts/compile.mjs",
+    "media": "node scripts/media/record.mjs",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "claude-code",

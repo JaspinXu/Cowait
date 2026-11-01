@@ -1,5 +1,7 @@
 node_modules/
 data/
+# Standalone binaries and SHA256SUMS from npm run compile
+release/
 .npm-cache/
 *.tmp
 *.log
