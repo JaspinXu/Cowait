@@ -7,7 +7,7 @@ import { isCompiled, packageRoot } from './runtime.js';
 
 export type InstallKind = 'binary' | 'npm' | 'clone';
 
-export const REGISTRY_LATEST = 'https://registry.npmjs.org/cowait/latest';
+export const REGISTRY_LATEST = 'https://registry.npmjs.org/cowait-cli/latest';
 export const RELEASES = 'https://github.com/JaspinXu/Cowait/releases/latest/download';
 
 /** binary: a standalone executable; npm: a package inside node_modules; clone: a git checkout. */
@@ -88,7 +88,7 @@ export function isNewer(a: string, b: string): boolean {
  */
 export function updateCommand(kind: InstallKind, _lang: Lang = 'en', opts: { platform?: NodeJS.Platform; root?: string } = {}): string {
   const platform = opts.platform ?? process.platform;
-  if (kind === 'npm') return 'npm i -g cowait@latest';
+  if (kind === 'npm') return 'npm i -g cowait-cli@latest';
   if (kind === 'clone') return `git -C "${opts.root ?? packageRoot()}" pull --ff-only`;
   // Re-running the installer replaces the binary in place, so the hooks keep pointing at it.
   return platform === 'win32' ? `irm ${RELEASES}/install.ps1 | iex` : `curl -fsSL ${RELEASES}/install.sh | sh`;

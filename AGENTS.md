@@ -23,12 +23,13 @@ Cowait 是放在 Claude Code 旁边分屏里的终端面板，把等 Claude 干�
 | 项 | 状态 |
 |---|---|
 | 版本 | **1.0.0**（见 `CHANGELOG.md`） |
-| 仓库 | **公开** `https://github.com/JaspinXu/Cowait`，MIT 开源（仓库名首字母大写是用户要求；npm 包名和命令小写 `cowait`） |
+| 仓库 | **公开** `https://github.com/JaspinXu/Cowait`，MIT 开源（仓库名首字母大写是用户要求） |
+| npm | 包名 **`cowait-cli`**（命令仍是 `cowait`）。`cowait` 被 npm 拒了：和一个已有的空包 `co-wait` 太像（npm 防仿冒规则），用户选了 `cowait-cli`。npm 账号 `jaspin`，开了两步验证 |
 | 测试 | 207 个，全部通过（`npm test`） |
-| 分发渠道 | 现在只能从源码装（`git clone` + `npm install -g .`）。npm 包、独立可执行文件（release workflow）、官网（Pages）的代码和 CI 都已就绪，但**都还没发布**；npm 包名 `cowait` 还没被占。发布清单见第 8 节，每一步都要先问用户 |
+| 分发渠道 | npm（见上）和从源码装（`git clone` + `npm install -g .`）。独立可执行文件（release workflow）、官网（Pages）的代码和 CI 都已就绪，但**还没发布**。发布清单见第 8 节，每一步都要先问用户 |
 | 付费 | **没有**。1.0.0 开发中做过一版 Polar 许可证和 Pro/Team 方案，用户决定开源后整体删掉了（在 git 历史里，提交 `a99641e` 之后） |
 | 独立可执行文件 | Bun 编译。Windows x64 版在用户电脑上实测通过（面板、hook、doctor、install）；Linux/macOS 版能编出来但没运行过（本机 WSL 坏了），release workflow 里的冒烟测试是第一次真实检验 |
-| 用户电脑上的安装 | `G:\Cowait`（git clone），`cowait` 通过 `npm install -g G:\Cowait` 装在 PATH 上 |
+| 用户电脑上的安装 | `G:\Cowait`（git clone），`cowait` 通过 `npm install -g G:\Cowait` 装在 PATH 上（全局 node_modules 里是改名前的 `cowait` 链接，指向 G:\Cowait）。**这台电脑别再 `npm i -g cowait-cli`**：两个包都提供 `cowait` 命令会冲突；真要换成 npm 版，先 `npm rm -g cowait` |
 | 数据目录 | `G:\Cowait\data`（clone 安装数据跟着程序走；npm 和独立可执行文件用 `~/.cowait`） |
 | **用户全局 Claude Code 配置** | **没装**。`C:\Users\19826\.claude\settings.json` 没动过；改全局之前必须再问用户 |
 | 项目级安装 | `G:\Cowait` 本项目已 `cowait install --project`（`.claude/settings.local.json`，已 gitignore） |
@@ -163,9 +164,9 @@ cowait report --days 7   # 审阅报告，存到 <数据目录>/reports/
 ## 8. 路线图 / 还没做的
 
 **发布清单**（仓库已经公开；下面每一步都要用户点头，用户没提之前不要做，也不要反复催）：
-1. 在仓库 Secrets 里加 `NPM_TOKEN`，然后打 `v1.0.0` 标签：release workflow 会编译、签名、发 Release、发 npm。第一次要盯着 Linux/macOS 的冒烟测试。
+1. 独立可执行文件：打一个版本标签（npm 上已经手动发了 1.0.0，所以用下一个版本，比如先把 package.json 改成 1.0.1 再打 `v1.0.1`），release workflow 会编译、签名、发 GitHub Release。它的 npm 发布步骤只在仓库 Secrets 里有 `NPM_TOKEN` 时运行；npm 账号开了两步验证，令牌要用 granular access token。第一次要盯着 Linux/macOS 的冒烟测试。发了之后把 README 和官网里“独立可执行文件还没发布”的说明换成安装命令。
 2. Settings → Pages → Source 选 “GitHub Actions”，然后给 `pages.yml` 加回 push 触发（现在只能手动运行，免得 Pages 没开时每次改官网都报错），官网会发到 `https://jaspinxu.github.io/Cowait/`。
-3. 发布后：README 和官网的安装方式改回“npm / 独立可执行文件优先、源码其次”（现在写的是“还没发布”），README 徽章加 npm 版本号。
+3. 手动发 npm 新版本：这台电脑上默认 registry 是 npmmirror，要加 `--registry https://registry.npmjs.org`；在 Claude 的命令通道里没法完成两步验证，要用户在自己的 PowerShell 窗口里运行 `npm publish --registry https://registry.npmjs.org`（测试刚跑过可以加 `--ignore-scripts`），按 Enter 打开浏览器确认。
 
 **产品**（开源项目，按社区反馈来）：
 - 多人审阅覆盖率汇总（例如 `cowait report --merge` 合并几个人导出的数据）。

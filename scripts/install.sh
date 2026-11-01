@@ -54,12 +54,12 @@ main() {
 	Linux) os=linux ;;
 	Darwin) os=darwin ;;
 	MINGW* | MSYS* | CYGWIN*) fail "on Windows, run in PowerShell: irm https://github.com/$REPO/releases/latest/download/install.ps1 | iex" ;;
-	*) fail "no prebuilt binary for $os; install with npm instead: npm i -g cowait" ;;
+	*) fail "no prebuilt binary for $os; install with npm instead: npm i -g cowait-cli" ;;
 	esac
 	case "$arch" in
 	x86_64 | amd64) arch=x64 ;;
 	arm64 | aarch64) arch=arm64 ;;
-	*) fail "no prebuilt binary for $arch; install with npm instead: npm i -g cowait" ;;
+	*) fail "no prebuilt binary for $arch; install with npm instead: npm i -g cowait-cli" ;;
 	esac
 	# An x64 shell under Rosetta on Apple Silicon should still get the native binary.
 	if [ "$os" = darwin ] && [ "$arch" = x64 ] && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" = 1 ]; then
@@ -67,7 +67,7 @@ main() {
 	fi
 	# The Linux binaries link against glibc; Alpine and other musl systems cannot run them.
 	if [ "$os" = linux ] && ls /lib/ld-musl-* >/dev/null 2>&1; then
-		fail "musl-based Linux (e.g. Alpine) is not supported by the prebuilt binary; install with npm instead: npm i -g cowait"
+		fail "musl-based Linux (e.g. Alpine) is not supported by the prebuilt binary; install with npm instead: npm i -g cowait-cli"
 	fi
 
 	asset="cowait-$os-$arch"

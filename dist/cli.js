@@ -29101,7 +29101,7 @@ init_runtime();
 
 // src/update.ts
 init_runtime();
-var REGISTRY_LATEST = "https://registry.npmjs.org/cowait/latest";
+var REGISTRY_LATEST = "https://registry.npmjs.org/cowait-cli/latest";
 var RELEASES = "https://github.com/JaspinXu/Cowait/releases/latest/download";
 function installKind(root = packageRoot(), compiled = isCompiled()) {
   if (compiled) return "binary";
@@ -29159,7 +29159,7 @@ function isNewer(a, b) {
 }
 function updateCommand(kind, _lang = "en", opts = {}) {
   const platform2 = opts.platform ?? process.platform;
-  if (kind === "npm") return "npm i -g cowait@latest";
+  if (kind === "npm") return "npm i -g cowait-cli@latest";
   if (kind === "clone") return `git -C "${opts.root ?? packageRoot()}" pull --ff-only`;
   return platform2 === "win32" ? `irm ${RELEASES}/install.ps1 | iex` : `curl -fsSL ${RELEASES}/install.sh | sh`;
 }

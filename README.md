@@ -98,10 +98,10 @@ for waiting and flashcards, and the energy to play is earned by actually reviewi
 Needs Node.js 20 or newer:
 
 ```bash
-npm install -g cowait
+npm install -g cowait-cli     # the command is cowait
 ```
 
-To update later: `npm install -g cowait@latest`. The panel looks for a new version at most once a day and tells you; so does `cowait update`.
+To update later: `npm install -g cowait-cli@latest`. The panel looks for a new version at most once a day and tells you; so does `cowait update`.
 
 <details>
 <summary>Install from source</summary>

@@ -94,10 +94,10 @@ Cowait 反过来想。等 Claude 干活时，最有价值的事是**看看它在
 需要 Node.js 20 或更新版本：
 
 ```bash
-npm install -g cowait
+npm install -g cowait-cli     # 装好后命令是 cowait
 ```
 
-以后升级：`npm install -g cowait@latest`。面板每天最多查一次有没有新版本，有的话会提示你；`cowait update` 也会告诉你。
+以后升级：`npm install -g cowait-cli@latest`。面板每天最多查一次有没有新版本，有的话会提示你；`cowait update` 也会告诉你。
 
 <details>
 <summary>从源码安装</summary>

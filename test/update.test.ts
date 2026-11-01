@@ -58,7 +58,7 @@ describe('latestVersion', () => {
     });
     expect(v).toBe('0.3.1');
     expect(asked).toBe(REGISTRY_LATEST);
-    expect(asked).toBe('https://registry.npmjs.org/cowait/latest');
+    expect(asked).toBe('https://registry.npmjs.org/cowait-cli/latest');
     expect(signal).toBeInstanceOf(AbortSignal);
   });
 
@@ -102,7 +102,7 @@ describe('latestVersion', () => {
 
 describe('updateCommand', () => {
   it('gives the exact command for each kind of install', () => {
-    expect(updateCommand('npm', 'en')).toBe('npm i -g cowait@latest');
+    expect(updateCommand('npm', 'en')).toBe('npm i -g cowait-cli@latest');
     expect(updateCommand('clone', 'zh', { root: 'G:\\Cowait' })).toBe('git -C "G:\\Cowait" pull --ff-only');
     expect(updateCommand('binary', 'en', { platform: 'win32' })).toBe('irm https://github.com/JaspinXu/Cowait/releases/latest/download/install.ps1 | iex');
     expect(updateCommand('binary', 'en', { platform: 'linux' })).toBe('curl -fsSL https://github.com/JaspinXu/Cowait/releases/latest/download/install.sh | sh');

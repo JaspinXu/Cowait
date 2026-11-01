@@ -1,5 +1,5 @@
 {
-  "name": "cowait",
+  "name": "cowait-cli",
   "version": "1.0.0",
   "description": "A side panel for Claude Code: read what each turn changed, steer Claude with one line, then play a quick game or study while it works.",
   "main": "dist/cli.js",
