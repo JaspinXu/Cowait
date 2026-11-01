@@ -166,7 +166,7 @@ cowait report --days 7   # 审阅报告，存到 <数据目录>/reports/
 
 **发布清单**（仓库已经公开；下面每一步都要用户点头，用户没提之前不要做，也不要反复催）：
 1. 发新版本（例如 1.0.1）：改 `package.json` 版本号和 CHANGELOG → `npm test` → 提交推送 → 用户推 `v1.0.1` 标签（`git -C G:/Cowait tag -a v1.0.1 -m "Cowait 1.0.1"`、`git -C G:/Cowait push origin v1.0.1`），release workflow 编译、签名、发 GitHub Release（`--generate-notes`，之后用 `gh release edit --notes-file` 换成 CHANGELOG 的内容）。npm 那步只在仓库 Secrets 有 `NPM_TOKEN`（granular token）时自动发；没有就按第 3 条手动发。
-2. 搜索收录：用户在 Google Search Console（网址前缀资源）拿到 `google-site-verification` 的 content 后，加到 `site/index.html` 的 `<head>`；Bing 从 Search Console 导入。步骤在 `data/launch/发布指南.md`。
+2. 搜索收录：**已完成（2026-11-01）**。Google Search Console（网址前缀资源 `https://jaspinxu.github.io/Cowait/`，验证用的 meta 标签在 `site/index.html` 的 `<head>` 里，**别删**）和 Bing Webmaster Tools 都已验证，站点地图已提交，首页已请求收录。Bing 的 “AI Performance” 可以看 Copilot 等 AI 回答有没有引用官网。还没做：Product Hunt、awesome-claude-code（11 月 15 日起），都由用户本人做，教程在 `data/launch/发布指南.md`。
 3. 手动发 npm 新版本：这台电脑上默认 registry 是 npmmirror，要加 `--registry https://registry.npmjs.org`；在 Claude 的命令通道里没法完成两步验证，要用户在自己的 PowerShell 窗口里运行 `npm publish --registry https://registry.npmjs.org`（测试刚跑过可以加 `--ignore-scripts`），按 Enter 打开浏览器确认。
 
 **产品**（开源项目，按社区反馈来）：
