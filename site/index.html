@@ -215,6 +215,8 @@ footer .grow { flex: 1; }
       <div class="install">
         <div role="tablist" aria-label="Install">
           <button role="tab" aria-selected="true" data-cmd="npm">npm</button>
+          <button role="tab" aria-selected="false" data-cmd="sh">macOS / Linux</button>
+          <button role="tab" aria-selected="false" data-cmd="ps">Windows</button>
           <button role="tab" aria-selected="false" data-cmd="src"><span lang="zh-CN">从源码</span><span lang="en">From source</span></button>
         </div>
         <div class="cmd" id="cmdbox"><code id="cmd">npm install -g cowait-cli</code><button class="copy" type="button" id="copy"><span lang="zh-CN">复制</span><span lang="en">Copy</span></button></div>
@@ -410,7 +412,9 @@ footer .grow { flex: 1; }
 
   // Install tabs. From source uses semicolons: Windows PowerShell 5.1 has no &&, and ; works everywhere.
   var CMDS = {
-    npm: { cmd: 'npm install -g cowait-cli', zh: '需要 Node.js 20 或更新版本。', en: 'Needs Node.js 20 or newer.' },
+    npm: { cmd: 'npm install -g cowait-cli', zh: '需要 Node.js 20 或更新版本。装好后命令是 cowait。', en: 'Needs Node.js 20 or newer. The command is cowait.' },
+    sh: { cmd: 'curl -fsSL https://github.com/JaspinXu/Cowait/releases/latest/download/install.sh | sh', zh: '独立可执行文件，不需要 Node。会校验 SHA-256，装到 ~/.cowait/bin。', en: 'A standalone binary, no Node needed. Verifies SHA-256 and installs into ~/.cowait/bin.' },
+    ps: { cmd: 'irm https://github.com/JaspinXu/Cowait/releases/latest/download/install.ps1 | iex', zh: '在 PowerShell 里运行。独立可执行文件，不需要 Node，也不需要管理员权限。', en: 'Run in PowerShell. A standalone binary: no Node, no admin rights.' },
     src: { cmd: 'git clone https://github.com/JaspinXu/Cowait.git; cd Cowait; npm install -g .', zh: '需要 Node.js 20 或更新版本。仓库里已经打包好，不用再装依赖。', en: 'Needs Node.js 20 or newer. The build is in the repository; nothing else to install.' }
   };
   var current = 'npm';

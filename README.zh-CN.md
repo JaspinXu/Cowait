@@ -117,8 +117,14 @@ npm install -g .      # 把 cowait 命令加到 PATH（也可以跳过，直接 
 
 </details>
 
-> [!NOTE]
-> 不需要 Node 的独立可执行文件还没有发布。打包和安装脚本（`scripts/install.sh`、`scripts/install.ps1`）都已经写好，发布后一条命令就能装上。
+没有 Node？用独立可执行文件（Windows、macOS、Linux），一条命令装好：
+
+```bash
+curl -fsSL https://github.com/JaspinXu/Cowait/releases/latest/download/install.sh | sh        # macOS / Linux
+irm https://github.com/JaspinXu/Cowait/releases/latest/download/install.ps1 | iex             # Windows PowerShell
+```
+
+安装脚本会校验 SHA-256，装到用户目录（不需要管理员权限），重复运行就是升级。也可以直接在 [Releases](https://github.com/JaspinXu/Cowait/releases/latest) 下载。
 
 ## 第一次打开
 

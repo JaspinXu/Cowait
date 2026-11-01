@@ -121,9 +121,14 @@ To update later: `cowait update --yes` (a `git pull` in the install folder).
 
 </details>
 
-> [!NOTE]
-> Standalone binaries (no Node needed) are not published yet. The build and the install scripts (`scripts/install.sh`,
-> `scripts/install.ps1`) are ready; once released, it is a one-line install.
+No Node? Use a standalone binary (Windows, macOS, Linux), one line to install:
+
+```bash
+curl -fsSL https://github.com/JaspinXu/Cowait/releases/latest/download/install.sh | sh        # macOS / Linux
+irm https://github.com/JaspinXu/Cowait/releases/latest/download/install.ps1 | iex             # Windows PowerShell
+```
+
+The install scripts check SHA-256 sums, install into your user folder (no admin rights) and update in place when run again. Or download from [Releases](https://github.com/JaspinXu/Cowait/releases/latest).
 
 ## First run
 
