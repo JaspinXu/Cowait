@@ -1,9 +1,10 @@
 name: Site
 
-# The product page (site/ plus docs/media) on GitHub Pages.
-# Manual for now: Pages is not switched on for the repository yet. Once it is (Settings -> Pages ->
-# Source: GitHub Actions), add back a push trigger on main for site/**, docs/media/** and scripts/site.mjs.
+# The product page (site/ plus docs/media) on GitHub Pages: https://jaspinxu.github.io/Cowait/
 on:
+  push:
+    branches: [main]
+    paths: ['site/**', 'docs/media/**', 'scripts/site.mjs', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -17,7 +18,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
