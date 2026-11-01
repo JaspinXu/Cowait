@@ -164,7 +164,7 @@ cowait report --days 7   # 审阅报告，存到 <数据目录>/reports/
 
 ## 8. 路线图 / 还没做的
 
-**上线清单**（每一步都要用户点头）：
+**上线清单**（每一步都要用户点头）。**用户 2026-11-01 明确说“先不上线”**：在用户主动提出之前，这几步一步都不要做，也不要反复催。
 1. 注册 Polar（用户本人做，涉及身份验证），建 Pro / Team 产品并加“License key”权益；把 organization id、两个权益 id、两个 checkout 链接填进 `src/product.ts`，`npm test` 后提交。可以先用 Polar 沙盒：`COWAIT_LICENSE_API=sandbox COWAIT_POLAR_ORG=<沙盒 org id> cowait activate <key>`。
 2. 仓库改公开（安装脚本下载 Release、npm provenance、GitHub Pages 都需要）。
 3. 在仓库 Secrets 里加 `NPM_TOKEN`，然后打 `v1.0.0` 标签：release workflow 会编译、签名、发 Release、发 npm。第一次要盯着 Linux/macOS 的冒烟测试。
@@ -180,8 +180,9 @@ cowait report --days 7   # 审阅报告，存到 <数据目录>/reports/
 
 ## 9. 可以清理的东西（删之前先问用户）
 
-- `G:\Cowait\.claude\worktrees\` 下 4 个 agent 工作区（1.0.0 时的并行开发，提交都已合进 main），其中一个带 114 MB 的 Windows 可执行文件。**注意**：每个工作区里的 `node_modules` 是指向 `G:\Cowait\node_modules` 的 junction，删除前先单独删掉 junction（`cmd /c rmdir <工作区>\node_modules`，只删链接），再 `git worktree remove`，否则可能把主仓库的依赖一起删了。对应的 `worktree-agent-*` 分支也可以删。
-- `G:\Cowait\node_modules\.cache\bun`（约 380 MB，编译用的 Bun 运行时缓存，需要时会重新下载）。
-- `G:\Cowait\data\` 里的 `scratch\`、`site\`、`e2e-test\`、`e2e-home\`、`latency-test\`、`bomtest.json`（测试残留，gitignore 了）。
+1.0.0 用过的 agent 工作区、`worktree-agent-*` 分支、Bun 缓存和 `data\scratch` 已在 2026-11-01 经用户同意清理掉了。以后再用 worktree 并行开发：工作区里的 `node_modules` 如果是指向主仓库的 junction，删之前先单独删 junction（`cmd /c rmdir <工作区>\node_modules`，只删链接），再 `git worktree remove`，否则可能把主仓库的依赖一起删了。`npm run compile` 会重新下载 Bun 缓存（约 380 MB，在 `node_modules/.cache/bun`）。
+
+还剩：
+- `G:\Cowait\data\` 里的 `site\`（`node scripts/site.mjs` 生成的官网预览）、`e2e-test\`、`e2e-home\`、`latency-test\`、`bomtest.json`（测试残留，gitignore 了）。
 - C 盘 `%TEMP%` 里 0.2.0 之前测试留下的 `cowait-test-*`、`claude-cfg-*` 小文件夹（合计约 120 KB），可以请用户自己运行：
   `Get-ChildItem $env:TEMP -Directory | Where-Object Name -match '^(cowait-(test|frames)-|claude-cfg-)' | Remove-Item -Recurse -Force`
