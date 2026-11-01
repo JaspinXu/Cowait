@@ -164,7 +164,7 @@ cowait report --days 7   # 审阅报告，存到 <数据目录>/reports/
 
 **发布清单**（仓库已经公开；下面每一步都要用户点头，用户没提之前不要做，也不要反复催）：
 1. 在仓库 Secrets 里加 `NPM_TOKEN`，然后打 `v1.0.0` 标签：release workflow 会编译、签名、发 Release、发 npm。第一次要盯着 Linux/macOS 的冒烟测试。
-2. Settings → Pages → Source 选 “GitHub Actions”，`pages.yml` 会把官网发到 `https://jaspinxu.github.io/Cowait/`。
+2. Settings → Pages → Source 选 “GitHub Actions”，然后给 `pages.yml` 加回 push 触发（现在只能手动运行，免得 Pages 没开时每次改官网都报错），官网会发到 `https://jaspinxu.github.io/Cowait/`。
 3. 发布后：README 和官网的安装方式改回“npm / 独立可执行文件优先、源码其次”（现在写的是“还没发布”），README 徽章加 npm 版本号。
 
 **产品**（开源项目，按社区反馈来）：
