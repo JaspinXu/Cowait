@@ -2,7 +2,7 @@
 
 # Cowait
 
-**Half of working with Claude Code is waiting. Cowait is a small panel in the pane next to it that spends that time on the thing most worth doing: seeing what each Claude turn actually changed. The reward for reading is a quick game, a daily puzzle or a few flashcards.**
+**Cowait for Claude Code.** Half of working with Claude Code is waiting. Cowait is a small panel in the pane next to it that spends that time on the thing most worth doing: seeing what each Claude turn actually changed. The reward for reading is a quick game, a daily puzzle or a few flashcards.
 
 **English** · [简体中文](README.zh-CN.md)
 
@@ -46,6 +46,8 @@ Claude turn, the side panel lists that turn's files, titled with what you asked 
 key, or type one line ("keep the 200, the frontend depends on it") and **Claude sees it on its very
 next step, without being interrupted**. Once you are through, the same panel has three games built
 for waiting and flashcards, and the energy to play is earned by actually reviewing.
+
+How it compares with Claude Code's built-in `/diff`, claudemon, sidequest, session monitors and others: [docs/compare.md](docs/compare.md).
 
 > [!TIP]
 > No Claude Code needed to try it: `cowait demo` runs a simulated Claude session so you can click

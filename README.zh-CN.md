@@ -2,7 +2,7 @@
 
 # Cowait
 
-**用 Claude Code 写代码，一半时间都在等。Cowait 是放在旁边分屏里的小面板：把这段时间花在最值得的事上，看懂 Claude 每一轮改了什么。看完的奖励，是一局小游戏、一道每日谜题或几张抽认卡。**
+**Cowait for Claude Code。** 用 Claude Code 写代码，一半时间都在等。Cowait 是放在旁边分屏里的小面板：把这段时间花在最值得的事上，看懂 Claude 每一轮改了什么。看完的奖励，是一局小游戏、一道每日谜题或几张抽认卡。
 
 [English](README.md) · **简体中文**
 
@@ -43,6 +43,8 @@ Cowait 反过来想。等 Claude 干活时，最有价值的事是**看看它在
 所以 Claude 每干一轮，旁边的面板就按文件列出这一轮改了什么，标题就是你当时说的那句话。
 按一个键说“没问题”，或者打一句话（“这里别改成 201，前端依赖 200”），**Claude 下一步操作时就会看到，不用打断它**。
 看完了，同一个面板里有三个为等待设计的小游戏和抽认卡，而开游戏的能量，靠认真审代码来赚。
+
+和 Claude Code 自带的 `/diff`、claudemon、sidequest、会话监控工具等有什么不同：见 [docs/compare.zh-CN.md](docs/compare.zh-CN.md)。
 
 > [!TIP]
 > 没装 Claude Code 也能先试：`cowait demo` 会模拟一个正在干活的 Claude，四个页面都能点一遍。

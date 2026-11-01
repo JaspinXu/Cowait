@@ -3,11 +3,42 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cowait</title>
-<meta name="description" content="Cowait：Claude Code 旁边的小面板。每一轮改了什么一目了然，一句话就能让 Claude 改；看完了玩一局、解每日谜题或刷卡。A side panel for Claude Code: read what each turn changed, steer with one line, then play.">
-<meta property="og:title" content="Cowait">
-<meta property="og:description" content="While Claude works, read what it writes. A side panel for Claude Code.">
-<meta property="og:image" content="media/review-en.png">
+<title>Cowait for Claude Code: review what Claude changed while you wait</title>
+<meta name="description" content="Cowait for Claude Code is a free, open-source terminal side panel: it lists the files each Claude Code turn changed, relays one-line notes to Claude without interrupting it, and fills the wait with a daily puzzle, a card game or flashcards. Cowait 是 Claude Code 旁边的开源小面板：按轮看改动、一句话让 Claude 改，等待时玩一局或刷卡。">
+<link rel="canonical" href="https://jaspinxu.github.io/Cowait/">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://jaspinxu.github.io/Cowait/llms.txt">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Cowait">
+<meta property="og:url" content="https://jaspinxu.github.io/Cowait/">
+<meta property="og:title" content="Cowait for Claude Code">
+<meta property="og:description" content="While Claude works, read what it writes. A free, open-source side panel for Claude Code.">
+<meta property="og:image" content="https://jaspinxu.github.io/Cowait/media/review-en.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Cowait for Claude Code">
+<meta name="twitter:description" content="While Claude works, read what it writes. A free, open-source side panel for Claude Code.">
+<meta name="twitter:image" content="https://jaspinxu.github.io/Cowait/media/review-en.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Cowait",
+  "alternateName": ["Cowait for Claude Code", "cowait-cli"],
+  "description": "A free, open-source terminal side panel for Claude Code. It groups the files each Claude Code turn changed, counts a file as reviewed only after it has been on screen long enough, relays one-line notes to Claude through hooks without interrupting the turn, and offers a daily stack-machine puzzle, a card roguelike, a typing game and flashcards between turns.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Windows, macOS, Linux",
+  "url": "https://jaspinxu.github.io/Cowait/",
+  "downloadUrl": "https://www.npmjs.com/package/cowait-cli",
+  "installUrl": "https://www.npmjs.com/package/cowait-cli",
+  "softwareVersion": "1.0.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "inLanguage": ["en", "zh-CN"],
+  "keywords": "Claude Code, Claude Code hooks, AI code review, review coverage, terminal UI, TUI, side panel, waiting time, developer tools",
+  "sameAs": ["https://github.com/JaspinXu/Cowait", "https://www.npmjs.com/package/cowait-cli"],
+  "author": { "@type": "Person", "name": "Zhaobin Xu", "url": "https://github.com/JaspinXu" }
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='5' width='17' height='22' rx='3' fill='none' stroke='%2318212C' stroke-width='2.5'/%3E%3Crect x='21' y='5' width='9' height='22' rx='2.5' fill='%230B7A83'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -169,6 +200,7 @@ footer .grow { flex: 1; }
     <span class="grow"></span>
     <a class="plain hide-sm" href="#open"><span lang="zh-CN">开源</span><span lang="en">Open source</span></a>
     <a class="plain hide-sm" href="#faq"><span lang="zh-CN">常见问题</span><span lang="en">FAQ</span></a>
+    <a class="plain hide-sm" href="https://github.com/JaspinXu/Cowait/blob/main/docs/compare.zh-CN.md" lang="zh-CN">和同类工具比较</a><a class="plain hide-sm" href="https://github.com/JaspinXu/Cowait/blob/main/docs/compare.md" lang="en">Compare</a>
     <a class="plain" href="https://github.com/JaspinXu/Cowait">GitHub</a>
     <button class="langbtn" type="button" id="lang"><span lang="zh-CN">English</span><span lang="en">中文</span></button>
   </nav>
@@ -352,6 +384,8 @@ footer .grow { flex: 1; }
     <span>Cowait</span>
     <span class="grow"></span>
     <a href="https://github.com/JaspinXu/Cowait">GitHub</a>
+    <a href="https://www.npmjs.com/package/cowait-cli">npm</a>
+    <a href="llms.txt">llms.txt</a>
     <a href="https://github.com/JaspinXu/Cowait/blob/main/LICENSE">MIT License</a>
   </footer>
 </div>

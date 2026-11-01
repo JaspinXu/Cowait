@@ -1,7 +1,7 @@
 {
   "name": "cowait-cli",
   "version": "1.0.0",
-  "description": "A side panel for Claude Code: read what each turn changed, steer Claude with one line, then play a quick game or study while it works.",
+  "description": "Cowait for Claude Code: a terminal side panel that shows what each turn changed, relays one-line notes to Claude without interrupting it, and fills the wait with a daily puzzle, a card game or flashcards.",
   "main": "dist/cli.js",
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit && node scripts/build.mjs",

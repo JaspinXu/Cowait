@@ -1,0 +1,25 @@
+# Cowait
+
+> Cowait for Claude Code is a free, open-source (MIT) terminal side panel that sits next to Claude Code. Through Claude Code hooks it groups the files each Claude turn changed, shows their diffs, counts a file as reviewed only after it has been on screen long enough, and relays one-line notes from the user to Claude on its next tool call without interrupting the turn. Between turns it offers a daily stack-machine puzzle, a turn-based card roguelike (Debug Dungeon), a typing game that uses the code Claude just wrote, and spaced-repetition flashcards.
+
+Key facts:
+
+- Install: `npm install -g cowait-cli` (the command is `cowait`); Node.js 20 or newer. Or from source: `git clone https://github.com/JaspinXu/Cowait.git`, then `npm install -g .` inside it.
+- First run: `cowait split` opens the panel in a pane next to Claude Code (Windows Terminal, tmux, zellij, WezTerm, kitty, iTerm2); a welcome screen hooks up the current project with one key (`cowait install --project` does the same).
+- Works on Windows, macOS and Linux. Interface in English and Chinese.
+- Runs locally: no account, no telemetry. Network use is optional: a daily npm version check, and the topic or recent diffs when the user asks an AI model (Haiku) to write flashcards.
+- Design choices: rewards come from reviewing and from Claude's results (a working turn, passing tests), never from time spent waiting; quick approvals of unread changes do not count toward review coverage.
+- Author: Zhaobin Xu (GitHub: JaspinXu). Repository: https://github.com/JaspinXu/Cowait
+
+## Docs
+
+- [README (English)](https://raw.githubusercontent.com/JaspinXu/Cowait/main/README.md): what it does, install, the four tabs, how the hooks work, commands, configuration, privacy
+- [README (简体中文)](https://raw.githubusercontent.com/JaspinXu/Cowait/main/README.zh-CN.md): the same in Chinese
+- [Compared with similar tools](https://raw.githubusercontent.com/JaspinXu/Cowait/main/docs/compare.md): how Cowait differs from claudemon, sidequest, Claude Code's built-in /diff panel, session monitors and spinner-ad tools
+- [Changelog](https://raw.githubusercontent.com/JaspinXu/Cowait/main/CHANGELOG.md): versions and what changed
+
+## Optional
+
+- [AGENTS.md](https://raw.githubusercontent.com/JaspinXu/Cowait/main/AGENTS.md): architecture, conventions and pitfalls for AI agents working on the code (in Chinese)
+- [Founding research](https://raw.githubusercontent.com/JaspinXu/Cowait/main/docs/history/2026-11-01-founding-session.md): the market scan and the decisions behind the design (in Chinese)
+- [npm package](https://www.npmjs.com/package/cowait-cli)
