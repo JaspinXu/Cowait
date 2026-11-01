@@ -95,7 +95,18 @@ for waiting and flashcards, and the energy to play is earned by actually reviewi
 
 ## Install
 
-Needs Node.js 20 or newer. `dist/` is prebuilt and committed, so there is no `npm install` and nothing to download:
+Needs Node.js 20 or newer:
+
+```bash
+npm install -g cowait
+```
+
+To update later: `npm install -g cowait@latest`. The panel looks for a new version at most once a day and tells you; so does `cowait update`.
+
+<details>
+<summary>Install from source</summary>
+
+`dist/` is prebuilt and committed, so there is no `npm install` and nothing to download:
 
 ```bash
 git clone https://github.com/JaspinXu/Cowait.git
@@ -105,10 +116,11 @@ npm install -g .      # puts the cowait command on your PATH (or skip it and run
 
 To update later: `cowait update --yes` (a `git pull` in the install folder).
 
+</details>
+
 > [!NOTE]
-> The npm package and the standalone binaries (no Node needed) are not published yet. The build, the install scripts
-> (`scripts/install.sh`, `scripts/install.ps1`) and the release workflow are ready; once published, it is `npm install -g cowait`
-> or a one-line install of a standalone binary.
+> Standalone binaries (no Node needed) are not published yet. The build and the install scripts (`scripts/install.sh`,
+> `scripts/install.ps1`) are ready; once released, it is a one-line install.
 
 ## First run
 

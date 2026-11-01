@@ -182,11 +182,11 @@ footer .grow { flex: 1; }
 
       <div class="install">
         <div role="tablist" aria-label="Install">
-          <button role="tab" aria-selected="true" data-cmd="sh">macOS / Linux</button>
-          <button role="tab" aria-selected="false" data-cmd="ps">Windows</button>
+          <button role="tab" aria-selected="true" data-cmd="npm">npm</button>
+          <button role="tab" aria-selected="false" data-cmd="src"><span lang="zh-CN">从源码</span><span lang="en">From source</span></button>
         </div>
-        <div class="cmd" id="cmdbox"><code id="cmd">git clone https://github.com/JaspinXu/Cowait.git &amp;&amp; cd Cowait &amp;&amp; npm install -g .</code><button class="copy" type="button" id="copy"><span lang="zh-CN">复制</span><span lang="en">Copy</span></button></div>
-        <p class="note" id="cmdnote"><span lang="zh-CN">需要 Node.js 20 或更新版本。仓库里已经打包好，不用再装依赖。</span><span lang="en">Needs Node.js 20 or newer. The build is in the repository; nothing else to install.</span></p>
+        <div class="cmd" id="cmdbox"><code id="cmd">npm install -g cowait</code><button class="copy" type="button" id="copy"><span lang="zh-CN">复制</span><span lang="en">Copy</span></button></div>
+        <p class="note" id="cmdnote"><span lang="zh-CN">需要 Node.js 20 或更新版本。</span><span lang="en">Needs Node.js 20 or newer.</span></p>
       </div>
       <p class="after"><span lang="zh-CN">然后在项目里运行</span><span lang="en">Then, in your project, run</span> <code>cowait split</code><span lang="zh-CN">，按一下 Enter 就接入好了。</span><span lang="en"> and press Enter once to hook it up.</span></p>
     </div>
@@ -374,19 +374,17 @@ footer .grow { flex: 1; }
     setLang(root.getAttribute('data-lang') === 'zh' ? 'en' : 'zh');
   });
 
-  // Install tabs (PowerShell 5.1 has no &&, so Windows gets semicolons)
-  var REPO = 'https://github.com/JaspinXu/Cowait.git';
-  var NOTE = { zh: '需要 Node.js 20 或更新版本。仓库里已经打包好，不用再装依赖。', en: 'Needs Node.js 20 or newer. The build is in the repository; nothing else to install.' };
+  // Install tabs. From source uses semicolons: Windows PowerShell 5.1 has no &&, and ; works everywhere.
   var CMDS = {
-    sh: { cmd: 'git clone ' + REPO + ' && cd Cowait && npm install -g .', zh: NOTE.zh, en: NOTE.en },
-    ps: { cmd: 'git clone ' + REPO + '; cd Cowait; npm install -g .', zh: '在 PowerShell 里运行。' + NOTE.zh, en: 'Run in PowerShell. ' + NOTE.en }
+    npm: { cmd: 'npm install -g cowait', zh: '需要 Node.js 20 或更新版本。', en: 'Needs Node.js 20 or newer.' },
+    src: { cmd: 'git clone https://github.com/JaspinXu/Cowait.git; cd Cowait; npm install -g .', zh: '需要 Node.js 20 或更新版本。仓库里已经打包好，不用再装依赖。', en: 'Needs Node.js 20 or newer. The build is in the repository; nothing else to install.' }
   };
-  var current = 'sh';
+  var current = 'npm';
   var tabs = document.querySelectorAll('.install [role="tab"]');
   function updateCmd() {
     var c = CMDS[current];
     document.getElementById('cmd').textContent = c.cmd;
-    document.getElementById('cmdbox').className = 'cmd' + (current === 'ps' ? ' ps' : '');
+    document.getElementById('cmdbox').className = 'cmd';
     var l = root.getAttribute('data-lang');
     document.getElementById('cmdnote').textContent = c[l === 'zh' ? 'zh' : 'en'];
   }

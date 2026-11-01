@@ -24,7 +24,7 @@ The first version meant for other people, released as open source (MIT): every f
 - Help fits a 60×26 pane; every screen is checked at 60 and 46 columns in both languages.
 
 **Install and tools**
-- Ready to ship standalone binaries for Windows, macOS and Linux (no Node needed), with install scripts that verify SHA-256 and update in place, and an npm package. Not published yet; installing from source works.
+- `npm install -g cowait`. Standalone binaries for Windows, macOS and Linux (no Node needed), with install scripts that verify SHA-256 and update in place, are ready but not released yet.
 - `cowait hook` for binary installs (about 32 ms per call on Windows), `cowait update`, `cowait split` for zellij, WezTerm, kitty and iTerm2 too.
 - `cowait report`: a light HTML (or Markdown) review report per day and project.
 - A product page in `site/`; CI on Windows, macOS and Linux; tagged releases build, sign and publish automatically.

@@ -91,7 +91,18 @@ Cowait 反过来想。等 Claude 干活时，最有价值的事是**看看它在
 
 ## 安装
 
-需要 Node.js 20 或更新版本。`dist/` 已经打包好并提交在仓库里，不需要 `npm install`，也不用下载任何依赖：
+需要 Node.js 20 或更新版本：
+
+```bash
+npm install -g cowait
+```
+
+以后升级：`npm install -g cowait@latest`。面板每天最多查一次有没有新版本，有的话会提示你；`cowait update` 也会告诉你。
+
+<details>
+<summary>从源码安装</summary>
+
+`dist/` 已经打包好并提交在仓库里，不需要 `npm install`，也不用下载任何依赖：
 
 ```bash
 git clone https://github.com/JaspinXu/Cowait.git
@@ -101,9 +112,10 @@ npm install -g .      # 把 cowait 命令加到 PATH（也可以跳过，直接 
 
 以后升级：`cowait update --yes`（就是在安装目录里 `git pull`）。
 
+</details>
+
 > [!NOTE]
-> npm 包和不需要 Node 的独立可执行文件还没有发布。打包脚本、安装脚本（`scripts/install.sh`、`scripts/install.ps1`）和发布流程都已经写好，
-> 发布后就能用 `npm install -g cowait`，或者一条命令装上独立可执行文件。
+> 不需要 Node 的独立可执行文件还没有发布。打包和安装脚本（`scripts/install.sh`、`scripts/install.ps1`）都已经写好，发布后一条命令就能装上。
 
 ## 第一次打开
 
