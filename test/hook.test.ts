@@ -23,6 +23,12 @@ describe('hook', () => {
     expect(fs.readFileSync(path.join(home, 'events.jsonl'), 'utf8')).not.toContain('secret');
   });
 
+  it('keeps no title at all when turn titles are switched off', () => {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ promptTitles: false }));
+    handleHook(JSON.stringify({ ...base, hook_event_name: 'UserPromptSubmit', prompt: 'fix the login bug' }), 1000);
+    expect(readEvents(home)).toEqual([{ t: 1000, k: 'prompt', sid: 's1', cwd: '/proj' }]);
+  });
+
   it('captures Edit diffs, preferring Claude Code structuredPatch when present', () => {
     handleHook(
       JSON.stringify({

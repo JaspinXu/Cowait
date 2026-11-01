@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline/promises';
 import { loadConfig, saveConfig, DEFAULT_CONFIG, type Config } from './config.js';
 import { resolveLang, t, fmtDur, type Lang } from './i18n.js';
 import { dataDir, packageRoot, paths } from './paths.js';
-import { ensureDir } from './fsutil.js';
+import { ensureDir, readJson, writeJsonAtomic } from './fsutil.js';
 import { acquireLock, loadState, releaseLock, saveState } from './engine/store.js';
 import { coverage, pendingCards } from './engine/state.js';
 import { grantDaily } from './engine/economy.js';
@@ -17,6 +17,11 @@ import { detectProvider } from './learn/llm.js';
 import { runHookProcess } from './hook.js';
 import { appVersion, isCompiled, selfCommand, splitPlan } from './runtime.js';
 import { installKind, isNewer, latestVersion, updateCommand } from './update.js';
+import { activePlan, proUnlocked, refreshLicense } from './plan.js';
+import { activateLicense, deactivateLicense, loadLicense, maskKey, validateLicense } from './license.js';
+import { CHECKOUT, PRICES, SITE, licensingConfigured } from './product.js';
+import { openUrl } from './open.js';
+import { levelInfo, levelTitle, streak } from './engine/progress.js';
 
 const version = appVersion;
 
@@ -50,6 +55,8 @@ async function runPanel(opts: { demo?: boolean; fast?: boolean } = {}): Promise<
     process.exit(1);
   }
   const state = loadState();
+  // The demo shows the product straight away; the welcome screen is for real first runs.
+  if (opts.demo) state.onboarded = true;
   const daily = grantDaily(state, Date.now());
   saveState(state);
   // Never heard from Claude Code and no hooks here or globally: the panel explains how to connect.
@@ -69,12 +76,150 @@ async function runPanel(opts: { demo?: boolean; fast?: boolean } = {}): Promise<
     releaseLock();
   };
   process.on('exit', restore);
-  const app = render(React.createElement(App, { cfg, lang, initial: state, daily, setupHint }), { exitOnCtrlC: true });
+  // Re-check a paid license every few days, quietly; the result counts from the next launch.
+  void refreshLicense();
+  const app = render(
+    React.createElement(App, {
+      cfg,
+      lang,
+      initial: state,
+      daily,
+      setupHint,
+      plan: activePlan(),
+      cwd: process.cwd(),
+      checkUpdate: opts.demo ? undefined : () => checkUpdateCached(lang),
+    }),
+    { exitOnCtrlC: true },
+  );
   await app.waitUntilExit();
   stopDemo?.();
   restore();
   process.removeListener('exit', restore);
   process.exit(0);
+}
+
+/** At most one registry lookup a day; the answer is cached in the data folder. */
+async function checkUpdateCached(lang: Lang): Promise<{ version: string; command: string } | null> {
+  const file = path.join(dataDir(), 'update.json');
+  const cache = readJson<{ at?: number; latest?: string | null }>(file, {});
+  let latest = cache.latest ?? null;
+  if (!cache.at || Date.now() - cache.at > 24 * 60 * 60 * 1000) {
+    latest = await latestVersion();
+    try {
+      writeJsonAtomic(file, { at: Date.now(), latest });
+    } catch {
+      /* read-only data folder: just check again next time */
+    }
+  }
+  return latest && isNewer(latest, version()) ? { version: latest, command: updateCommand(installKind(), lang) } : null;
+}
+
+// ------------------------------------------------------------------ plans
+
+const failText = (reason: string, detail: string | undefined, zh: boolean): string =>
+  ({
+    not_configured: zh ? '付费渠道还没开放，现在所有功能都可以免费用' : 'Paid plans are not open yet; everything is free to use for now',
+    invalid: zh ? '这个密钥无效（检查一下有没有复制完整）' : 'That key is not valid (check it was copied in full)',
+    limit: zh ? '这个密钥激活的设备数已经满了：先在旧设备上运行 cowait deactivate' : 'This key is active on as many machines as it allows: run cowait deactivate on an old one first',
+    revoked: detail === 'expired' ? (zh ? '这个密钥已过期' : 'This key has expired') : zh ? '这个密钥已停用（订阅结束或退款）' : 'This key is no longer active (subscription ended or refunded)',
+    network: zh ? `连不上授权服务器${detail ? `（${detail}）` : ''}，稍后再试` : `Could not reach the license server${detail ? ` (${detail})` : ''}; try again later`,
+    server: zh ? `授权服务器出错${detail ? `（${detail}）` : ''}，稍后再试` : `The license server had a problem${detail ? ` (${detail})` : ''}; try again later`,
+  })[reason] ?? reason;
+
+async function cmdActivate(args: string[], lang: Lang): Promise<void> {
+  const zh = lang === 'zh';
+  const key = args.find((a) => !a.startsWith('-'));
+  if (!key) {
+    console.log(zh ? '用法：cowait activate <密钥>' : 'Usage: cowait activate <key>');
+    process.exitCode = 1;
+    return;
+  }
+  const r = await activateLicense(key);
+  if (!r.ok) {
+    (r.reason === 'not_configured' ? info : bad)(failText(r.reason, r.detail, zh));
+    process.exitCode = r.reason === 'not_configured' ? 0 : 1;
+    return;
+  }
+  const plan = r.license.plan === 'team' ? 'Team' : 'Pro';
+  ok(zh ? `Cowait ${plan} 已激活 ✓（${r.license.label}）谢谢支持！` : `Cowait ${plan} is active ✓ (${r.license.label}). Thank you!`);
+  info(zh ? '重新打开面板就能用上 Pro 功能' : 'Reopen the panel to use the Pro features');
+}
+
+async function cmdLicense(args: string[], lang: Lang): Promise<void> {
+  const zh = lang === 'zh';
+  let lic = loadLicense();
+  if (lic && flag(args, '--check')) {
+    const r = await validateLicense(lic);
+    if (!r.ok) bad(failText(r.reason, r.detail, zh));
+    lic = loadLicense();
+  }
+  const plan = activePlan();
+  console.log(zh ? `\n当前方案：${plan === 'free' ? 'Free' : plan === 'team' ? 'Team' : 'Pro'}` : `\nPlan: ${plan === 'free' ? 'Free' : plan === 'team' ? 'Team' : 'Pro'}`);
+  if (lic) {
+    info(`${zh ? '密钥' : 'key'}: ${maskKey(lic.key)} · ${lic.status} · ${lic.label}`);
+    info(`${zh ? '上次核验' : 'last checked'}: ${new Date(lic.checkedAt).toLocaleString()}`);
+  } else if (!licensingConfigured()) {
+    info(zh ? '付费渠道即将开放；在那之前 Pro 功能对所有人开放' : 'Paid plans open soon; until then the Pro features are open to everyone');
+  } else {
+    info(zh ? '升级：cowait upgrade · 激活：cowait activate <密钥>' : 'Upgrade: cowait upgrade · Activate: cowait activate <key>');
+  }
+  console.log('');
+}
+
+async function cmdDeactivate(lang: Lang): Promise<void> {
+  const zh = lang === 'zh';
+  const lic = loadLicense();
+  if (!lic) {
+    info(zh ? '这台电脑上没有激活的密钥' : 'No license is active on this machine');
+    return;
+  }
+  const r = await deactivateLicense(lic);
+  if (r.ok) ok(zh ? '已在这台电脑上停用，密钥可以拿去别的电脑激活' : 'Deactivated here; the key can now be activated on another machine');
+  else {
+    bad(zh ? `停用失败：${r.detail ?? ''}` : `Could not deactivate: ${r.detail ?? ''}`);
+    process.exitCode = 1;
+  }
+}
+
+function cmdUpgrade(lang: Lang): void {
+  const zh = lang === 'zh';
+  const url = CHECKOUT.pro || SITE;
+  console.log(
+    zh
+      ? `\nCowait Pro：${PRICES.currency}${PRICES.pro.monthly}/月 或 ${PRICES.currency}${PRICES.pro.yearly}/年`
+      : `\nCowait Pro: ${PRICES.currency}${PRICES.pro.monthly}/month or ${PRICES.currency}${PRICES.pro.yearly}/year`,
+  );
+  if (!licensingConfigured()) info(zh ? '付费渠道即将开放；在那之前 Pro 功能对所有人开放' : 'Paid plans open soon; until then the Pro features are open to everyone');
+  if (openUrl(url)) ok(zh ? `已在浏览器打开 ${url}` : `Opened ${url}`);
+  else info(url);
+  if (licensingConfigured()) info(zh ? '买好后运行：cowait activate <密钥>' : 'Then run: cowait activate <key>');
+  console.log('');
+}
+
+async function cmdReport(args: string[], lang: Lang): Promise<void> {
+  const zh = lang === 'zh';
+  const days = Math.max(1, Math.min(120, Number(opt(args, '--days') ?? 7) || 7));
+  const { buildReport, reportHtml, reportMarkdown } = await import('./report.js');
+  const s = loadState();
+  const r = buildReport(s, days);
+  const pctText = r.coverage === null ? '—' : `${Math.round(r.coverage * 100)}%`;
+  console.log(
+    zh
+      ? `\n${r.from} – ${r.to}：Claude 干活 ${r.turns} 轮，改了 ${r.files} 个文件；你认真看过 ${r.read} 个（${pctText}），标出问题 ${r.flagged} 个`
+      : `\n${r.from} – ${r.to}: Claude worked ${r.turns} turns and changed ${r.files} files; you read ${r.read} (${pctText}) and flagged ${r.flagged}`,
+  );
+  if (!proUnlocked(activePlan())) {
+    info(zh ? '完整的报告（每天、每个项目，可以分享的网页）是 Pro 功能：cowait upgrade' : 'The full report (per day, per project, a page you can share) is a Pro feature: cowait upgrade');
+    console.log('');
+    return;
+  }
+  const md = flag(args, '--md');
+  const body = md ? reportMarkdown(r, lang, version()) : reportHtml(r, lang, version());
+  const out = opt(args, '--out') ?? path.join(dataDir(), 'reports', `cowait-report-${r.to}.${md ? 'md' : 'html'}`);
+  ensureDir(path.dirname(out));
+  fs.writeFileSync(out, body);
+  ok(zh ? `报告已保存：${out}` : `Report saved: ${out}`);
+  console.log('');
 }
 
 // ------------------------------------------------------------------ install / doctor
@@ -225,11 +370,13 @@ function cmdStats(lang: Lang): void {
   const cov = coverage(s);
   const T = s.totals;
   console.log(zh ? '\nCowait 统计\n' : '\nCowait stats\n');
-  console.log(`  ⚡ ${s.energy}   💰 ${s.coins}`);
+  const lv = levelInfo(s.xp);
+  const sk = streak(s);
+  console.log(`  Lv.${lv.level} ${levelTitle(lv.level)[lang]} (${lv.into}/${lv.need} XP) · 🔥 ${sk.days} (${zh ? '最长' : 'best'} ${s.bestStreak}) · ⚡ ${s.energy} · 💰 ${s.coins}`);
   console.log(
     zh
-      ? `  Claude 干活的轮次 ${T.turns} · 测试通过的轮次 ${T.testsPassed}\n  改动卡片 ${T.cards} · 你审过 ${T.reviewed + T.flagged}（其中标出问题 ${T.flagged}）· 扫一眼就过 ${T.skimmed} · 跳过 ${T.skipped} · 待审 ${pendingCards(s).length}\n  AI 代码人工审阅覆盖率 ${cov === null ? '—' : Math.round(cov * 100) + '%'}（扫一眼就过的不算）\n  转达给 Claude 的留言 ${T.delivered} 条\n  刷卡 ${T.learned} 张 · 捉虫地牢 ${T.runs} 局，通关 ${T.wins} 次，最深第 ${T.bestFloor} 层`
-      : `  Claude turns ${T.turns} · turns with passing tests ${T.testsPassed}\n  Change cards ${T.cards} · reviewed ${T.reviewed + T.flagged} (${T.flagged} flagged) · skimmed ${T.skimmed} · skipped ${T.skipped} · pending ${pendingCards(s).length}\n  Human review coverage of AI code ${cov === null ? '—' : Math.round(cov * 100) + '%'} (skims don't count)\n  Notes relayed to Claude ${T.delivered}\n  Flashcards ${T.learned} · Debug Dungeon runs ${T.runs}, wins ${T.wins}, deepest floor ${T.bestFloor}`,
+      ? `  Claude 干活的轮次 ${T.turns} · 测试通过的轮次 ${T.testsPassed}\n  改动卡片 ${T.cards} · 你审过 ${T.reviewed + T.flagged}（其中标出问题 ${T.flagged}）· 扫一眼就过 ${T.skimmed} · 跳过 ${T.skipped} · 待审 ${pendingCards(s).length}\n  AI 代码人工审阅覆盖率 ${cov === null ? '—' : Math.round(cov * 100) + '%'}（扫一眼就过的不算）\n  转达给 Claude 的留言 ${T.delivered} 条\n  刷卡 ${T.learned} 张 · 捉虫地牢 ${T.runs} 局，通关 ${T.wins} 次，最深第 ${T.bestFloor} 层 · 栈机谜题 ${T.puzzles} 道 · 代码速打 ${T.sprints} 轮（最快 ${s.best.wpm} WPM）\n  成就 ${Object.keys(s.achievements).length} 个 · 详细报告：cowait report`
+      : `  Claude turns ${T.turns} · turns with passing tests ${T.testsPassed}\n  Change cards ${T.cards} · reviewed ${T.reviewed + T.flagged} (${T.flagged} flagged) · skimmed ${T.skimmed} · skipped ${T.skipped} · pending ${pendingCards(s).length}\n  Human review coverage of AI code ${cov === null ? '—' : Math.round(cov * 100) + '%'} (skims don't count)\n  Notes relayed to Claude ${T.delivered}\n  Flashcards ${T.learned} · Debug Dungeon runs ${T.runs}, wins ${T.wins}, deepest floor ${T.bestFloor} · Stack Puzzles ${T.puzzles} · Code Sprints ${T.sprints} (best ${s.best.wpm} WPM)\n  Achievements ${Object.keys(s.achievements).length} · Full report: cowait report`,
   );
   console.log('');
 }
@@ -401,7 +548,10 @@ function help(lang: Lang): void {
   cowait update [--yes]  检查新版本并给出更新命令（git 克隆安装加 --yes 直接 git pull）
   cowait learn "主题"    让 AI 出一组卡片 [-n 12]
   cowait stats           查看统计（含 AI 代码人工审阅覆盖率）
+  cowait report          生成审阅报告网页 [--days 7] [--md] [--out 文件]
   cowait config [键 值]  查看或修改配置
+  cowait upgrade         了解 Cowait Pro
+  cowait activate <密钥> 激活 Pro（cowait license 查看，cowait deactivate 在本机停用）
 `
       : `Cowait v${version()} — turn time spent waiting on Claude Code into useful time
 
@@ -418,7 +568,10 @@ Usage:
   cowait update [--yes]  check for a newer version and show how to update (--yes: git pull for clones)
   cowait learn "topic"   have AI write a flashcard deck [-n 12]
   cowait stats           stats, including human review coverage of AI code
+  cowait report          a review report page [--days 7] [--md] [--out file]
   cowait config [k v]    show or change settings
+  cowait upgrade         about Cowait Pro
+  cowait activate <key>  activate Pro (cowait license shows it, cowait deactivate frees this machine)
 `,
   );
 }
@@ -449,6 +602,17 @@ async function main(): Promise<void> {
       return cmdSplit(lang);
     case 'update':
       return cmdUpdate(args, lang);
+    case 'activate':
+      return cmdActivate(args, lang);
+    case 'deactivate':
+      return cmdDeactivate(lang);
+    case 'license':
+      return cmdLicense(args, lang);
+    case 'upgrade':
+    case 'pro':
+      return cmdUpgrade(lang);
+    case 'report':
+      return cmdReport(args, lang);
     case 'config':
       return cmdConfig(args, lang);
     case 'statusline':

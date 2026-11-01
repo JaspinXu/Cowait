@@ -18,6 +18,7 @@ import {
   type PuzzleRun,
 } from '../game/stack.js';
 import { t } from '../i18n.js';
+import { proUnlocked } from '../plan.js';
 import { Para, padTo, useHint, type ModeProps } from './common.js';
 
 const starText = (n: number) => '★'.repeat(n) + '☆'.repeat(3 - n);
@@ -30,7 +31,7 @@ export function Puzzle({ st, update, lang, active, blocked, width, now, setHint,
   const run: PuzzleRun | null = st.puzzle;
   const day = st.days[today];
   const dailyStars = day?.puzzle ?? 0;
-  const practiceLeft = plan === 'free' ? Math.max(0, ECON.freePractice - (day?.practice ?? 0)) : Infinity;
+  const practiceLeft = proUnlocked(plan) ? Infinity : Math.max(0, ECON.freePractice - (day?.practice ?? 0));
   // A finished or stale run is not "in progress": show the menu.
   const live = run && !run.solved && (run.mode === 'practice' || run.day === today) ? run : null;
   const justSolved = run?.solved && (run.mode === 'practice' || run.day === today) ? run : null;

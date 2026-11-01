@@ -2,7 +2,7 @@
 /**
  * Records the README pictures from the real panel, on a light background:
  *   docs/media/demo-{en,zh}.gif           the walkthrough at the top of the README
- *   docs/media/{review,battle,learn}-{en,zh}.png
+ *   docs/media/{review,battle,learn,me}-{en,zh}.png
  *
  * Works on Windows, macOS and Linux. Needs Chrome, Chromium or Edge (to draw the terminal) and
  * ffmpeg (to make the GIF); set CHROME=… or FFMPEG=… if they are not found.
@@ -163,7 +163,18 @@ function pageSize(cols, rows) {
 // ------------------------------------------------------------------ screenshots
 
 let profiles = 0;
-function screenshot(chrome, ansi, cols, rows, png, scale) {
+/** A headless Chrome now and then exits without writing the file: try again a couple of times. */
+async function screenshot(chrome, ansi, cols, rows, png, scale) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await screenshotOnce(chrome, ansi, cols, rows, png, scale);
+    } catch (e) {
+      if (attempt >= 3) throw e;
+    }
+  }
+}
+
+function screenshotOnce(chrome, ansi, cols, rows, png, scale) {
   const html = path.join(tmp, `${path.basename(png, '.png')}.html`);
   fs.writeFileSync(html, `<!doctype html><meta charset="utf-8"><style>${CSS}</style>${windowHtml(ansi, cols, rows)}`);
   const { w, h } = pageSize(cols, rows);
@@ -255,6 +266,7 @@ for (const lang of ['en', 'zh']) {
     ['review', scenes.reviewShot],
     ['battle', scenes.battleShot],
     ['learn', scenes.learnShot],
+    ['me', scenes.meShot],
   ]) {
     const ansi = await shot(path.join(tmp, `home-${name}-${lang}`), lang);
     const png = path.join(out, `${name}-${lang}.png`);

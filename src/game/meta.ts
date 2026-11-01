@@ -18,9 +18,10 @@ export function settleRun(s: State, before: Before, now = Date.now()): 'won' | '
   if (before?.phase === 'battle' && (g.phase === 'reward' || g.phase === 'victory')) track(s, 'floor', now);
   if (g.phase === 'victory' && before?.phase !== 'victory') {
     s.totals.wins++;
-    s.energy += ECON.winEnergy;
+    s.energy += ECON.winEnergy * (g.overtime ? 2 : 1);
     track(s, 'win', now);
     if (s.relics.length === 0) unlock(s, 'dungeon_bare', now);
+    if (g.overtime) unlock(s, 'dungeon_overtime', now);
     return 'won';
   }
   if (g.phase === 'dead' && before?.phase !== 'dead') return 'lost';

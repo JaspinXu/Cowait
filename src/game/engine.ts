@@ -152,6 +152,8 @@ export interface Battle {
 export type Phase = 'battle' | 'reward' | 'dead' | 'victory';
 
 export interface Run {
+  /** Overtime mode (Pro): tougher bugs, double the win reward. */
+  overtime?: boolean;
   seed: number;
   rng: number;
   floor: number;
@@ -198,9 +200,10 @@ const has = (relics: string[], id: string) => relics.includes(id);
 
 // ---------------------------------------------------------------- flow
 
-export function newRun(seed: number, relics: string[]): Run {
+export function newRun(seed: number, relics: string[], overtime = false): Run {
   const maxHp = BASE_HP + (has(relics, 'headphones') ? 8 : 0);
   const run: Run = {
+    overtime: overtime || undefined,
     seed,
     rng: seed >>> 0,
     floor: 1,
@@ -218,7 +221,7 @@ export function newRun(seed: number, relics: string[]): Run {
 }
 
 function attackBonus(run: Run, def: EnemyDef): number {
-  return def.boss ? 0 : run.floor - 1;
+  return (def.boss ? 0 : run.floor - 1) + (run.overtime ? 2 : 0);
 }
 
 function computeIntent(run: Run, e: EnemyState): Intent {
@@ -248,7 +251,7 @@ function computeIntent(run: Run, e: EnemyState): Intent {
 export function startBattle(run: Run, relics: string[]): void {
   const id = pick(run, FLOOR_POOLS[Math.min(run.floor, FLOORS) - 1]);
   const def = ENEMIES[id];
-  const hp = def.boss ? def.hp : Math.round(def.hp * (1 + 0.15 * (run.floor - 1)));
+  const hp = Math.round((def.boss ? def.hp : def.hp * (1 + 0.15 * (run.floor - 1))) * (run.overtime ? 1.3 : 1));
   const enemy: EnemyState = { id, hp, maxHp: hp, block: 0, vuln: 0, weak: 0, depth: 0, turn: 1, intent: { kind: 'mystery' } };
   enemy.intent = computeIntent(run, enemy);
   run.battle = {

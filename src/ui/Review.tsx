@@ -196,7 +196,7 @@ export function Review({ st, update, lang, active, blocked, width, height, now, 
 
   const chips = group && group.cards.length > 1 ? layoutChips(group.cards, width - 1, height >= 18 ? 2 : 1) : null;
   // title, turn line, chips, file header on top; "more" line (or the 2-line note box) at the bottom
-  const view = Math.max(3, height - (3 + (chips?.lines.length ?? 0) + (line.value !== null ? 2 : 1)));
+  const view = Math.max(3, height - (3 + (chips?.lines.length ?? 0) + 1));
   const maxScroll = Math.max(0, rows.length - view);
   const sc = Math.min(scroll, maxScroll);
 
@@ -353,7 +353,11 @@ export function Review({ st, update, lang, active, blocked, width, height, now, 
             </Text>
             {last ? (
               <Para
-                text={t(lang, 'rv_last', { title: short(last.title ?? t(lang, 'rv_untitled'), 16), n: last.files, ago: fmtAgo(now - (last.end ?? last.start), lang) })}
+                text={
+                  last.end
+                    ? t(lang, 'rv_last', { title: short(last.title ?? t(lang, 'rv_untitled'), 16), n: last.files, ago: fmtAgo(now - last.end, lang) })
+                    : t(lang, 'rv_last_running', { title: short(last.title ?? t(lang, 'rv_untitled'), 16), n: last.files })
+                }
                 width={paraW}
                 color="gray"
               />
@@ -432,10 +436,7 @@ export function Review({ st, update, lang, active, blocked, width, height, now, 
         })}
       </Box>
       {line.value !== null ? (
-        <>
-          <InputLine prompt={t(lang, 'rv_note')} value={line.value} />
-          <Text color="gray">{t(lang, 'rv_note_hint')}</Text>
-        </>
+        <InputLine prompt={t(lang, 'rv_note')} value={line.value} />
       ) : (
         <Text color="gray">{below > 0 ? t(lang, 'rv_more', { n: below }) : ' '}</Text>
       )}

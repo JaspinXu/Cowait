@@ -7,9 +7,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import React from 'react';
 import { App } from '../../src/ui/App.js';
-import { newState, type State } from '../../src/engine/state.js';
+import { emptyDay, localDay, newState, type State } from '../../src/engine/state.js';
+import { weekKey } from '../../src/engine/progress.js';
 import { DEFAULT_CONFIG } from '../../src/config.js';
-import { CWD, EDITS } from '../../src/demo.js';
+import { CWD, EDITS, TITLES } from '../../src/demo.js';
+import { dailyPuzzle, solve } from '../../src/game/stack.js';
 import { claimNotes } from '../../src/feedback.js';
 import { saveDeck } from '../../src/learn/decks.js';
 import { chooseReward, endTurn, newRun, playCard, type Run } from '../../src/game/engine.js';
@@ -42,15 +44,27 @@ const TEXT = {
   },
 };
 
-/** Someone who has used Cowait for a while: some history, coins, a decent review record. */
+/** Someone who has used Cowait for a while: a streak going, some levels, a decent review record. */
 function seasoned(turnMs: number[]): State {
   const s = newState();
   const now = Date.now();
+  s.onboarded = true;
+  s.lastRecap = weekKey(now);
   s.energy = 6;
   s.coins = 37;
-  s.lastDaily = new Date().toISOString().slice(0, 10);
-  Object.assign(s.totals, { turns: 6, testsPassed: 4, cards: 11, reviewed: 8, flagged: 2, delivered: 2, learned: 14, runs: 2, bestFloor: 4 });
+  s.lastDaily = localDay(now);
+  Object.assign(s.totals, { turns: 46, testsPassed: 31, cards: 120, reviewed: 92, flagged: 9, delivered: 11, learned: 140, runs: 6, wins: 1, bestFloor: 6, puzzles: 5 });
   s.history = turnMs.map((ms, i) => ({ cwd: CWD, ms, t: now - (i + 1) * 3_600_000 }));
+  // Four useful days before today: today keeps the streak alive.
+  for (let i = 1; i <= 4; i++) {
+    const day = localDay(now - i * 86_400_000);
+    s.days[day] = { ...emptyDay(), turns: 6, files: 14, reviewed: 11, flagged: 1, learned: 8, puzzle: i % 2 ? 3 : 2, xp: 190 };
+  }
+  s.xp = 2080;
+  s.level = 9;
+  s.bestStreak = 9;
+  s.best.wpm = 68;
+  for (const id of ['first_review', 'review_50', 'full_turn', 'coverage_80', 'first_note', 'streak_3', 'learn_100', 'dungeon_win', 'puzzle_perfect', 'wpm_60']) s.achievements[id] = now - 86_400_000;
   return s;
 }
 
@@ -71,7 +85,7 @@ function open(home: string, lang: Lang, cols: number, rows: number, initial: Sta
 function claude(home: string) {
   const emit = (ev: IEvent) => fs.appendFileSync(path.join(home, 'events.jsonl'), JSON.stringify(ev) + '\n');
   return {
-    prompt: () => emit({ t: Date.now(), k: 'prompt', sid: SID, cwd: CWD }),
+    prompt: (p?: string) => emit({ t: Date.now(), k: 'prompt', sid: SID, cwd: CWD, p }),
     stop: () => emit({ t: Date.now(), k: 'stop', sid: SID, cwd: CWD }),
     tool: (tool: string, extra: Partial<Extract<IEvent, { k: 'tool' }>> = {}) => emit({ t: Date.now(), k: 'tool', sid: SID, cwd: CWD, tool, ...extra }),
     /** What the hook does on Claude's next step: hand over waiting notes. */
@@ -84,8 +98,12 @@ function claude(home: string) {
 
 function keyboard(app: { stdin: { write: (s: string) => void } }) {
   return {
+    // One key at a time: a fake terminal can merge keys written back to back.
     keys: async (s: string, wait = 0) => {
-      for (const ch of s) app.stdin.write(ch);
+      for (const ch of s) {
+        app.stdin.write(ch);
+        await sleep(20);
+      }
       await sleep(wait);
     },
     type: async (s: string, per = 60) => {
@@ -117,7 +135,10 @@ function recorder(app: { lastFrame: () => string }) {
   };
 }
 
-/** The README GIF: review (folded edits, a note, delivery), a free note, the alert, a fight, a flashcard. */
+/**
+ * The README GIF: a turn's files as they come in (two edits to one file folded together), a note
+ * Claude receives on its next step, the "finished" alert, approving the turn, today's puzzle, the Me tab.
+ */
 export async function demoGif(home: string, lang: Lang, cols = 80, rows = 28): Promise<Frame[]> {
   const T = TEXT[lang];
   const { app } = open(home, lang, cols, rows, seasoned([62_000, 75_000, 88_000]));
@@ -125,13 +146,13 @@ export async function demoGif(home: string, lang: Lang, cols = 80, rows = 28): P
   const { keys, type } = keyboard(app);
   const stop = recorder(app);
   await sleep(900);
-  c.prompt();
+  c.prompt(TITLES[lang][0]);
   await sleep(1100);
   c.tool('Read');
   await sleep(900);
   c.tool('Edit', { edit: EDITS[0] }); // orders.ts
   await sleep(1500);
-  c.tool('Edit', { edit: EDITS[1] }); // orders.ts again: folded into the same card
+  c.tool('Edit', { edit: EDITS[1] }); // orders.ts again: folded into the same entry
   await sleep(1300);
   c.tool('Edit', { edit: EDITS[2] }); // payment.ts
   await sleep(1700);
@@ -141,27 +162,24 @@ export async function demoGif(home: string, lang: Lang, cols = 80, rows = 28): P
   await keys('\r', 1300);
   c.tool('Bash', { bash: { cmd: 'npm test', test: true, result: 'pass' } });
   c.relay(); // "Claude got your note"
-  await sleep(2000);
-  await keys('y', 1300); // payment.ts looks fine
-  await keys('m', 350);
-  await type(T.free);
-  await sleep(450);
-  await keys('\r', 1200);
+  await sleep(2200);
+  await keys('y', 1500); // payment.ts, read and fine
   c.tool('Write', { edit: EDITS[3] });
-  c.relay();
-  await sleep(1700);
+  await sleep(1600);
   c.stop();
-  await sleep(3000); // the "finished" alert
-  await keys('x', 1500);
-  await keys('y', 2300); // queue empty: auto mode moves on to a game
-  await keys('n', 1500);
-  await keys('1', 1000);
-  await keys('1', 1000);
-  await keys('e', 1700);
-  await keys('\t', 1400); // learn
-  await keys(' ', 2600);
-  await keys('2', 1300);
-  const frames = stop(2600);
+  await sleep(2600); // the "finished" alert
+  await keys('\r', 2200); // Enter: straight to what is left of that turn
+  await keys('Y', 2600); // approve the rest of the turn
+  await sleep(1200); // queue empty: auto mode moves on to the game list
+  await keys('2', 1200);
+  await keys('\r', 1500);
+  const p = dailyPuzzle(localDay(Date.now()));
+  for (const i of solve(p.start, p.target, p.buttons) ?? []) await keys(String(i + 1), 650);
+  await sleep(2600);
+  await keys('\x1b', 600);
+  await keys('\t', 600);
+  await keys('\t', 2800); // Me: level, streak, today's quests
+  const frames = stop(2400);
   app.unmount();
   return frames;
 }
@@ -171,7 +189,7 @@ export async function reviewShot(home: string, lang: Lang, cols = 76, rows = 24)
   const { app } = open(home, lang, cols, rows, seasoned([62_000, 75_000, 88_000]));
   const c = claude(home);
   const { keys, type } = keyboard(app);
-  c.prompt();
+  c.prompt(TITLES[lang][0]);
   c.tool('Read');
   c.tool('Edit', { edit: EDITS[0] });
   c.tool('Edit', { edit: EDITS[1] });
@@ -203,10 +221,26 @@ export async function battleShot(home: string, lang: Lang, cols = 76, rows = 24)
   const s = busy(seasoned([62_000, 75_000, 88_000]), 41_000);
   s.relics = ['chair', 'headphones'];
   s.game = runTo(3, s.relics);
+  s.arcade = 'dungeon';
   const { app } = open(home, lang, cols, rows, s);
   const { keys } = keyboard(app);
   await sleep(300);
   await keys('1', 300);
+  const f = app.lastFrame();
+  app.unmount();
+  return f;
+}
+
+/** Me: level, streak, today's quests, achievements. */
+export async function meShot(home: string, lang: Lang, cols = 76, rows = 24): Promise<string> {
+  const s = seasoned([62_000, 75_000, 88_000]);
+  const today = localDay(Date.now());
+  s.days[today] = { ...emptyDay(), turns: 3, files: 7, reviewed: 6, learned: 4, xp: 72 };
+  s.quests = { day: today, done: [] };
+  const { app } = open(home, lang, cols, rows, s);
+  const { keys } = keyboard(app);
+  await sleep(300);
+  await keys('\t\t\t', 500);
   const f = app.lastFrame();
   app.unmount();
   return f;

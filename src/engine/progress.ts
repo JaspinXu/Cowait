@@ -226,6 +226,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'learn_100', name: l('学而时习之', 'Lifelong Learner'), desc: l('刷了 100 张卡', 'Study 100 flashcards'), test: (s) => s.totals.learned >= 100 },
   { id: 'dungeon_win', name: l('栈溢出已修复', 'Overflow Fixed'), desc: l('通关捉虫地牢', 'Beat Debug Dungeon'), test: (s) => s.totals.wins >= 1 },
   { id: 'dungeon_bare', name: l('徒手捉虫', 'Bare Hands'), desc: l('不带任何装备通关捉虫地牢', 'Beat Debug Dungeon with no gear') },
+  { id: 'dungeon_overtime', name: l('加班到天亮', 'Dawn Shift'), desc: l('通关捉虫地牢的加班模式', 'Beat Debug Dungeon in overtime mode') },
   { id: 'puzzle_perfect', name: l('一步不多', 'Not One Step More'), desc: l('三星解出一道栈机谜题', 'Three-star a Stack Puzzle') },
   {
     id: 'puzzle_week',

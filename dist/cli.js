@@ -33,9 +33,9 @@ var __export = (target, all) => {
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    for (let key2 of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key2) && key2 !== except)
+        __defProp(to, key2, { get: () => from[key2], enumerable: !(desc = __getOwnPropDesc(from, key2)) || desc.enumerable });
   }
   return to;
 };
@@ -48,18 +48,88 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// src/paths.ts
-import os from "node:os";
+// src/runtime.ts
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 function packageRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 }
+function isBunfsPath(p) {
+  let s = p;
+  if (s.startsWith("file:")) {
+    try {
+      s = decodeURIComponent(s.replace(/^file:\/\//, ""));
+    } catch {
+      s = s.replace(/^file:\/\//, "");
+    }
+  }
+  return BUNFS.test(s);
+}
+function isCompiled() {
+  if (compiledOverride !== null) return compiledOverride;
+  if (!process.versions.bun) return false;
+  const main3 = globalThis.Bun?.main;
+  return [typeof main3 === "string" ? main3 : "", import.meta.url, process.argv[1] ?? ""].some((p) => p && isBunfsPath(p));
+}
+function appVersion() {
+  if ("1.0.0") return "1.0.0";
+  try {
+    return JSON.parse(fs.readFileSync(path.join(packageRoot(), "package.json"), "utf8")).version;
+  } catch {
+    return "0.0.0";
+  }
+}
+function selfCommand() {
+  if (isCompiled()) return [process.execPath];
+  return [process.execPath, path.join(packageRoot(), "dist", "cli.js")];
+}
+function shQuote(s) {
+  return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
+}
+function splitPlan(cmd, cwd2, env3 = process.env) {
+  if (env3.TMUX) return { via: "tmux", bin: "tmux", args: ["split-window", "-h", "-l", "40%", "-c", cwd2, cmd.map(shQuote).join(" ")] };
+  if (env3.ZELLIJ)
+    return { via: "zellij", bin: "zellij", args: ["run", "--direction", "right", "--close-on-exit", "--name", "cowait", "--cwd", cwd2, "--", ...cmd] };
+  if (env3.WEZTERM_PANE)
+    return { via: "wezterm", bin: "wezterm", args: ["cli", "split-pane", "--right", "--percent", "40", "--cwd", cwd2, "--", ...cmd] };
+  if (env3.KITTY_WINDOW_ID) return { via: "kitty", bin: "kitty", args: ["@", "launch", "--location=vsplit", "--bias=40", "--cwd=current", ...cmd] };
+  if (env3.TERM_PROGRAM === "iTerm.app") return { via: "iterm2", bin: "osascript", args: [...ITERM_SCRIPT.flatMap((l4) => ["-e", l4]), cwd2, ...cmd] };
+  if (env3.WT_SESSION) return { via: "windows-terminal", bin: "wt.exe", args: ["-w", "0", "sp", "-V", "-s", "0.4", "-d", cwd2, ...cmd], detached: true };
+  return null;
+}
+var BUNFS, compiledOverride, ITERM_SCRIPT;
+var init_runtime = __esm({
+  "src/runtime.ts"() {
+    "use strict";
+    BUNFS = /^\/?(?:\$bunfs[\\/]|b:[\\/]~bun[\\/])/i;
+    compiledOverride = null;
+    ITERM_SCRIPT = [
+      "on run argv",
+      '  set cmdLine to "cd " & quoted form of (item 1 of argv) & " && exec"',
+      "  repeat with i from 2 to count of argv",
+      '    set cmdLine to cmdLine & " " & quoted form of (item i of argv)',
+      "  end repeat",
+      '  tell application "iTerm2"',
+      "    tell current session of current window",
+      "      set newSession to (split vertically with same profile)",
+      "    end tell",
+      "    tell newSession to write text cmdLine",
+      "  end tell",
+      "end run"
+    ];
+  }
+});
+
+// src/paths.ts
+import os from "node:os";
+import path2 from "node:path";
 function dataDir() {
   if (process.env.COWAIT_HOME) return process.env.COWAIT_HOME;
+  if (isCompiled()) return path2.join(os.homedir(), ".cowait");
   const root = packageRoot();
-  if (!root.split(path.sep).includes("node_modules")) return path.join(root, "data");
-  return path.join(os.homedir(), ".cowait");
+  if (!root.split(path2.sep).includes("node_modules")) return path2.join(root, "data");
+  return path2.join(os.homedir(), ".cowait");
 }
 function normPath(p) {
   const s = p.replace(/\\/g, "/").replace(/\/+$/, "");
@@ -74,51 +144,52 @@ var paths;
 var init_paths = __esm({
   "src/paths.ts"() {
     "use strict";
+    init_runtime();
     paths = {
-      events: () => path.join(dataDir(), "events.jsonl"),
-      state: () => path.join(dataDir(), "state.json"),
-      config: () => path.join(dataDir(), "config.json"),
-      feedback: () => path.join(dataDir(), "feedback"),
-      decks: () => path.join(dataDir(), "decks"),
-      lock: () => path.join(dataDir(), "panel.lock")
+      events: () => path2.join(dataDir(), "events.jsonl"),
+      state: () => path2.join(dataDir(), "state.json"),
+      config: () => path2.join(dataDir(), "config.json"),
+      feedback: () => path2.join(dataDir(), "feedback"),
+      decks: () => path2.join(dataDir(), "decks"),
+      lock: () => path2.join(dataDir(), "panel.lock")
     };
   }
 });
 
 // src/fsutil.ts
-import fs from "node:fs";
-import path2 from "node:path";
+import fs2 from "node:fs";
+import path3 from "node:path";
 function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
+  fs2.mkdirSync(dir, { recursive: true });
 }
 function parseJson(text) {
   return JSON.parse(text.charCodeAt(0) === 65279 ? text.slice(1) : text);
 }
 function readJson(file, fallback) {
   try {
-    return parseJson(fs.readFileSync(file, "utf8"));
+    return parseJson(fs2.readFileSync(file, "utf8"));
   } catch {
     return fallback;
   }
 }
 function writeJsonAtomic(file, data, pretty = false) {
-  ensureDir(path2.dirname(file));
+  ensureDir(path3.dirname(file));
   const body = pretty ? JSON.stringify(data, null, 2) + "\n" : JSON.stringify(data);
   const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, body);
+  fs2.writeFileSync(tmp, body);
   try {
-    fs.renameSync(tmp, file);
+    fs2.renameSync(tmp, file);
   } catch {
-    fs.writeFileSync(file, body);
+    fs2.writeFileSync(file, body);
     try {
-      fs.unlinkSync(tmp);
+      fs2.unlinkSync(tmp);
     } catch {
     }
   }
 }
 function appendLine(file, line) {
-  ensureDir(path2.dirname(file));
-  fs.appendFileSync(file, line + "\n");
+  ensureDir(path3.dirname(file));
+  fs2.appendFileSync(file, line + "\n");
 }
 var init_fsutil = __esm({
   "src/fsutil.ts"() {
@@ -148,7 +219,9 @@ var init_config = __esm({
       llm: "auto",
       model: "claude-haiku-5-5",
       cliModel: "haiku",
-      shortWaitSec: 45
+      shortWaitSec: 45,
+      promptTitles: true,
+      updateCheck: true
     };
   }
 });
@@ -164,63 +237,67 @@ function resolveLang(cfg) {
     return "en";
   }
 }
-function t(lang, key, vars = {}) {
-  let s = S[lang][key] ?? S.en[key];
+function t(lang, key2, vars = {}) {
+  let s = S[lang][key2] ?? S.en[key2];
   for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
   return s;
 }
 function helpContent(lang) {
   if (lang === "zh")
     return {
-      intro: "Cowait \u628A\u7B49 Claude \u5E72\u6D3B\u7684\u65F6\u95F4\u53D8\u6210\u6709\u7528\u7684\u65F6\u95F4\u3002Claude \u5B8C\u6210\u6216\u9700\u8981\u4F60\u786E\u8BA4\u65F6\uFF0C\u9762\u677F\u4F1A\u54CD\u94C3\u63D0\u9192\u3002",
+      intro: "Claude \u5E72\u5B8C\u6D3B\u6216\u8981\u4F60\u786E\u8BA4\u65F6\uFF0C\u9762\u677F\u4F1A\u54CD\u94C3\u3002",
       sections: [
         {
-          title: "\u4E09\u4E2A\u6A21\u5F0F\uFF08Tab \u5207\u6362\uFF09",
+          title: "\u56DB\u4E2A\u9875\u9762\uFF08Tab \u5207\u6362\uFF09",
           rows: [
-            ["\u5BA1\u9605", "Claude \u6BCF\u6539\u4E00\u4E2A\u6587\u4EF6\u5C31\u751F\u6210\u4E00\u5F20\u5361\u7247\uFF0C\u8FDE\u7EED\u6539\u540C\u4E00\u4E2A\u6587\u4EF6\u4F1A\u5408\u5230\u4E00\u5F20\u91CC\u3002y \u6CA1\u95EE\u9898\uFF0Cn \u5199\u4E00\u53E5\u8BDD\u7ED9 Claude\uFF0C\u5B83\u4E0B\u4E00\u6B65\u64CD\u4F5C\u65F6\u5C31\u4F1A\u770B\u5230\uFF0C\u4E0D\u7528\u6253\u65AD\u5B83\u3002\u626B\u4E00\u773C\u5C31\u6309 y \u4E0D\u7B97\u5BA1\u8FC7\uFF1B\u79EF\u538B\u592A\u591A\u65F6\u8FDE\u6309\u4E24\u6B21 S \u5168\u90E8\u8DF3\u8FC7\u3002"],
-            ["\u6E38\u620F", "\u6349\u866B\u5730\u7262\uFF1A\u56DE\u5408\u5236\u5361\u724C\u5C0F\u6E38\u620F\uFF0C\u4E00\u6B21\u4E00\u4E2A\u6309\u952E\uFF0C\u968F\u65F6\u80FD\u505C\u3002"],
-            ["\u5B66\u4E60", "\u62BD\u8BA4\u5361 + \u95F4\u9694\u91CD\u590D\u3002\u5185\u7F6E Git / \u7F51\u7EDC / \u5E76\u53D1 / LLM / \u7CFB\u7EDF\u8BBE\u8BA1\uFF1Bt \u8BA9 AI \u51FA\u4EFB\u610F\u4E3B\u9898\uFF0Cg \u7528 Claude \u521A\u5199\u7684\u4EE3\u7801\u51FA\u9898\u3002"]
+            ["\u5BA1\u9605", "Claude \u6BCF\u4E00\u8F6E\u6539\u4E86\u54EA\u4E9B\u6587\u4EF6\u3002y \u6CA1\u95EE\u9898\uFF0Cn \u5199\u4E00\u53E5\u8BDD\u7ED9 Claude\uFF08\u5B83\u4E0B\u4E00\u6B65\u5C31\u770B\u5230\uFF09\uFF0CY \u6574\u8F6E\u901A\u8FC7\u3002\u770B\u8FC7\u7684\u624D\u7B97\u5BA1\u8FC7\u3002"],
+            ["\u6E38\u620F", "\u6349\u866B\u5730\u7262\u3001\u6808\u673A\u8C1C\u9898\u3001\u4EE3\u7801\u901F\u6253\u3002\u4E00\u4E2A\u952E\u4E00\u6B65\uFF0C\u968F\u65F6\u80FD\u505C\u3002"],
+            ["\u5B66\u4E60", "\u62BD\u8BA4\u5361\u3002t \u8BA9 AI \u51FA\u9898\uFF0Cg \u8003\u8003 Claude \u521A\u5199\u7684\u4EE3\u7801\u3002"],
+            ["\u6211", "\u7B49\u7EA7\u3001\u8FDE\u7EED\u5929\u6570\u3001\u4ECA\u65E5\u4EFB\u52A1\u3001\u6210\u5C31\u3001\u8BBE\u7F6E\u3002"]
           ]
         },
         {
           title: "\u968F\u65F6\u53EF\u7528",
           rows: [
-            ["m", "\u7ED9 Claude \u7559\u8A00\uFF0C\u4E0D\u7528\u9488\u5BF9\u67D0\u5F20\u5361\u7247\u3002"],
-            ["a", "\u81EA\u52A8\u9009\u6A21\u5F0F\uFF1A\u6709\u5F85\u5BA1\u7684\u5148\u5BA1\uFF0C\u7B49\u5F97\u77ED\u5C31\u5237\u5361\uFF0C\u7B49\u5F97\u957F\u5C31\u73A9\u3002"]
+            ["m", "\u7ED9 Claude \u7559\u8A00"],
+            ["a", "\u81EA\u52A8\u5207\u6362\u9875\u9762"],
+            ["q", "\u9000\u51FA"]
           ]
         },
         {
           title: "\u4E24\u79CD\u8D27\u5E01",
           rows: [
-            ["\u26A1 \u80FD\u91CF", "\u4F60\u81EA\u5DF1\u5E72\u6D3B\u8D5A\uFF08\u5BA1\u9605\u3001\u5237\u5361\uFF09\uFF0C\u7528\u6765\u5F00\u6E38\u620F\u3002\u5148\u5BA1\u540E\u73A9\u3002"],
-            ["\u{1F4B0} \u91D1\u5E01", "\u53EA\u770B Claude \u7684\u6210\u679C\uFF1A\u5E72\u6D3B\u7684\u4E00\u8F6E +3\uFF0C\u6D4B\u8BD5\u901A\u8FC7\u518D +10\uFF0C\u7B49\u518D\u4E45\u4E5F\u4E0D\u591A\u7ED9\u3002\u7528\u6765\u4E70\u6C38\u4E45\u88C5\u5907\u3002"]
+            ["\u26A1", "\u5BA1\u9605\u3001\u5237\u5361\u3001\u6BCF\u65E5\u4EFB\u52A1\u8D5A\uFF0C\u7528\u6765\u73A9\u6E38\u620F\u3002\u5148\u5BA1\u540E\u73A9\u3002"],
+            ["\u{1F4B0}", "\u53EA\u770B Claude \u7684\u6210\u679C\uFF1A\u5E72\u6D3B +3\uFF0C\u6D4B\u8BD5\u901A\u8FC7 +10\u3002\u4E70\u88C5\u5907\u3002"]
           ]
         }
       ]
     };
   return {
-    intro: "Cowait turns the time you spend waiting on Claude into useful time, and rings when Claude finishes or needs you.",
+    intro: "The panel rings when Claude finishes or needs you.",
     sections: [
       {
-        title: "Three modes (Tab to switch)",
+        title: "Four tabs (Tab to switch)",
         rows: [
-          ["Review", "Every file Claude changes becomes a card; repeated edits to one file share a card. y = fine, n = write Claude one line, which it sees on its next step without being interrupted. A y in the blink of an eye does not count as a review; S twice skips a whole backlog."],
-          ["Play", "Debug Dungeon: a turn-based card game, one key per action, drop it at any moment."],
-          ["Learn", "Flashcards with spaced repetition. Built-in Git / networking / concurrency / LLM / system-design decks; t has AI write a deck on any topic, g quizzes you on the code Claude just wrote."]
+          ["Review", "Each Claude turn's files. y fine, n write Claude a line (seen on its next step), Y whole turn. Only what you read counts."],
+          ["Play", "Debug Dungeon, Stack Puzzle, Code Sprint. One key per step, stop any time."],
+          ["Learn", "Flashcards. t: AI writes a deck, g: quiz on the code Claude just wrote."],
+          ["Me", "Level, streak, daily quests, achievements, settings."]
         ]
       },
       {
         title: "Any time",
         rows: [
-          ["m", "Send Claude a note that is not about one card."],
-          ["a", "Auto mode: reviews first, short waits get flashcards, long waits a game."]
+          ["m", "note to Claude"],
+          ["a", "auto-switch tabs"],
+          ["q", "quit"]
         ]
       },
       {
         title: "Two currencies",
         rows: [
-          ["\u26A1 energy", "Earned by you (reviewing, studying); spent to start a run. Review first, then play."],
-          ["\u{1F4B0} coins", "Earned by Claude\u2019s results only: +3 per working turn, +10 when tests pass, never by waiting longer. Spent on permanent gear."]
+          ["\u26A1", "From reviewing, studying, daily quests; spent on games. Review first, then play."],
+          ["\u{1F4B0}", "From Claude's results only: +3 a working turn, +10 when tests pass. Buys gear."]
         ]
       }
     ]
@@ -239,7 +316,12 @@ function fmtAgo(ms, lang) {
   const m = Math.round(sec / 60);
   if (m < 60) return lang === "zh" ? `${m} \u5206\u949F` : `${m}m`;
   const h = Math.round(m / 60);
-  return lang === "zh" ? `${h} \u5C0F\u65F6` : `${h}h`;
+  if (h < 48) return lang === "zh" ? `${h} \u5C0F\u65F6` : `${h}h`;
+  const d = Math.round(h / 24);
+  return lang === "zh" ? `${d} \u5929` : `${d}d`;
+}
+function pct(x) {
+  return x === null ? "\u2014" : `${Math.round(x * 100)}%`;
 }
 var S;
 var init_i18n = __esm({
@@ -249,55 +331,87 @@ var init_i18n = __esm({
       zh: {
         brand: "Cowait",
         st_busy: "Claude \u5DE5\u4F5C\u4E2D",
-        st_idle: "Claude \u7A7A\u95F2\uFF0C\u7B49\u4F60\u4E0B\u6307\u4EE4",
+        st_idle: "Claude \u5728\u7B49\u4F60",
         st_attention: "Claude \u5728\u7B49\u4F60\u786E\u8BA4",
         st_none: "\u7B49 Claude \u5F00\u5DE5",
-        st_more: "\uFF08\u5171 {n} \u4E2A\u4F1A\u8BDD\u5728\u8DD1\uFF09",
+        st_more: "\uFF08{n} \u4E2A\u4F1A\u8BDD\uFF09",
         eta: "\u9884\u8BA1 {t}",
         st_longer: "\u6BD4\u5E73\u65F6\u4E45",
         mode_review: "\u5BA1\u9605",
         mode_game: "\u6E38\u620F",
         mode_learn: "\u5B66\u4E60",
+        mode_me: "\u6211",
         auto: "\u81EA\u52A8",
-        footer: "Tab \u5207\u6362\u6A21\u5F0F \xB7 m \u7ED9 Claude \u7559\u8A00 \xB7 a \u81EA\u52A8[{on}] \xB7 ? \u5E2E\u52A9 \xB7 q \u9000\u51FA",
-        footer_short: "Tab \u5207\u6362 \xB7 m \u7559\u8A00 \xB7 a \u81EA\u52A8[{on}] \xB7 ? \u5E2E\u52A9 \xB7 q \u9000\u51FA",
+        auto_on: "\u81EA\u52A8\u5207\u6362\uFF1A\u5F00\uFF08\u6709\u6539\u52A8\u5148\u5BA1\uFF0C\u7B49\u5F97\u77ED\u5237\u5361\uFF0C\u7B49\u5F97\u957F\u73A9\u6E38\u620F\uFF09",
+        auto_off: "\u81EA\u52A8\u5207\u6362\uFF1A\u5173",
+        help_key: "? \u5E2E\u52A9",
         on: "\u5F00",
         off: "\u5173",
         done: "\u2714 Claude \u5B8C\u6210\u4E86 \xB7 \u7528\u65F6 {t}",
-        done_edits: " \xB7 \u6539\u52A8 {n} \u5904",
-        done_edit1: " \xB7 \u6539\u52A8 1 \u5904",
+        done_edits: " \xB7 \u6539\u4E86 {n} \u4E2A\u6587\u4EF6",
+        done_edit1: " \xB7 \u6539\u4E86 1 \u4E2A\u6587\u4EF6",
         done_cwd: "\uFF08{dir}\uFF09",
         done_coins: "+{n}\u{1F4B0}",
         done_pass: "\u6D4B\u8BD5\u901A\u8FC7",
         done_fail: "\u6D4B\u8BD5\u6CA1\u8FC7",
         done_pending: "\u5F85\u5BA1 {n}",
-        done_none: "\u8FD9\u4E00\u8F6E\u6CA1\u52A8\u624B\u5E72\u6D3B\uFF0C\u4E0D\u53D1\u{1F4B0}",
-        attention: "\u26A0 Claude \u5728\u7B49\u4F60\u786E\u8BA4\uFF1A{msg}",
-        daily: "\u2600 \u4ECA\u65E5\u9996\u6B21\u6253\u5F00 +{n}\u26A1",
+        done_none: "\u53EA\u804A\u4E86\u5929\uFF0C\u6CA1\u52A8\u4EE3\u7801",
+        alert_review: "Enter \u53BB\u770B\u770B \xB7 \u5176\u4ED6\u952E\u5173\u95ED",
+        alert_review_short: "Enter \u53BB\u770B\u770B",
         anykey: "\u6309\u4EFB\u610F\u952E\u7EE7\u7EED",
+        attention: "\u26A0 Claude \u5728\u7B49\u4F60\u786E\u8BA4\uFF1A{msg}",
+        daily: "\u2600 \u4ECA\u5929\u7B2C\u4E00\u6B21\u6253\u5F00 +{n}\u26A1",
+        daily_streak: "\u2600 \u4ECA\u5929\u7B2C\u4E00\u6B21\u6253\u5F00 +{n}\u26A1 \xB7 \u{1F525} \u5DF2\u8FDE\u7EED {d} \u5929\uFF0C\u4ECA\u5929\u4E5F\u522B\u65AD",
         help_close: "\u6309\u4EFB\u610F\u952E\u5173\u95ED\u5E2E\u52A9",
-        // notes to Claude (any time, m)
         note_prompt: "\u270E \u7ED9 Claude \u7559\u8A00\uFF1A",
         note_prompt_to: "\u270E \u7ED9 Claude \u7559\u8A00\uFF08{dir}\uFF09\uFF1A",
         note_hint: "Enter \u53D1\u9001 \xB7 Esc \u53D6\u6D88",
-        note_sent_busy: "\u270E \u5DF2\u8BB0\u4E0B \u2014\u2014 Claude \u4E0B\u4E00\u6B65\u64CD\u4F5C\u65F6\u5C31\u4F1A\u770B\u5230",
-        note_sent_idle: "\u270E \u5DF2\u8BB0\u4E0B \u2014\u2014 \u4E0B\u6B21\u7ED9 Claude \u53D1\u6D88\u606F\u65F6\u4E00\u8D77\u5E26\u8FC7\u53BB",
-        note_off: "\u7559\u8A00\u8F6C\u8FBE\u5DF2\u5173\u95ED\uFF08cowait config feedback true \u53EF\u4EE5\u6253\u5F00\uFF09",
+        note_sent_busy: "\u270E \u5DF2\u8BB0\u4E0B\uFF0CClaude \u4E0B\u4E00\u6B65\u64CD\u4F5C\u65F6\u5C31\u4F1A\u770B\u5230",
+        note_sent_idle: "\u270E \u5DF2\u8BB0\u4E0B\uFF0C\u4F60\u4E0B\u6B21\u7ED9 Claude \u53D1\u6D88\u606F\u65F6\u4F1A\u4E00\u8D77\u5E26\u8FC7\u53BB",
+        note_off: "\u7559\u8A00\u8F6C\u8FBE\u5DF2\u5173\u95ED\uFF08\u5728\u300C\u6211 \u2192 \u8BBE\u7F6E\u300D\u91CC\u53EF\u4EE5\u6253\u5F00\uFF09",
         delivered_one: "\u2713 Claude \u6536\u5230\u4E86\u4F60\u7684\u7559\u8A00",
         delivered_n: "\u2713 Claude \u6536\u5230\u4E86\u4F60\u7684 {n} \u6761\u7559\u8A00",
+        quest_done: "\u2713 \u4ECA\u65E5\u4EFB\u52A1\uFF1A{q} +{e}\u26A1",
+        quests_all: "\u{1F389} \u4ECA\u5929\u7684\u4E09\u4E2A\u4EFB\u52A1\u90FD\u5B8C\u6210\u4E86",
+        achievement: "\u{1F3C6} \u65B0\u6210\u5C31\u300C{n}\u300D+{e}\u26A1",
+        level_up: "\u2B06 \u5347\u5230 {l} \u7EA7 \xB7 {t}",
+        expired: "{n} \u4E2A\u653E\u4E86\u4E00\u5929\u591A\u6CA1\u5BA1\u7684\u6539\u52A8\u5DF2\u5F52\u6863",
+        update_avail: "\u6709\u65B0\u7248\u672C {v}\uFF1A{cmd}",
+        installed_ok: "\u2713 \u5DF2\u63A5\u5165\uFF1A\u91CD\u542F Claude Code \u5C31\u751F\u6548",
+        install_failed: "\u63A5\u5165\u5931\u8D25\uFF1A{e}",
+        another: "\u53E6\u4E00\u4E2A Cowait \u9762\u677F\u5DF2\u7ECF\u5728\u8FD0\u884C\uFF08PID {pid}\uFF09\u3002\u540C\u4E00\u65F6\u95F4\u53EA\u80FD\u5F00\u4E00\u4E2A\uFF0C\u4E0D\u7136\u5956\u52B1\u4F1A\u88AB\u7B97\u4E24\u6B21\u3002",
+        // welcome
+        wl_title: "\u6B22\u8FCE\u4F7F\u7528 Cowait",
+        wl_intro: "Claude \u5E72\u6D3B\u7684\u65F6\u5019\uFF0C\u8FD9\u91CC\u5E2E\u4F60\u628A\u7B49\u5F85\u53D8\u6210\u6709\u7528\u7684\u65F6\u95F4\uFF1A",
+        wl_review: "\u770B\u6E05 Claude \u6BCF\u4E00\u8F6E\u6539\u4E86\u54EA\u4E9B\u6587\u4EF6\uFF1B\u6709\u95EE\u9898\u5199\u4E00\u53E5\u8BDD\uFF0C\u5B83\u4E0B\u4E00\u6B65\u5C31\u4F1A\u770B\u5230\uFF0C\u4E0D\u7528\u6253\u65AD\u5B83\u3002",
+        wl_game: "\u5BA1\u5B8C\u5C31\u80FD\u73A9\uFF1A\u5361\u724C\u95EF\u5173\u3001\u6BCF\u65E5\u8C1C\u9898\u3001\u4EE3\u7801\u901F\u6253\uFF0C\u6309\u4E00\u4E0B\u5C31\u505C\u3002",
+        wl_learn: "\u62BD\u8BA4\u5361\uFF0C\u8FD8\u80FD\u7528 Claude \u521A\u5199\u7684\u4EE3\u7801\u51FA\u9898\u8003\u4F60\u3002",
+        wl_connect: "\u8FD8\u5DEE\u4E00\u6B65\uFF1A\u63A5\u5165 Claude Code\u3002",
+        wl_here: "\u53EA\u4E3A\u8FD9\u4E2A\u9879\u76EE\u63A5\u5165",
+        wl_global: "\u4E3A\u6240\u6709\u9879\u76EE\u63A5\u5165\uFF08\u5148\u5907\u4EFD ~/.claude/settings.json\uFF09",
+        wl_later: "\u4EE5\u540E\u518D\u8BF4\uFF08\u968F\u65F6\u53EF\u4EE5\u8FD0\u884C cowait install\uFF09",
+        wl_ready: "\u5DF2\u7ECF\u63A5\u5165 Claude Code \u2713  \u53BB Claude Code \u91CC\u7ED9\u5B83\u6D3E\u4E2A\u6D3B\u5427\u3002",
+        wl_start: "\u5F00\u59CB",
+        wl_lang: "Switch to English",
+        // weekly recap
+        rc_title: "\u4E0A\u5468\u56DE\u987E \xB7 {from} \u2013 {to}",
+        rc_turns: "Claude \u5E72\u6D3B {n} \u8F6E\uFF0C\u6539\u4E86 {f} \u4E2A\u6587\u4EF6",
+        rc_read: "\u4F60\u8BA4\u771F\u770B\u8FC7\u5176\u4E2D {r} \u4E2A\uFF08{p}\uFF09",
+        rc_notes: "\u6807\u51FA\u95EE\u9898 {f} \u4E2A \xB7 \u7559\u8A00 {n} \u6761 \xB7 \u5237\u5361 {l} \u5F20",
+        rc_days: "\u6709\u6548\u5929\u6570 {n}/7 \xB7 \u83B7\u5F97 {xp} XP",
+        rc_hi: "\u5BA1\u5F97\u5F88\u8BA4\u771F\uFF1AClaude \u5199\u7684\u4EE3\u7801\uFF0C\u6709\u4F60\u628A\u5173\u3002",
+        rc_mid: "\u4E0D\u9519\u3002\u91CD\u8981\u7684\u6587\u4EF6\u591A\u770B\u4E00\u773C\uFF0C\u4F1A\u66F4\u5B89\u5FC3\u3002",
+        rc_lo: "\u8FD9\u5468\u5927\u90E8\u5206\u6539\u52A8\u6CA1\u770B\u8FC7\u3002\u6311\u6700\u91CD\u8981\u7684\u770B\u770B\u4E5F\u597D\u3002",
+        rc_none: "\u8FD9\u5468 Claude \u6CA1\u6539\u4EE3\u7801\uFF0C\u4F60\u5728\u5B66\u4E60\u548C\u8C1C\u9898\u4E0A\u6CA1\u843D\u4E0B\u3002",
         // review
-        rv_title: "\u5BA1\u9605 Claude \u7684\u6539\u52A8",
-        rv_pending: "\u5F85\u5BA1 {n}",
-        rv_cov: "\u8986\u76D6\u7387 {p}",
-        rv_relayed: "\u5DF2\u8F6C\u8FBE {n} \u6761",
-        rv_empty: "\u6CA1\u6709\u5F85\u5BA1\u7684\u6539\u52A8 \u2713",
-        rv_empty_hint: "Claude \u6BCF\u6539\u4E00\u4E2A\u6587\u4EF6\uFF0C\u5C31\u4F1A\u53D8\u6210\u4E00\u5F20\u5361\u7247\u51FA\u73B0\u5728\u8FD9\u91CC\u3002\u770B\u4E00\u773C\u3001\u6807\u4E2A \u2713\uFF0C\u6216\u8005\u5199\u4E00\u53E5\u8BDD\u8BA9\u5B83\u6539\u3002",
-        rv_empty_play: "\u5BA1\u5B8C\u4E86\uFF0C\u80FD\u91CF \u26A1{e}\u3002\u6309 Tab \u53BB\u73A9\u4E00\u5C40\u6216\u5B66\u70B9\u4E1C\u897F\u3002",
-        rv_setup: "Cowait \u8FD8\u6CA1\u63A5\u5165 Claude Code\u3002",
-        rv_setup_cmd: "\u5728\u4F60\u7684\u9879\u76EE\u76EE\u5F55\u91CC\u8FD0\u884C\uFF1Acowait install --project",
-        rv_setup_then: "\u7136\u540E\u91CD\u542F Claude Code\u3002\u53EA\u60F3\u5148\u770B\u770B\u6548\u679C\uFF1Acowait demo",
-        rv_keys: "y \u6CA1\u95EE\u9898 +1\u26A1 \xB7 n \u6709\u95EE\u9898\u2192\u544A\u8BC9Claude +2\u26A1 \xB7 s \u8DF3\u8FC7 \xB7 \u2190\u2192 \u6362\u5361 \xB7 \u2191\u2193 \u6EDA\u52A8",
-        rv_keys_short: "y \u901A\u8FC7 \xB7 n \u5199\u7ED9Claude \xB7 s \u8DF3\u8FC7 \xB7 \u2190\u2192 \u6362\u5361 \xB7 \u2191\u2193",
+        rv_turn: "\u7B2C {i}/{n} \u8F6E",
+        rv_untitled: "Claude \u7684\u4E00\u8F6E\u6539\u52A8",
+        rv_running: "\u8FDB\u884C\u4E2D",
+        rv_took: "\u7528\u65F6 {t}",
+        rv_pass: "\u6D4B\u8BD5\u901A\u8FC7",
+        rv_fail: "\u6D4B\u8BD5\u6CA1\u8FC7",
+        rv_files: "{n} \u4E2A\u6587\u4EF6",
+        rv_ago: "{t}\u524D",
         rv_new_file: "\u65B0\u6587\u4EF6",
         rv_parts: "{n} \u5904\u4FEE\u6539",
         rv_part: "\u2500\u2500 \u7B2C {n} \u5904 \u2500\u2500",
@@ -305,17 +419,75 @@ var init_i18n = __esm({
         kind_write: "\u5199\u5165",
         kind_multiedit: "\u591A\u5904\u4FEE\u6539",
         kind_notebook: "\u7B14\u8BB0\u672C",
-        rv_ago: "{t}\u524D",
-        rv_more: "\u2026 \u8FD8\u6709 {n} \u884C\uFF08\u2193 \u6EDA\u52A8\uFF09",
+        rv_more: "\u2026 \u8FD8\u6709 {n} \u884C\uFF08\u2193\uFF09",
         rv_note: "\u270E \u60F3\u5BF9 Claude \u8BF4\uFF1A",
         rv_note_hint: "Enter \u53D1\u9001 \xB7 Esc \u53D6\u6D88",
-        rv_queued_busy: "\u5DF2\u8BB0\u4E0B +{n}\u26A1 \u2014\u2014 Claude \u4E0B\u4E00\u6B65\u64CD\u4F5C\u65F6\u5C31\u4F1A\u770B\u5230\u8FD9\u53E5\u8BDD",
-        rv_queued_idle: "\u5DF2\u8BB0\u4E0B +{n}\u26A1 \u2014\u2014 \u4F60\u4E0B\u6B21\u7ED9 Claude \u53D1\u6D88\u606F\u65F6\u4F1A\u4E00\u8D77\u5E26\u8FC7\u53BB",
+        rv_queued_busy: "\u270E \u5DF2\u8BB0\u4E0B +{n}\u26A1\uFF0CClaude \u4E0B\u4E00\u6B65\u64CD\u4F5C\u65F6\u5C31\u4F1A\u770B\u5230",
+        rv_queued_idle: "\u270E \u5DF2\u8BB0\u4E0B +{n}\u26A1\uFF0C\u4F60\u4E0B\u6B21\u7ED9 Claude \u53D1\u6D88\u606F\u65F6\u4F1A\u4E00\u8D77\u5E26\u8FC7\u53BB",
         rv_ok: "\u2713 +{n}\u26A1",
-        rv_skim: "\u2713 \u5DF2\u901A\u8FC7 \xB7 \u592A\u5FEB\u4E86\uFF0C\u4E0D\u7B97\u5BA1\u8FC7\uFF0C\u4E0D\u52A0\u26A1",
+        rv_skim: "\u2713 \u5DF2\u901A\u8FC7\uFF08\u8FD8\u6CA1\u6765\u5F97\u53CA\u770B\uFF0C\u4E0D\u7B97\u5BA1\u8FC7\uFF09",
         rv_skip: "\u5DF2\u8DF3\u8FC7",
-        rv_skip_all_ask: "\u518D\u6309\u4E00\u6B21 S \u8DF3\u8FC7\u5168\u90E8 {n} \u5F20\uFF08\u7B97\u4F5C\u8DF3\u8FC7\uFF0C\u4E0D\u7B97\u5BA1\u8FC7\uFF09",
-        rv_skip_all_done: "\u5DF2\u8DF3\u8FC7 {n} \u5F20",
+        rv_turn_all: "\u2713 \u6574\u8F6E\u901A\u8FC7 \xB7 \u770B\u8FC7 {n} \u4E2A\u6587\u4EF6 +{e}\u26A1",
+        rv_turn_some: "\u2713 \u6574\u8F6E\u901A\u8FC7 \xB7 \u770B\u8FC7 {r} \u4E2A +{e}\u26A1\uFF0C{q} \u4E2A\u6CA1\u770B\uFF08\u4E0D\u7B97\u5BA1\u8FC7\uFF09",
+        rv_turn_none: "\u2713 \u6574\u8F6E\u901A\u8FC7 \xB7 {n} \u4E2A\u6587\u4EF6\u8FD8\u6CA1\u770B\uFF08\u4E0D\u7B97\u5BA1\u8FC7\uFF09",
+        rv_skip_all_ask: "\u518D\u6309\u4E00\u6B21 S \u8DF3\u8FC7\u5168\u90E8 {n} \u4E2A\uFF08\u7B97\u8DF3\u8FC7\uFF0C\u4E0D\u7B97\u5BA1\u8FC7\uFF09",
+        rv_skip_all_done: "\u5DF2\u8DF3\u8FC7 {n} \u4E2A",
+        rv_keys: "y \u6CA1\u95EE\u9898 \xB7 n \u544A\u8BC9 Claude \xB7 Y \u6574\u8F6E\u901A\u8FC7 \xB7 \u2190\u2192 \u6362\u6587\u4EF6 \xB7 \u2191\u2193 \u6EDA\u52A8",
+        rv_keys_short: "y \u901A\u8FC7 \xB7 n \u7559\u8A00 \xB7 Y \u6574\u8F6E \xB7 \u2190\u2192 \xB7 \u2191\u2193",
+        rv_empty: "\u2713 \u90FD\u5BA1\u5B8C\u4E86",
+        rv_empty_first: "\u8FD8\u6CA1\u6709\u8981\u5BA1\u7684\u6539\u52A8",
+        rv_last: "\u4E0A\u4E00\u8F6E\u300C{title}\u300D\xB7 {n} \u4E2A\u6587\u4EF6 \xB7 {ago}\u524D",
+        rv_last_running: "\u8FD9\u4E00\u8F6E\u300C{title}\u300D\u8FD8\u5728\u8FDB\u884C\uFF0C\u5DF2\u7ECF\u6539\u7684 {n} \u4E2A\u6587\u4EF6\u90FD\u5904\u7406\u4E86",
+        rv_empty_wait: "Claude \u4E0B\u6B21\u6539\u4EE3\u7801\uFF0C\u8FD9\u91CC\u4F1A\u6309\u8F6E\u5217\u51FA\u6539\u4E86\u54EA\u4E9B\u6587\u4EF6\u3002",
+        rv_empty_keys: "Tab \u53BB\u73A9\u6216\u5B66 \xB7 m \u7ED9 Claude \u7559\u8A00",
+        rv_setup: "Cowait \u8FD8\u6CA1\u63A5\u5165 Claude Code\u3002",
+        rv_setup_cmd: "\u6309 i \u4E3A\u5F53\u524D\u9879\u76EE\u63A5\u5165\uFF0C\u6216\u8005\u8FD0\u884C cowait install --project",
+        rv_setup_then: "\u63A5\u5165\u540E\u91CD\u542F Claude Code\u3002\u53EA\u60F3\u5148\u770B\u770B\u6548\u679C\uFF1Acowait demo",
+        rv_cov: "\u8986\u76D6\u7387 {p}",
+        // me
+        me_level: "Lv.{l} {title}",
+        me_streak: "\u{1F525} \u8FDE\u7EED {n} \u5929",
+        me_streak_todo: "\u4ECA\u5929\u8FD8\u6CA1\u6253\u5361",
+        me_streak_kept: "\u4ECA\u5929\u5DF2\u6253\u5361",
+        me_streak_best: "\u6700\u957F {n} \u5929",
+        me_streak_zero: "\u5BA1\u4E00\u4E2A\u6587\u4EF6\u3001\u5237 5 \u5F20\u5361\u6216\u89E3\u51FA\u6BCF\u65E5\u8C1C\u9898\uFF0C\u5C31\u7B97\u6253\u5361",
+        me_quests: "\u4ECA\u65E5\u4EFB\u52A1",
+        me_week: "\u672C\u5468 Claude \u5E72\u6D3B {t} \u8F6E\uFF0C\u4F60\u770B\u8FC7 {p} \u7684\u6539\u52A8",
+        me_week_none: "\u672C\u5468 Claude \u8FD8\u6CA1\u6539\u8FC7\u4EE3\u7801",
+        me_ach: "\u6210\u5C31 {n}/{m}",
+        me_ach_recent: "\u6700\u8FD1\uFF1A{name}",
+        me_plan_free: "Free",
+        me_plan_pro: "Pro \u2726",
+        me_plan_team: "Team \u2726",
+        me_plan_line: "\u65B9\u6848\uFF1A{plan}",
+        me_keys: "c \u6210\u5C31 \xB7 s \u8BBE\u7F6E \xB7 u \u4E86\u89E3 Pro",
+        me_back: "Esc \u8FD4\u56DE",
+        set_title: "\u8BBE\u7F6E",
+        set_lang: "\u8BED\u8A00",
+        set_lang_v: "\u4E2D\u6587",
+        set_bell: "Claude \u5B8C\u6210\u65F6\u54CD\u94C3",
+        set_auto: "\u81EA\u52A8\u5207\u6362\u6A21\u5F0F",
+        set_feedback: "\u7559\u8A00\u8F6C\u8FBE\u7ED9 Claude",
+        set_titles: "\u8BB0\u5F55\u6BCF\u8F6E\u7684\u6807\u9898",
+        set_update: "\u68C0\u67E5\u65B0\u7248\u672C",
+        set_keys: "\u2191\u2193 \u9009\u62E9 \xB7 Enter \u5207\u6362 \xB7 Esc \u8FD4\u56DE",
+        ach_title: "\u6210\u5C31 {n}/{m}",
+        ach_keys: "\u2191\u2193 \u6EDA\u52A8 \xB7 Esc \u8FD4\u56DE",
+        pro_title: "Cowait Pro",
+        pro_current: "\u5F53\u524D\u65B9\u6848\uFF1A{plan}",
+        pro_pitch: "\u6838\u5FC3\u529F\u80FD\u6C38\u8FDC\u514D\u8D39\u3002Pro \u7ED9\u60F3\u8981\u66F4\u591A\u7684\u4EBA\uFF1A",
+        pro_f1: "\u6808\u673A\u8C1C\u9898\u4E0D\u9650\u6B21\u6570\u7EC3\u4E60",
+        pro_f2: "\u6349\u866B\u5730\u7262\u300C\u52A0\u73ED\u6A21\u5F0F\u300D\uFF1A\u66F4\u96BE\u7684\u654C\u4EBA\uFF0C\u66F4\u591A\u5956\u52B1",
+        pro_f3: "cowait report\uFF1A\u6BCF\u5468\u5BA1\u9605\u62A5\u544A\uFF0CAI \u4EE3\u7801\u6709\u4EBA\u628A\u5173\u7684\u8BC1\u636E",
+        pro_f4: "\u652F\u6301\u4E00\u4E2A\u72EC\u7ACB\u5F00\u53D1\u8005\u7EE7\u7EED\u505A\u4E0B\u53BB",
+        pro_price: "{c}{m}/\u6708\uFF0C\u6216 {c}{y}/\u5E74",
+        pro_buy: "Enter \u6253\u5F00\u8D2D\u4E70\u9875",
+        pro_activate: "\u4E70\u597D\u540E\u8FD0\u884C\uFF1Acowait activate <\u5BC6\u94A5>",
+        pro_soon: "\u4ED8\u8D39\u6E20\u9053\u5373\u5C06\u5F00\u653E\u3002\u73B0\u5728\u6240\u6709\u529F\u80FD\u90FD\u53EF\u4EE5\u514D\u8D39\u4F7F\u7528\u3002",
+        pro_thanks: "\u8C22\u8C22\u4F60\u7684\u652F\u6301 \u2764",
+        pro_key: "\u5BC6\u94A5 {k} \xB7 \u672C\u673A\u5DF2\u6FC0\u6D3B",
+        pro_opened: "\u5DF2\u5728\u6D4F\u89C8\u5668\u91CC\u6253\u5F00\u8D2D\u4E70\u9875",
+        pro_only: "\u8FD9\u662F Pro \u529F\u80FD\uFF08\u5728\u300C\u6211\u300D\u91CC\u6309 u \u4E86\u89E3\uFF09",
         // learn
         ln_title: "\u5B66\u4E60",
         ln_all: "\u5168\u90E8\u5361\u7EC4",
@@ -324,8 +496,9 @@ var init_i18n = __esm({
         ln_review: "\u590D\u4E60",
         ln_q: "\u95EE",
         ln_a: "\u7B54",
-        ln_flip: "\u6309 \u7A7A\u683C \u7FFB\u9762",
-        ln_rate: "1 \u6CA1\u8BB0\u4F4F \xB7 2 \u8BB0\u4F4F\u4E86 \xB7 3 \u592A\u7B80\u5355   \uFF08\u90FD +1\u26A1\uFF09",
+        ln_flip: "\u7A7A\u683C \u7FFB\u9762 \xB7 d \u6362\u5361\u7EC4 \xB7 t \u65B0\u4E3B\u9898(AI) \xB7 g \u8003\u8003\u521A\u5199\u7684\u4EE3\u7801(AI)",
+        ln_flip_short: "\u7A7A\u683C \u7FFB\u9762 \xB7 d \u5361\u7EC4 \xB7 t \u65B0\u4E3B\u9898 \xB7 g \u8003\u4EE3\u7801",
+        ln_rate: "1 \u6CA1\u8BB0\u4F4F \xB7 2 \u8BB0\u4F4F\u4E86 \xB7 3 \u592A\u7B80\u5355",
         ln_keys: "d \u6362\u5361\u7EC4 \xB7 t \u5B66\u4E00\u4E2A\u65B0\u4E3B\u9898(AI) \xB7 g \u7528 Claude \u521A\u5199\u7684\u4EE3\u7801\u51FA\u9898(AI)",
         ln_keys_short: "d \u6362\u5361\u7EC4 \xB7 t \u65B0\u4E3B\u9898(AI) \xB7 g \u8003\u8003\u521A\u5199\u7684\u4EE3\u7801(AI)",
         ln_done: "\u8FD9\u4E00\u7EC4\u6682\u65F6\u90FD\u590D\u4E60\u5B8C\u4E86 \u{1F389}",
@@ -338,7 +511,23 @@ var init_i18n = __esm({
         ln_topic: "\u60F3\u5B66\u4EC0\u4E48\u4E3B\u9898\uFF1A",
         ln_gained: "+{n}\u26A1",
         ln_quick: "\u592A\u5FEB\u4E86\uFF0C\u8FD9\u5F20\u4E0D\u52A0\u26A1",
-        // game
+        // play: hub
+        gm_hub: "\u6E38\u620F",
+        gm_hub_keys: "1-3 \u9009\u6E38\u620F \xB7 \u2191\u2193 Enter",
+        gm_back_hub: "Esc \u56DE\u6E38\u620F\u5217\u8868",
+        gm_cost: "{n}\u26A1",
+        gm_free_daily: "\u4ECA\u65E5\u514D\u8D39",
+        gd_name: "\u6349\u866B\u5730\u7262",
+        gd_desc: "\u5361\u724C\u95EF\u5173 \xB7 6 \u5C42 \xB7 \u4E00\u5C40 10\u201320 \u5206\u949F",
+        gp_name: "\u6808\u673A\u8C1C\u9898",
+        gp_desc: "\u6BCF\u65E5\u4E00\u9898 \xB7 2\u20135 \u5206\u949F",
+        gs_name: "\u4EE3\u7801\u901F\u6253",
+        gs_desc: "\u6253 5 \u884C\u4EE3\u7801 \xB7 1 \u5206\u949F",
+        gm_rec_wins: "\u5730\u7262\u901A\u5173 {n} \u6B21",
+        gm_rec_puzzle: "\u8C1C\u9898\u89E3\u51FA {n} \u5929",
+        gm_rec_wpm: "\u6700\u5FEB {n} WPM",
+        gm_poor_any: "\u26A1 \u4E0D\u591F\u4E86\uFF1A\u5BA1\u51E0\u4E2A\u6587\u4EF6\uFF08\u6BCF\u4E2A +1\u26A1\uFF09\u6216\u5237\u51E0\u5F20\u5361\uFF08\u6BCF\u5F20 +1\u26A1\uFF09\u518D\u6765\u3002\u5148\u5BA1\u540E\u73A9 :)",
+        // play: dungeon
         gm_title: "\u6349\u866B\u5730\u7262",
         gm_intro: "\u4F60\u662F\u4E00\u540D\u8C03\u8BD5\u5458\u3002\u5F80\u4E0B\u6253\u7A7F 6 \u5C42 Bug\uFF0C\u6700\u540E\u4FEE\u597D\u300C\u6808\u6EA2\u51FA\u300D\u3002",
         gm_intro2: "\u56DE\u5408\u5236\uFF0C\u4E00\u6B21\u4E00\u4E2A\u6309\u952E\uFF0CClaude \u4E00\u5E72\u5B8C\u5C31\u80FD\u653E\u4E0B\uFF0C\u4E0B\u6B21\u7B49\u5F85\u63A5\u7740\u6253\u3002",
@@ -359,72 +548,141 @@ var init_i18n = __esm({
         gm_incoming: "\u26A0 \u7ED3\u675F\u56DE\u5408\u4F1A\u53D7\u5230 {n} \u4F24\u5BB3",
         gm_safe: "\u2713 \u6321\u5F97\u4F4F",
         gm_hand: "\u624B\u724C",
-        gm_keys: "\u6570\u5B57\u952E \u51FA\u724C \xB7 e \u7ED3\u675F\u56DE\u5408",
+        gm_keys: "\u6570\u5B57\u952E \u51FA\u724C \xB7 e \u7ED3\u675F\u56DE\u5408 \xB7 Esc \u6E38\u620F\u5217\u8868",
         gm_reward: "\u51FB\u8D25\u4E86\uFF01\u9009\u4E00\u5F20\u65B0\u5361\u52A0\u8FDB\u724C\u7EC4\uFF1A",
         gm_rest: "{k}  \u4F11\u606F\uFF1A\u56DE\u590D {n} \u751F\u547D",
         gm_dead: "\u{1F480} \u4F60\u5012\u5728\u4E86\u7B2C {f} \u5C42\u2026\u2026",
         gm_victory: "\u{1F3C6} \u901A\u5173\uFF01\u300C\u6808\u6EA2\u51FA\u300D\u88AB\u4F60\u4FEE\u597D\u4E86\u3002\u5956\u52B1 +{e}\u26A1",
-        gm_shop_title: "\u88C5\u5907\u5546\u5E97 \u2014\u2014 \u7528 \u{1F4B0} \u4E70\uFF0C\u6C38\u4E45\u751F\u6548",
+        gm_shop_title: "\u88C5\u5907\u5546\u5E97\uFF1A\u7528 \u{1F4B0} \u4E70\uFF0C\u6C38\u4E45\u751F\u6548",
         gm_shop_hint: "\u{1F4B0} \u53EA\u80FD\u9760 Claude \u7684\u6210\u679C\u8D5A\uFF1A\u5E72\u4E86\u6D3B\u7684\u4E00\u8F6E +3\uFF0C\u6D4B\u8BD5\u901A\u8FC7\u518D +10\u3002\u7B49\u518D\u4E45\u4E5F\u4E0D\u4F1A\u591A\u7ED9\u3002",
         gm_bought: "\u4E70\u5230\u4E86\uFF1A{n}\uFF01",
         gm_have: "\u5DF2\u62E5\u6709",
         gm_poor_coins: "\u{1F4B0} \u4E0D\u591F",
         gm_back: "b \u8FD4\u56DE",
+        gm_menu_keys: "n \u5F00\u5C40 \xB7 o \u52A0\u73ED\u6A21\u5F0F \xB7 s \u5546\u5E97 \xB7 Esc \u5217\u8868",
+        gm_overtime: "o \u52A0\u73ED\u6A21\u5F0F\uFF08Pro\uFF0C-{c}\u26A1\uFF0C\u654C\u4EBA\u66F4\u5F3A\uFF0C\u901A\u5173\u5956\u52B1\u7FFB\u500D\uFF09",
+        gm_overtime_tag: "\u52A0\u73ED\u4E2D",
         gm_you: "\u4F60",
         gm_block: "\u683C\u6321",
         gm_observed: "\u5DF2\u89C2\u6D4B",
-        another: "\u53E6\u4E00\u4E2A Cowait \u9762\u677F\u5DF2\u7ECF\u5728\u8FD0\u884C\uFF08PID {pid}\uFF09\u3002\u540C\u4E00\u65F6\u95F4\u53EA\u80FD\u5F00\u4E00\u4E2A\uFF0C\u4E0D\u7136\u5956\u52B1\u4F1A\u88AB\u7B97\u4E24\u6B21\u3002"
+        // play: puzzle
+        pz_title: "\u6808\u673A\u8C1C\u9898",
+        pz_daily: "\u6BCF\u65E5 #{n}",
+        pz_practice: "\u7EC3\u4E60",
+        pz_goal: "\u76EE\u6807",
+        pz_stack: "\u6808",
+        pz_top: "\u2190 \u53F3\u8FB9\u662F\u6808\u9876",
+        pz_level: "\u96BE\u5EA6 {n}/3",
+        pz_steps: "\u5DF2\u7528 {n} \u6B65 \xB7 \u6807\u51C6 {p} \u6B65",
+        pz_buttons: "\u6309\u94AE",
+        pz_solved: "\u2713 \u89E3\u51FA\u6765\u4E86\uFF01{stars} \xB7 {n} \u6B65",
+        pz_share: "\u5206\u4EAB\uFF1A{s}",
+        pz_keys: "\u6570\u5B57\u952E \u6309\u6309\u94AE \xB7 \u232B \u64A4\u9500 \xB7 r \u91CD\u6765 \xB7 h \u63D0\u793A \xB7 Esc \u5217\u8868",
+        pz_keys_short: "\u6570\u5B57 \u6309 \xB7 \u232B \u64A4\u9500 \xB7 r \u91CD\u6765 \xB7 h \u63D0\u793A",
+        pz_done_keys: "p \u518D\u6765\u4E00\u9053\u7EC3\u4E60 \xB7 Esc \u6E38\u620F\u5217\u8868",
+        pz_intro: "\u8FD9\u662F\u4E00\u53F0\u53EA\u6709\u6808\u7684\u8001\u673A\u5668\u3002\u6309\u6309\u94AE\u64CD\u4F5C\u6808\uFF0C\u8BA9\u5B83\u6B63\u597D\u53D8\u6210\u76EE\u6807\u7684\u6837\u5B50\u3002",
+        pz_hint: "\u63D0\u793A\uFF1A\u4E0B\u4E00\u6B65\u6309 {b}",
+        pz_no_hint: "\u4ECE\u8FD9\u91CC\u5230\u4E0D\u4E86\u76EE\u6807\u4E86\uFF0C\u6309 r \u91CD\u6765",
+        pz_daily_done: "\u4ECA\u5929\u7684\u6BCF\u65E5\u8C1C\u9898\u5DF2\u7ECF\u89E3\u51FA\uFF1A{stars}\u3002\u660E\u5929\u518D\u6765\u4E00\u9053\u65B0\u7684\u3002",
+        pz_practice_left: "\u4ECA\u5929\u8FD8\u80FD\u514D\u8D39\u7EC3\u4E60 {n} \u9053\uFF08Pro \u4E0D\u9650\uFF09",
+        pz_practice_out: "\u4ECA\u5929\u7684\u514D\u8D39\u7EC3\u4E60\u7528\u5B8C\u4E86\uFF08Pro \u4E0D\u9650\uFF09",
+        pz_menu_daily: "Enter \u5F00\u59CB\u4ECA\u65E5\u8C1C\u9898",
+        pz_menu_practice: "p \u7EC3\u4E60\u4E00\u9053\uFF08{c}\uFF09",
+        // play: sprint
+        sp_title: "\u4EE3\u7801\u901F\u6253",
+        sp_line: "\u7B2C {i}/{n} \u884C",
+        sp_from_changes: "\u6765\u81EA Claude \u521A\u5199\u7684\u4EE3\u7801",
+        sp_from_builtin: "\u5185\u7F6E\u4EE3\u7801\u7247\u6BB5",
+        sp_intro: "\u4E00\u884C\u4E00\u884C\u7167\u7740\u6253\u3002\u9519\u4E86\u8981\u9000\u683C\u6539\u6389\u3002\u968F\u65F6\u53EF\u4EE5\u505C\uFF0C\u505C\u4E0B\u7684\u65F6\u95F4\u4E0D\u7B97\u3002",
+        sp_start: "Enter \u5F00\u59CB\u4E00\u8F6E\uFF08-{c}\u26A1\uFF09",
+        sp_start_again: "Enter \u518D\u6765\u4E00\u8F6E\uFF08-{c}\u26A1\uFF09",
+        sp_keys: "\u7167\u7740\u6253 \xB7 \u232B \u9000\u683C \xB7 Esc \u6682\u505C",
+        sp_result: "{wpm} WPM \xB7 \u51C6\u786E\u7387 {acc}",
+        sp_acc: "\u51C6\u786E\u7387 {acc}",
+        sp_best: "\u{1F389} \u65B0\u7EAA\u5F55\uFF01",
+        sp_best_was: "\u6700\u5FEB {n} WPM"
       },
       en: {
         brand: "Cowait",
         st_busy: "Claude is working",
-        st_idle: "Claude is idle \u2014 your move",
+        st_idle: "Claude is waiting for you",
         st_attention: "Claude needs your approval",
         st_none: "Waiting for Claude",
-        st_more: " ({n} sessions running)",
+        st_more: " ({n} sessions)",
         eta: "est. {t}",
         st_longer: "longer than usual",
         mode_review: "Review",
         mode_game: "Play",
         mode_learn: "Learn",
+        mode_me: "Me",
         auto: "auto",
-        footer: "Tab switch mode \xB7 m note to Claude \xB7 a auto-pick [{on}] \xB7 ? help \xB7 q quit",
-        footer_short: "Tab mode \xB7 m note \xB7 a auto [{on}] \xB7 ? help \xB7 q quit",
+        auto_on: "Auto-switch on (changes first, short waits learn, long waits play)",
+        auto_off: "Auto-switch off",
+        help_key: "? help",
         on: "on",
         off: "off",
         done: "\u2714 Claude finished \xB7 took {t}",
-        done_edits: " \xB7 {n} edits",
-        done_edit1: " \xB7 1 edit",
+        done_edits: " \xB7 {n} files changed",
+        done_edit1: " \xB7 1 file changed",
         done_cwd: " ({dir})",
         done_coins: "+{n}\u{1F4B0}",
         done_pass: "tests passed",
         done_fail: "tests failed",
         done_pending: "{n} to review",
-        done_none: "no real work this turn, no coins",
+        done_none: "just talk, no code changed",
+        alert_review: "Enter review \xB7 any key closes",
+        alert_review_short: "Enter review",
+        anykey: "press any key",
         attention: "\u26A0 Claude is waiting for you: {msg}",
         daily: "\u2600 First open today +{n}\u26A1",
-        anykey: "press any key",
+        daily_streak: "\u2600 First open today +{n}\u26A1 \xB7 \u{1F525} {d}-day streak, keep it going",
         help_close: "press any key to close help",
         note_prompt: "\u270E Note to Claude: ",
         note_prompt_to: "\u270E Note to Claude ({dir}): ",
         note_hint: "Enter send \xB7 Esc cancel",
-        note_sent_busy: "\u270E Noted \u2014 Claude sees it on its very next step",
-        note_sent_idle: "\u270E Noted \u2014 it goes along with your next message to Claude",
-        note_off: "Relaying notes is off (turn it on with: cowait config feedback true)",
+        note_sent_busy: "\u270E Noted: Claude sees it on its very next step",
+        note_sent_idle: "\u270E Noted: it goes along with your next message to Claude",
+        note_off: "Relaying notes is off (turn it on in Me \u2192 Settings)",
         delivered_one: "\u2713 Claude got your note",
         delivered_n: "\u2713 Claude got your {n} notes",
-        rv_title: "Review Claude's changes",
-        rv_pending: "{n} to review",
-        rv_cov: "coverage {p}",
-        rv_relayed: "relayed {n}",
-        rv_empty: "Nothing to review \u2713",
-        rv_empty_hint: "Every file Claude changes shows up here as a card. Glance, approve, or write one line asking it to fix something.",
-        rv_empty_play: "All reviewed, \u26A1{e}. Press Tab to play or learn.",
-        rv_setup: "Cowait is not hooked into Claude Code yet.",
-        rv_setup_cmd: "In your project folder run: cowait install --project",
-        rv_setup_then: "then restart Claude Code. Just looking? Try: cowait demo",
-        rv_keys: "y looks good +1\u26A1 \xB7 n tell Claude what is wrong +2\u26A1 \xB7 s skip \xB7 \u2190\u2192 cards \xB7 \u2191\u2193 scroll",
-        rv_keys_short: "y ok +1\u26A1 \xB7 n note +2\u26A1 \xB7 s skip \xB7 \u2190\u2192 \xB7 \u2191\u2193",
+        quest_done: "\u2713 Daily quest: {q} +{e}\u26A1",
+        quests_all: "\u{1F389} All three of today's quests done",
+        achievement: '\u{1F3C6} Achievement "{n}" +{e}\u26A1',
+        level_up: "\u2B06 Level {l} \xB7 {t}",
+        expired: "{n} changes left unreviewed for over a day were archived",
+        update_avail: "Cowait {v} is out: {cmd}",
+        installed_ok: "\u2713 Hooked up: restart Claude Code and it is live",
+        install_failed: "Could not hook up: {e}",
+        another: "Another Cowait panel is already running (PID {pid}). Only one at a time, or rewards would count twice.",
+        wl_title: "Welcome to Cowait",
+        wl_intro: "While Claude works, this panel turns the wait into useful time:",
+        wl_review: "See which files each Claude turn changed; write one line if something is off and Claude sees it on its next step, no interruption.",
+        wl_game: "Review first, then play: a card dungeon, a daily puzzle, code sprints. One key to stop.",
+        wl_learn: "Flashcards, including a quiz on the code Claude just wrote.",
+        wl_connect: "One step left: hook into Claude Code.",
+        wl_here: "Hook up this project only",
+        wl_global: "Hook up every project (backs up ~/.claude/settings.json)",
+        wl_later: "Later (run cowait install any time)",
+        wl_ready: "Hooked into Claude Code \u2713  Give Claude a task.",
+        wl_start: "Start",
+        wl_lang: "\u5207\u6362\u5230\u4E2D\u6587",
+        rc_title: "Last week \xB7 {from} \u2013 {to}",
+        rc_turns: "Claude worked {n} turns and changed {f} files",
+        rc_read: "You actually read {r} of them ({p})",
+        rc_notes: "{f} problems flagged \xB7 {n} notes \xB7 {l} flashcards",
+        rc_days: "Active days {n}/7 \xB7 {xp} XP earned",
+        rc_hi: "Careful reviewing: Claude's code had a human looking at it.",
+        rc_mid: "Not bad. One more look at the important files goes a long way.",
+        rc_lo: "Most changes went unread this week. Even the key files are worth a look.",
+        rc_none: "No code changes from Claude this week; you kept learning anyway.",
+        rv_turn: "turn {i}/{n}",
+        rv_untitled: "A Claude turn",
+        rv_running: "in progress",
+        rv_took: "took {t}",
+        rv_pass: "tests passed",
+        rv_fail: "tests failed",
+        rv_files: "{n} files",
+        rv_ago: "{t} ago",
         rv_new_file: "new file",
         rv_parts: "{n} edits",
         rv_part: "\u2500\u2500 edit {n} \u2500\u2500",
@@ -432,17 +690,74 @@ var init_i18n = __esm({
         kind_write: "write",
         kind_multiedit: "multi-edit",
         kind_notebook: "notebook",
-        rv_ago: "{t} ago",
-        rv_more: "\u2026 {n} more lines (\u2193 to scroll)",
+        rv_more: "\u2026 {n} more lines (\u2193)",
         rv_note: "\u270E Tell Claude: ",
         rv_note_hint: "Enter send \xB7 Esc cancel",
-        rv_queued_busy: "Noted +{n}\u26A1 \u2014 Claude sees it on its very next step",
-        rv_queued_idle: "Noted +{n}\u26A1 \u2014 it goes along with your next message to Claude",
+        rv_queued_busy: "\u270E Noted +{n}\u26A1: Claude sees it on its very next step",
+        rv_queued_idle: "\u270E Noted +{n}\u26A1: it goes along with your next message to Claude",
         rv_ok: "\u2713 +{n}\u26A1",
-        rv_skim: "\u2713 approved \xB7 too quick to count as a review, no \u26A1",
+        rv_skim: "\u2713 approved (not read yet, so it doesn't count as reviewed)",
         rv_skip: "Skipped",
+        rv_turn_all: "\u2713 Turn approved \xB7 {n} read +{e}\u26A1",
+        rv_turn_some: "\u2713 Turn approved \xB7 {r} read +{e}\u26A1, {q} unread (not counted)",
+        rv_turn_none: "\u2713 Turn approved \xB7 {n} files unread (not counted as reviewed)",
         rv_skip_all_ask: "Press S again to skip all {n} (counted as skipped, not reviewed)",
-        rv_skip_all_done: "Skipped {n} cards",
+        rv_skip_all_done: "Skipped {n}",
+        rv_keys: "y fine \xB7 n tell Claude \xB7 Y whole turn \xB7 \u2190\u2192 files \xB7 \u2191\u2193 scroll",
+        rv_keys_short: "y ok \xB7 n note \xB7 Y turn \xB7 \u2190\u2192 \xB7 \u2191\u2193",
+        rv_empty: "\u2713 All caught up",
+        rv_empty_first: "Nothing to review yet",
+        rv_last: 'Last turn "{title}" \xB7 {n} files \xB7 {ago} ago',
+        rv_last_running: 'This turn "{title}" is still going; its {n} files so far are all handled',
+        rv_empty_wait: "When Claude changes code, each turn's files show up here.",
+        rv_empty_keys: "Tab play or learn \xB7 m note to Claude",
+        rv_setup: "Cowait is not hooked into Claude Code yet.",
+        rv_setup_cmd: "Press i to hook up this project, or run cowait install --project",
+        rv_setup_then: "Then restart Claude Code. Just looking? Try: cowait demo",
+        rv_cov: "coverage {p}",
+        me_level: "Lv.{l} {title}",
+        me_streak: "\u{1F525} {n}-day streak",
+        me_streak_todo: "not yet today",
+        me_streak_kept: "done today",
+        me_streak_best: "best {n}",
+        me_streak_zero: "Read one change, study 5 cards or solve the daily puzzle to start a streak",
+        me_quests: "Today's quests",
+        me_week: "This week: {t} Claude turns \xB7 {p} of changes read",
+        me_week_none: "No code changes from Claude this week yet",
+        me_ach: "Achievements {n}/{m}",
+        me_ach_recent: "latest: {name}",
+        me_plan_free: "Free",
+        me_plan_pro: "Pro \u2726",
+        me_plan_team: "Team \u2726",
+        me_plan_line: "Plan: {plan}",
+        me_keys: "c achievements \xB7 s settings \xB7 u Pro",
+        me_back: "Esc back",
+        set_title: "Settings",
+        set_lang: "Language",
+        set_lang_v: "English",
+        set_bell: "Ring when Claude finishes",
+        set_auto: "Switch modes automatically",
+        set_feedback: "Relay notes to Claude",
+        set_titles: "Keep turn titles",
+        set_update: "Check for updates",
+        set_keys: "\u2191\u2193 select \xB7 Enter toggle \xB7 Esc back",
+        ach_title: "Achievements {n}/{m}",
+        ach_keys: "\u2191\u2193 scroll \xB7 Esc back",
+        pro_title: "Cowait Pro",
+        pro_current: "Your plan: {plan}",
+        pro_pitch: "The core stays free forever. Pro is for people who want more:",
+        pro_f1: "Unlimited Stack Puzzle practice",
+        pro_f2: "Debug Dungeon overtime mode: tougher bugs, bigger rewards",
+        pro_f3: "cowait report: a weekly review report, proof AI code had a human check",
+        pro_f4: "Keeps an indie developer building",
+        pro_price: "{c}{m}/month or {c}{y}/year",
+        pro_buy: "Enter open the checkout page",
+        pro_activate: "Then run: cowait activate <key>",
+        pro_soon: "Paid plans open soon. Everything is free to use for now.",
+        pro_thanks: "Thanks for supporting Cowait \u2764",
+        pro_key: "Key {k} \xB7 activated on this machine",
+        pro_opened: "Opened the checkout page in your browser",
+        pro_only: "That is a Pro feature (press u in the Me tab)",
         ln_title: "Learn",
         ln_all: "All decks",
         ln_due: "{n} due",
@@ -450,20 +765,36 @@ var init_i18n = __esm({
         ln_review: "review",
         ln_q: "Q",
         ln_a: "A",
-        ln_flip: "Space to flip",
-        ln_rate: "1 forgot \xB7 2 got it \xB7 3 easy   (all +1\u26A1)",
+        ln_flip: "Space flip \xB7 d deck \xB7 t new topic (AI) \xB7 g quiz on new code (AI)",
+        ln_flip_short: "Space flip \xB7 d deck \xB7 t topic \xB7 g quiz",
+        ln_rate: "1 forgot \xB7 2 got it \xB7 3 easy",
         ln_keys: "d deck \xB7 t learn a new topic (AI) \xB7 g quiz me on what Claude just wrote (AI)",
         ln_keys_short: "d deck \xB7 t new topic (AI) \xB7 g quiz on new code (AI)",
         ln_done: "Nothing due in this deck right now \u{1F389}",
         ln_done_hint: "Press d for another deck, or t to have AI write one on any topic.",
         ln_generating: "\u23F3 Writing cards\u2026 keep studying meanwhile",
-        ln_generated: '\u2713 New deck "{t}" with {n} cards \u2014 switched to it',
+        ln_generated: '\u2713 New deck "{t}" with {n} cards, switched to it',
         ln_failed: "Could not generate: {e}",
         ln_no_provider: "AI decks need ANTHROPIC_API_KEY or a signed-in claude CLI",
         ln_no_changes: "Claude has not changed any code yet",
         ln_topic: "Topic to learn: ",
         ln_gained: "+{n}\u26A1",
         ln_quick: "too quick to count, no \u26A1",
+        gm_hub: "Play",
+        gm_hub_keys: "1-3 pick a game \xB7 \u2191\u2193 Enter",
+        gm_back_hub: "Esc game list",
+        gm_cost: "{n}\u26A1",
+        gm_free_daily: "free today",
+        gd_name: "Debug Dungeon",
+        gd_desc: "card roguelike \xB7 6 floors \xB7 10\u201320 min",
+        gp_name: "Stack Puzzle",
+        gp_desc: "one a day \xB7 2\u20135 min",
+        gs_name: "Code Sprint",
+        gs_desc: "type 5 lines of code \xB7 1 min",
+        gm_rec_wins: "{n} dungeon wins",
+        gm_rec_puzzle: "{n} puzzle days",
+        gm_rec_wpm: "best {n} WPM",
+        gm_poor_any: "\u26A1 too low: read a few changes (+1\u26A1 each) or study a few cards (+1\u26A1 each). Review first, then play :)",
         gm_title: "Debug Dungeon",
         gm_intro: "You are a debugger. Fight down 6 floors of bugs and fix the Stack Overflow.",
         gm_intro2: "Turn-based, one key per action: drop it the moment Claude is done, resume next wait.",
@@ -484,21 +815,57 @@ var init_i18n = __esm({
         gm_incoming: "\u26A0 ending turn costs {n} HP",
         gm_safe: "\u2713 fully blocked",
         gm_hand: "Hand",
-        gm_keys: "number keys play \xB7 e end turn",
+        gm_keys: "number keys play \xB7 e end turn \xB7 Esc game list",
         gm_reward: "Victory! Add a card to your deck:",
         gm_rest: "{k}  Rest: heal {n} HP",
         gm_dead: "\u{1F480} You fell on floor {f}\u2026",
         gm_victory: "\u{1F3C6} You fixed the Stack Overflow! +{e}\u26A1",
-        gm_shop_title: "Gear shop \u2014 bought with \u{1F4B0}, permanent",
+        gm_shop_title: "Gear shop: bought with \u{1F4B0}, permanent",
         gm_shop_hint: "\u{1F4B0} only come from Claude\u2019s results: +3 per working turn, +10 when tests pass. Waiting longer never pays more.",
         gm_bought: "Got it: {n}!",
         gm_have: "owned",
         gm_poor_coins: "not enough \u{1F4B0}",
         gm_back: "b back",
+        gm_menu_keys: "n new run \xB7 o overtime \xB7 s shop \xB7 Esc list",
+        gm_overtime: "o overtime (Pro, -{c}\u26A1, tougher bugs, double win reward)",
+        gm_overtime_tag: "overtime",
         gm_you: "You",
         gm_block: "Block",
         gm_observed: "observed",
-        another: "Another Cowait panel is already running (PID {pid}). Only one at a time, or rewards would count twice."
+        pz_title: "Stack Puzzle",
+        pz_daily: "Daily #{n}",
+        pz_practice: "Practice",
+        pz_goal: "Goal",
+        pz_stack: "Stack",
+        pz_top: "\u2190 top is on the right",
+        pz_level: "level {n}/3",
+        pz_steps: "{n} steps \xB7 par {p}",
+        pz_buttons: "Buttons",
+        pz_solved: "\u2713 Solved! {stars} \xB7 {n} steps",
+        pz_share: "Share: {s}",
+        pz_keys: "numbers press \xB7 \u232B undo \xB7 r restart \xB7 h hint \xB7 Esc list",
+        pz_keys_short: "numbers \xB7 \u232B undo \xB7 r restart \xB7 h hint",
+        pz_done_keys: "p another practice puzzle \xB7 Esc game list",
+        pz_intro: "An old machine that only has a stack. Press buttons until the stack is exactly the goal.",
+        pz_hint: "Hint: press {b} next",
+        pz_no_hint: "The goal is out of reach from here; press r to restart",
+        pz_daily_done: "Today's puzzle is solved: {stars}. A new one tomorrow.",
+        pz_practice_left: "{n} free practice puzzles left today (unlimited with Pro)",
+        pz_practice_out: "No free practice left today (unlimited with Pro)",
+        pz_menu_daily: "Enter start today's puzzle",
+        pz_menu_practice: "p practice puzzle ({c})",
+        sp_title: "Code Sprint",
+        sp_line: "line {i}/{n}",
+        sp_from_changes: "from the code Claude just wrote",
+        sp_from_builtin: "built-in snippets",
+        sp_intro: "Type each line exactly. Fix mistakes with backspace. Stop any time; pauses do not count.",
+        sp_start: "Enter start a round (-{c}\u26A1)",
+        sp_start_again: "Enter another round (-{c}\u26A1)",
+        sp_keys: "type along \xB7 \u232B backspace \xB7 Esc pause",
+        sp_result: "{wpm} WPM \xB7 {acc} accuracy",
+        sp_acc: "{acc} accuracy",
+        sp_best: "\u{1F389} New record!",
+        sp_best_was: "best {n} WPM"
       }
     };
   }
@@ -521,37 +888,89 @@ function newState() {
       flagged: 0,
       skipped: 0,
       skimmed: 0,
+      expired: 0,
       delivered: 0,
       learned: 0,
       runs: 0,
       wins: 0,
-      bestFloor: 0
+      bestFloor: 0,
+      puzzles: 0,
+      sprints: 0
     },
     sessions: {},
     history: [],
+    turns: [],
     review: [],
     notes: [],
     srs: {},
     learnDeck: "all",
     relics: [],
-    game: null
+    game: null,
+    arcade: null,
+    puzzle: null,
+    sprint: null,
+    best: { wpm: 0 },
+    days: {},
+    xp: 0,
+    level: 0,
+    bestStreak: 0,
+    quests: { day: "", done: [] },
+    achievements: {},
+    lastRecap: "",
+    onboarded: false
   };
+}
+function groupLegacyCards(s) {
+  const loose = s.review.filter((c) => !c.turn).sort((a, b) => a.t - b.t);
+  const open = {};
+  for (const c of loose) {
+    const cur = open[c.sid];
+    const at = c.last ?? c.t;
+    if (!cur || c.t - cur.last > 10 * 60 * 1e3) {
+      const key2 = c.sid + "@" + c.t;
+      open[c.sid] = { key: key2, last: at };
+      if (!s.turns.some((m2) => m2.key === key2)) s.turns.push({ key: key2, sid: c.sid, cwd: c.cwd, start: c.t, end: at, files: 0 });
+    } else cur.last = Math.max(cur.last, at);
+    c.turn = open[c.sid].key;
+    const m = s.turns.find((x) => x.key === c.turn);
+    m.files++;
+    m.end = Math.max(m.end ?? 0, at);
+  }
+  if (loose.length) s.turns.sort((a, b) => a.start - b.start);
+  return s;
 }
 function normalizeState(raw) {
   const base = newState();
   if (!raw || typeof raw !== "object") return base;
-  return {
+  return groupLegacyCards({
     ...base,
     ...raw,
     totals: { ...base.totals, ...raw.totals ?? {} },
     sessions: raw.sessions ?? {},
     history: raw.history ?? [],
+    turns: raw.turns ?? [],
     review: raw.review ?? [],
     notes: raw.notes ?? [],
     srs: raw.srs ?? {},
     relics: raw.relics ?? [],
-    game: raw.game ?? null
-  };
+    game: raw.game ?? null,
+    arcade: raw.arcade ?? null,
+    puzzle: raw.puzzle ?? null,
+    sprint: raw.sprint ?? null,
+    best: { ...base.best, ...raw.best ?? {} },
+    days: raw.days ?? {},
+    // Upgrading from a version without XP: earlier honest work still counts.
+    xp: raw.xp ?? backfillXp(raw.totals),
+    level: raw.level ?? 0,
+    quests: raw.quests ?? base.quests,
+    achievements: raw.achievements ?? {},
+    // Anyone upgrading already knows the panel: no welcome screen for them.
+    onboarded: raw.onboarded ?? (raw.totals?.turns ?? 0) + (raw.totals?.cards ?? 0) > 0
+  });
+}
+function backfillXp(t2) {
+  if (!t2) return 0;
+  return (t2.reviewed ?? 0) * 10 + (t2.flagged ?? 0) * 15 + (t2.learned ?? 0) * 3 + (t2.wins ?? 0) * 50;
 }
 function pendingCards(s) {
   return s.review.filter((c) => c.status === "new");
@@ -570,16 +989,57 @@ function coverage(s) {
   const done = s.totals.reviewed + s.totals.flagged;
   return s.totals.cards > 0 ? done / s.totals.cards : null;
 }
-var MAX_NOTES;
+function localDay(now) {
+  const d = new Date(now);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function emptyDay() {
+  return {
+    turns: 0,
+    files: 0,
+    reviewed: 0,
+    flagged: 0,
+    skimmed: 0,
+    skipped: 0,
+    notes: 0,
+    learned: 0,
+    puzzle: 0,
+    practice: 0,
+    sprints: 0,
+    floors: 0,
+    wins: 0,
+    fullTurns: 0,
+    xp: 0
+  };
+}
+function dayOf(s, now) {
+  const key2 = localDay(now);
+  let d = s.days[key2];
+  if (!d) {
+    d = emptyDay();
+    s.days[key2] = d;
+    const keys = Object.keys(s.days).sort();
+    for (const k of keys.slice(0, Math.max(0, keys.length - MAX_DAYS))) delete s.days[k];
+  } else {
+    for (const [k, v] of Object.entries(emptyDay())) if (d[k] === void 0) d[k] = v;
+  }
+  return d;
+}
+function turnByKey(s, key2) {
+  return key2 ? s.turns.find((x) => x.key === key2) : void 0;
+}
+var MAX_NOTES, MAX_TURNS, MAX_DAYS;
 var init_state = __esm({
   "src/engine/state.ts"() {
     "use strict";
     MAX_NOTES = 30;
+    MAX_TURNS = 60;
+    MAX_DAYS = 120;
   }
 });
 
 // src/engine/store.ts
-import fs2 from "node:fs";
+import fs3 from "node:fs";
 function loadState() {
   return normalizeState(readJson(paths.state(), null));
 }
@@ -590,16 +1050,16 @@ function readNewEvents(offset) {
   const file = paths.events();
   let size;
   try {
-    size = fs2.statSync(file).size;
+    size = fs3.statSync(file).size;
   } catch {
     return { events: [], offset: 0 };
   }
   if (size < offset) offset = 0;
   if (size === offset) return { events: [], offset };
-  const fd = fs2.openSync(file, "r");
+  const fd = fs3.openSync(file, "r");
   try {
     const buf = Buffer.alloc(size - offset);
-    fs2.readSync(fd, buf, 0, buf.length, offset);
+    fs3.readSync(fd, buf, 0, buf.length, offset);
     const lastNl = buf.lastIndexOf(10);
     if (lastNl < 0) return { events: [], offset };
     const text = buf.subarray(0, lastNl).toString("utf8");
@@ -613,27 +1073,27 @@ function readNewEvents(offset) {
     }
     return { events, offset: offset + lastNl + 1 };
   } finally {
-    fs2.closeSync(fd);
+    fs3.closeSync(fd);
   }
 }
 function rotateIfLarge(offset) {
   const file = paths.events();
   let size = 0;
   try {
-    size = fs2.statSync(file).size;
+    size = fs3.statSync(file).size;
   } catch {
     return { events: [], rotated: false };
   }
   if (size < ROTATE_BYTES || offset < size) return { events: [], rotated: false };
   const old = `${file}.${Date.now()}.old`;
   try {
-    fs2.renameSync(file, old);
+    fs3.renameSync(file, old);
   } catch {
     return { events: [], rotated: false };
   }
   const events = [];
   try {
-    const rest = fs2.readFileSync(old).subarray(offset).toString("utf8");
+    const rest = fs3.readFileSync(old).subarray(offset).toString("utf8");
     for (const line of rest.split("\n")) {
       if (!line.trim()) continue;
       try {
@@ -641,7 +1101,7 @@ function rotateIfLarge(offset) {
       } catch {
       }
     }
-    fs2.unlinkSync(old);
+    fs3.unlinkSync(old);
   } catch {
   }
   return { events, rotated: true };
@@ -666,7 +1126,7 @@ function releaseLock() {
   const cur = readJson(paths.lock(), {});
   if (cur.pid === process.pid) {
     try {
-      fs2.unlinkSync(paths.lock());
+      fs3.unlinkSync(paths.lock());
     } catch {
     }
   }
@@ -683,40 +1143,319 @@ var init_store = __esm({
   }
 });
 
+// src/engine/progress.ts
+function track(s, what, now = Date.now(), n = 1) {
+  const d = dayOf(s, now);
+  let xp = 0;
+  switch (what) {
+    case "reviewed":
+      d.reviewed += n;
+      xp = XP.reviewed * n;
+      break;
+    case "flagged":
+      d.flagged += n;
+      xp = XP.flagged * n;
+      break;
+    case "skimmed":
+      d.skimmed += n;
+      break;
+    case "skipped":
+      d.skipped += n;
+      break;
+    case "note":
+      d.notes += n;
+      xp = XP.note * n;
+      break;
+    case "learned":
+      d.learned += n;
+      xp = XP.learned * n;
+      break;
+    case "puzzle":
+      if (n > d.puzzle) {
+        xp = (d.puzzle ? 0 : XP.puzzle) + XP.puzzleStar * (n - d.puzzle);
+        d.puzzle = n;
+      }
+      break;
+    case "practice":
+      d.practice += n;
+      xp = XP.practice * n;
+      break;
+    case "sprint":
+      d.sprints += n;
+      xp = XP.sprint * n;
+      break;
+    case "floor":
+      d.floors += n;
+      xp = XP.floor * n;
+      break;
+    case "win":
+      d.wins += n;
+      xp = XP.win * n;
+      break;
+    case "fullTurn":
+      d.fullTurns += n;
+      xp = XP.fullTurn * n;
+      break;
+  }
+  d.xp += xp;
+  s.xp += xp;
+}
+function xpForLevel(level) {
+  return 100 + 40 * (level - 1);
+}
+function levelInfo(xp) {
+  let level = 1;
+  let rest = Math.max(0, xp);
+  while (rest >= xpForLevel(level)) {
+    rest -= xpForLevel(level);
+    level++;
+  }
+  return { level, into: rest, need: xpForLevel(level) };
+}
+function levelTitle(level) {
+  return TITLES.find(([min]) => level >= min)[1];
+}
+function activeDay(d) {
+  return !!d && (d.reviewed + d.flagged >= 1 || d.learned >= 5 || d.puzzle > 0);
+}
+function shiftDay(day, by) {
+  const [y, m, d] = day.split("-").map(Number);
+  return localDay(new Date(y, m - 1, d + by, 12).getTime());
+}
+function streak(s, now = Date.now()) {
+  const today = localDay(now);
+  const doneToday = activeDay(s.days[today]);
+  let day = doneToday ? today : shiftDay(today, -1);
+  let n = 0;
+  while (activeDay(s.days[day])) {
+    n++;
+    day = shiftDay(day, -1);
+  }
+  return { days: n, today: doneToday };
+}
+function hash(str3) {
+  let h = 2166136261;
+  for (let i = 0; i < str3.length; i++) h = Math.imul(h ^ str3.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+function questsFor(day) {
+  const h = hash(day);
+  const review = ["review3", "review8", "fullturn"][h % 3];
+  const learn = ["learn5", "learn10"][(h >>> 3) % 2];
+  const play = ["puzzle", "sprint", "floors"][(h >>> 5) % 3];
+  return [QUESTS[review], QUESTS[learn], QUESTS[play]];
+}
+function questProgress(s, now = Date.now()) {
+  const day = localDay(now);
+  const d = s.days[day];
+  const done = s.quests.day === day ? s.quests.done : [];
+  return questsFor(day).map((def) => ({ def, value: Math.min(def.goal, d ? def.metric(d) : 0), done: done.includes(def.id) }));
+}
+function unlock(s, id, now = Date.now()) {
+  if (s.achievements[id] || !ACHIEVEMENTS.some((a) => a.id === id)) return false;
+  s.achievements[id] = now;
+  s.energy += ACHIEVEMENT_ENERGY;
+  return true;
+}
+function settleProgress(s, now = Date.now()) {
+  const out = [];
+  const today = localDay(now);
+  if (s.quests.day !== today) s.quests = { day: today, done: [] };
+  const d = s.days[today];
+  if (d) {
+    const before = s.quests.done.length;
+    for (const q of questsFor(today)) {
+      if (s.quests.done.includes(q.id) || q.metric(d) < q.goal) continue;
+      s.quests.done.push(q.id);
+      s.energy += QUEST_ENERGY;
+      d.xp += XP.quest;
+      s.xp += XP.quest;
+      out.push({ type: "quest", id: q.id, label: q.label });
+    }
+    if (before < 3 && s.quests.done.length === 3) out.push({ type: "quests_all" });
+  }
+  const st = streak(s, now).days;
+  if (st > s.bestStreak) s.bestStreak = st;
+  const quiet = s.level === 0;
+  const { level } = levelInfo(s.xp);
+  for (const a of ACHIEVEMENTS) {
+    if (s.achievements[a.id] || !a.test?.(s, { streak: st, level })) continue;
+    s.achievements[a.id] = now;
+    s.energy += ACHIEVEMENT_ENERGY;
+    if (!quiet) out.push({ type: "achievement", id: a.id, name: a.name });
+  }
+  const lv = levelInfo(s.xp).level;
+  if (!quiet && lv > s.level) out.push({ type: "level", level: lv, title: levelTitle(lv) });
+  s.level = Math.max(s.level, lv);
+  return out;
+}
+function weekKey(now) {
+  const d = new Date(now);
+  const back = (d.getDay() + 6) % 7;
+  return localDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() - back, 12).getTime());
+}
+function lastWeekRecap(s, now = Date.now()) {
+  return weekStats(s, shiftDay(weekKey(now), -7));
+}
+function weekStats(s, start) {
+  const r = { week: start, turns: 0, files: 0, read: 0, flagged: 0, notes: 0, learned: 0, activeDays: 0, coverage: null, xp: 0 };
+  for (let i = 0; i < 7; i++) {
+    const d = s.days[shiftDay(start, i)];
+    if (!d) continue;
+    r.turns += d.turns;
+    r.files += d.files;
+    r.read += d.reviewed + d.flagged;
+    r.flagged += d.flagged;
+    r.notes += d.notes;
+    r.learned += d.learned;
+    r.xp += d.xp;
+    if (activeDay(d)) r.activeDays++;
+  }
+  r.coverage = r.files > 0 ? Math.min(1, r.read / r.files) : null;
+  return r;
+}
+function recapDue(s, now = Date.now()) {
+  const wk = weekKey(now);
+  if (s.lastRecap === wk) return null;
+  const r = lastWeekRecap(s, now);
+  return r.turns + r.read + r.learned > 0 ? r : null;
+}
+var l, XP, QUEST_ENERGY, ACHIEVEMENT_ENERGY, TITLES, QUESTS, read, ACHIEVEMENTS;
+var init_progress = __esm({
+  "src/engine/progress.ts"() {
+    "use strict";
+    init_state();
+    l = (zh, en) => ({ zh, en });
+    XP = {
+      reviewed: 10,
+      flagged: 15,
+      note: 5,
+      learned: 3,
+      puzzle: 20,
+      puzzleStar: 5,
+      practice: 8,
+      sprint: 10,
+      floor: 5,
+      win: 50,
+      fullTurn: 10,
+      quest: 20
+    };
+    QUEST_ENERGY = 2;
+    ACHIEVEMENT_ENERGY = 3;
+    TITLES = [
+      [30, l("\u4F20\u5947\u5DE5\u7A0B\u5E08", "Legendary Engineer")],
+      [20, l("\u9996\u5E2D\u5DE5\u7A0B\u5E08", "Principal Engineer")],
+      [15, l("\u8D44\u6DF1\u5DE5\u7A0B\u5E08", "Staff Engineer")],
+      [10, l("\u9AD8\u7EA7\u5DE5\u7A0B\u5E08", "Senior Engineer")],
+      [6, l("\u5DE5\u7A0B\u5E08", "Engineer")],
+      [3, l("\u521D\u7EA7\u5DE5\u7A0B\u5E08", "Junior Engineer")],
+      [1, l("\u5B9E\u4E60\u751F", "Intern")]
+    ];
+    QUESTS = Object.fromEntries(
+      [
+        { id: "review3", goal: 3, metric: (d) => d.reviewed + d.flagged, label: l("\u8BA4\u771F\u5BA1\u8FC7 3 \u4E2A\u6587\u4EF6", "Actually read 3 changed files") },
+        { id: "review8", goal: 8, metric: (d) => d.reviewed + d.flagged, label: l("\u8BA4\u771F\u5BA1\u8FC7 8 \u4E2A\u6587\u4EF6", "Actually read 8 changed files") },
+        { id: "fullturn", goal: 1, metric: (d) => d.fullTurns, label: l("\u5B8C\u6574\u5BA1\u5B8C\u4E00\u8F6E\uFF08\u6BCF\u4E2A\u6587\u4EF6\u90FD\u770B\u8FC7\uFF09", "Review one whole turn, every file read") },
+        { id: "learn5", goal: 5, metric: (d) => d.learned, label: l("\u5237 5 \u5F20\u5361", "Study 5 flashcards") },
+        { id: "learn10", goal: 10, metric: (d) => d.learned, label: l("\u5237 10 \u5F20\u5361", "Study 10 flashcards") },
+        { id: "puzzle", goal: 1, metric: (d) => d.puzzle > 0 ? 1 : 0, label: l("\u89E3\u51FA\u4ECA\u65E5\u6808\u673A\u8C1C\u9898", "Solve today's Stack Puzzle") },
+        { id: "sprint", goal: 1, metric: (d) => d.sprints, label: l("\u6253\u5B8C\u4E00\u8F6E\u4EE3\u7801\u901F\u6253", "Finish a Code Sprint round") },
+        { id: "floors", goal: 2, metric: (d) => d.floors, label: l("\u6349\u866B\u5730\u7262\u6253\u8FC7 2 \u5C42", "Clear 2 Debug Dungeon floors") }
+      ].map((q) => [q.id, q])
+    );
+    read = (s) => s.totals.reviewed + s.totals.flagged;
+    ACHIEVEMENTS = [
+      { id: "first_review", name: l("\u7B2C\u4E00\u773C", "First Look"), desc: l("\u8BA4\u771F\u5BA1\u8FC7\u7B2C 1 \u4E2A\u6587\u4EF6", "Read your first changed file"), test: (s) => read(s) >= 1 },
+      { id: "review_50", name: l("\u706B\u773C\u91D1\u775B", "Sharp Eyes"), desc: l("\u7D2F\u8BA1\u5BA1\u8FC7 50 \u4E2A\u6587\u4EF6", "Read 50 changed files"), test: (s) => read(s) >= 50 },
+      { id: "review_500", name: l("\u4EE3\u7801\u5B88\u95E8\u4EBA", "Gatekeeper"), desc: l("\u7D2F\u8BA1\u5BA1\u8FC7 500 \u4E2A\u6587\u4EF6", "Read 500 changed files"), test: (s) => read(s) >= 500 },
+      { id: "full_turn", name: l("\u4E00\u8F6E\u4E0D\u843D", "Nothing Missed"), desc: l("\u5B8C\u6574\u5BA1\u5B8C\u4E00\u6574\u8F6E", "Review one whole turn, every file read"), test: (s) => Object.values(s.days).some((d) => (d.fullTurns ?? 0) > 0) },
+      {
+        id: "coverage_80",
+        name: l("\u8BA4\u771F\u8D1F\u8D23", "Diligent"),
+        desc: l("\u5BA1\u8FC7 50 \u4E2A\u4EE5\u4E0A\u7684\u6587\u4EF6\uFF0C\u8986\u76D6\u7387\u4FDD\u6301\u5728 80% \u4EE5\u4E0A", "Over 50 files read with coverage at 80% or more"),
+        test: (s) => read(s) >= 50 && read(s) / Math.max(1, s.totals.cards) >= 0.8
+      },
+      { id: "first_note", name: l("\u4E00\u53E5\u8BDD\u7684\u4E8B", "Just One Line"), desc: l("Claude \u6536\u5230\u4E86\u4F60\u7684\u7B2C 1 \u6761\u7559\u8A00", "Claude picked up your first note"), test: (s) => s.totals.delivered >= 1 },
+      { id: "notes_25", name: l("\u9ED8\u5951\u642D\u6863", "In Sync"), desc: l("Claude \u6536\u5230\u4E86\u4F60\u7684 25 \u6761\u7559\u8A00", "Claude picked up 25 of your notes"), test: (s) => s.totals.delivered >= 25 },
+      { id: "streak_3", name: l("\u6E10\u5165\u4F73\u5883", "Warming Up"), desc: l("\u8FDE\u7EED 3 \u5929", "A 3-day streak"), test: (_s, c) => c.streak >= 3 },
+      { id: "streak_7", name: l("\u4E00\u5468\u4E0D\u65AD", "Full Week"), desc: l("\u8FDE\u7EED 7 \u5929", "A 7-day streak"), test: (_s, c) => c.streak >= 7 },
+      { id: "streak_30", name: l("\u4E60\u60EF\u6210\u81EA\u7136", "Second Nature"), desc: l("\u8FDE\u7EED 30 \u5929", "A 30-day streak"), test: (_s, c) => c.streak >= 30 },
+      { id: "learn_100", name: l("\u5B66\u800C\u65F6\u4E60\u4E4B", "Lifelong Learner"), desc: l("\u5237\u4E86 100 \u5F20\u5361", "Study 100 flashcards"), test: (s) => s.totals.learned >= 100 },
+      { id: "dungeon_win", name: l("\u6808\u6EA2\u51FA\u5DF2\u4FEE\u590D", "Overflow Fixed"), desc: l("\u901A\u5173\u6349\u866B\u5730\u7262", "Beat Debug Dungeon"), test: (s) => s.totals.wins >= 1 },
+      { id: "dungeon_bare", name: l("\u5F92\u624B\u6349\u866B", "Bare Hands"), desc: l("\u4E0D\u5E26\u4EFB\u4F55\u88C5\u5907\u901A\u5173\u6349\u866B\u5730\u7262", "Beat Debug Dungeon with no gear") },
+      { id: "dungeon_overtime", name: l("\u52A0\u73ED\u5230\u5929\u4EAE", "Dawn Shift"), desc: l("\u901A\u5173\u6349\u866B\u5730\u7262\u7684\u52A0\u73ED\u6A21\u5F0F", "Beat Debug Dungeon in overtime mode") },
+      { id: "puzzle_perfect", name: l("\u4E00\u6B65\u4E0D\u591A", "Not One Step More"), desc: l("\u4E09\u661F\u89E3\u51FA\u4E00\u9053\u6808\u673A\u8C1C\u9898", "Three-star a Stack Puzzle") },
+      {
+        id: "puzzle_week",
+        name: l("\u6BCF\u65E5\u4E00\u9898", "Daily Habit"),
+        desc: l("\u7D2F\u8BA1 7 \u5929\u89E3\u51FA\u6BCF\u65E5\u8C1C\u9898", "Solve the daily puzzle on 7 days"),
+        test: (s) => Object.values(s.days).filter((d) => d.puzzle > 0).length >= 7
+      },
+      { id: "wpm_60", name: l("\u624B\u901F\u5728\u7EBF", "Quick Fingers"), desc: l("\u4EE3\u7801\u901F\u6253\u8FBE\u5230 60 WPM", "Reach 60 WPM in Code Sprint"), test: (s) => s.best.wpm >= 60 },
+      { id: "wpm_90", name: l("\u952E\u76D8\u5982\u98DE", "Flying Keys"), desc: l("\u4EE3\u7801\u901F\u6253\u8FBE\u5230 90 WPM", "Reach 90 WPM in Code Sprint"), test: (s) => s.best.wpm >= 90 },
+      { id: "turns_100", name: l("\u8001\u642D\u6863", "Old Partners"), desc: l("Claude \u4E3A\u4F60\u5E72\u4E86 100 \u8F6E\u6D3B", "Claude worked 100 turns for you"), test: (s) => s.totals.turns >= 100 },
+      { id: "tests_50", name: l("\u7EFF\u706F\u5E38\u4EAE", "All Green"), desc: l("50 \u8F6E\u6D4B\u8BD5\u901A\u8FC7", "50 turns with passing tests"), test: (s) => s.totals.testsPassed >= 50 },
+      { id: "level_10", name: l("\u72EC\u5F53\u4E00\u9762", "Senior Now"), desc: l("\u8FBE\u5230 10 \u7EA7", "Reach level 10"), test: (_s, c) => c.level >= 10 }
+    ];
+  }
+});
+
 // src/engine/economy.ts
 function turnCoins(tools, pass) {
   if (tools === 0) return 0;
   return ECON.coinWorkTurn + (pass ? ECON.coinTestsPass : 0);
 }
-function isSkim(changedLines, shownMs) {
-  const needed = Math.min(4e3, 600 + 80 * Math.max(0, changedLines));
-  return shownMs < needed;
+function isSkim(changedLines2, shownMs2) {
+  const needed = Math.min(4e3, 600 + 80 * Math.max(0, changedLines2));
+  return shownMs2 < needed;
 }
 function applyVerdict(s, cardId, verdict, opts = {}) {
   const card2 = s.review.find((c) => c.id === cardId);
   if (!card2 || card2.status !== "new") return 0;
+  const now = opts.now ?? Date.now();
   card2.status = verdict;
   let gain = 0;
   if (verdict === "ok" && opts.quick) {
     card2.quick = true;
     s.totals.skimmed++;
+    track(s, "skimmed", now);
   } else if (verdict === "ok") {
     s.totals.reviewed++;
     gain = ECON.reviewOk;
+    track(s, "reviewed", now);
   } else if (verdict === "flag") {
     s.totals.flagged++;
     card2.note = opts.note;
     card2.noteId = opts.noteId;
     gain = ECON.reviewFlag;
+    track(s, "flagged", now);
+    track(s, "note", now);
   } else {
     s.totals.skipped++;
+    track(s, "skipped", now);
   }
   s.energy += gain;
+  const meta = turnByKey(s, card2.turn);
+  if (meta && !meta.full && verdict !== "skip" && !card2.quick) {
+    const mates = s.review.filter((c) => c.turn === card2.turn);
+    if (mates.every((c) => (c.status === "ok" || c.status === "flag") && !c.quick)) {
+      meta.full = true;
+      track(s, "fullTurn", now);
+    }
+  }
   return gain;
 }
-function localDay(now) {
-  const d = new Date(now);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function expireOld(s, now) {
+  let n = 0;
+  for (const c of s.review) {
+    if (c.status !== "new" || now - (c.last ?? c.t) < ECON.expireMs) continue;
+    c.status = "skip";
+    c.expired = true;
+    s.totals.skipped++;
+    s.totals.expired++;
+    n++;
+  }
+  return n;
 }
 function grantDaily(s, now) {
   const today = localDay(now);
@@ -731,6 +1470,8 @@ var ECON;
 var init_economy = __esm({
   "src/engine/economy.ts"() {
     "use strict";
+    init_state();
+    init_progress();
     ECON = {
       reviewOk: 1,
       reviewFlag: 2,
@@ -739,10 +1480,163 @@ var init_economy = __esm({
       coinWorkTurn: 3,
       coinTestsPass: 10,
       winEnergy: 5,
-      maxCards: 80,
+      /** A Code Sprint round, and a practice Stack Puzzle (the daily puzzle is free). */
+      sprintCost: 1,
+      practiceCost: 1,
+      /** Practice puzzles a day on the free plan. */
+      freePractice: 3,
+      maxCards: 150,
+      /** Changes left unreviewed this long are archived (counted as skipped), so the queue never becomes a guilt pile. */
+      expireMs: 24 * 60 * 60 * 1e3,
       /** A flashcard rated sooner than this after it appeared earns nothing. */
       minStudyMs: 1500
     };
+  }
+});
+
+// src/install.ts
+import fs4 from "node:fs";
+import os2 from "node:os";
+import path4 from "node:path";
+function claudeSettingsPath(scope, cwd2 = process.cwd()) {
+  if (scope === "project") return path4.join(cwd2, ".claude", "settings.local.json");
+  const dir = process.env.CLAUDE_CONFIG_DIR || path4.join(os2.homedir(), ".claude");
+  return path4.join(dir, "settings.json");
+}
+function hookCommand() {
+  if (isCompiled()) return `"${fwd(process.execPath)}" hook ${HOOK_MARK}`;
+  return `"${fwd(process.execPath)}" "${fwd(path4.join(packageRoot(), "dist", "hook.js"))}" ${HOOK_MARK}`;
+}
+function statuslineCommand() {
+  if (isCompiled()) return `"${fwd(process.execPath)}" statusline ${STATUS_MARK}`;
+  return `"${fwd(process.execPath)}" "${fwd(path4.join(packageRoot(), "dist", "cli.js"))}" statusline ${STATUS_MARK}`;
+}
+function removeHooks(settings) {
+  const s = structuredClone(settings);
+  if (!s.hooks || typeof s.hooks !== "object") return s;
+  for (const ev of Object.keys(s.hooks)) {
+    const arr = s.hooks[ev];
+    if (!Array.isArray(arr)) continue;
+    const kept = arr.map((entry) => ({ ...entry, hooks: (entry?.hooks ?? []).filter((h) => !ours(h?.command, HOOK_MARK)) })).filter((entry) => entry.hooks.length > 0);
+    if (kept.length) s.hooks[ev] = kept;
+    else delete s.hooks[ev];
+  }
+  if (Object.keys(s.hooks).length === 0) delete s.hooks;
+  return s;
+}
+function addHooks(settings, command) {
+  const s = removeHooks(settings);
+  s.hooks ??= {};
+  for (const [ev, matcher] of HOOK_EVENTS) {
+    const entry = { hooks: [{ type: "command", command, timeout: 10 }] };
+    if (matcher) entry.matcher = "*";
+    s.hooks[ev] = [...Array.isArray(s.hooks[ev]) ? s.hooks[ev] : [], entry];
+  }
+  return s;
+}
+function hookStatus(settings) {
+  const installed = [];
+  const missing = [];
+  for (const [ev] of HOOK_EVENTS) {
+    const arr = settings?.hooks?.[ev];
+    const found = Array.isArray(arr) && arr.some((e) => (e?.hooks ?? []).some((h) => ours(h?.command, HOOK_MARK)));
+    (found ? installed : missing).push(ev);
+  }
+  return { installed, missing };
+}
+function ourHookCommand(settings) {
+  for (const arr of Object.values(settings?.hooks ?? {})) {
+    if (!Array.isArray(arr)) continue;
+    for (const e of arr) for (const h of e?.hooks ?? []) if (ours(h?.command, HOOK_MARK)) return h.command;
+  }
+  return null;
+}
+function readSettings(file) {
+  if (!fs4.existsSync(file)) return { settings: {}, existed: false };
+  const raw = fs4.readFileSync(file, "utf8");
+  if (!raw.trim()) return { settings: {}, existed: true };
+  try {
+    return { settings: parseJson(raw), existed: true };
+  } catch {
+    throw new Error(`Cannot parse ${file} \u2014 please fix the JSON first.`);
+  }
+}
+function writeSettings(file, s) {
+  ensureDir(path4.dirname(file));
+  fs4.writeFileSync(file, JSON.stringify(s, null, 2) + "\n");
+}
+function stamp() {
+  return (/* @__PURE__ */ new Date()).toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
+}
+function install(opts) {
+  const file = claudeSettingsPath(opts.scope, opts.cwd);
+  const { settings, existed } = readSettings(file);
+  let backup;
+  if (existed) {
+    backup = `${file}.cowait-backup-${stamp()}`;
+    fs4.copyFileSync(file, backup);
+  }
+  let next = addHooks(settings, hookCommand());
+  let status = "not-requested";
+  if (opts.statusline) {
+    const cur = next.statusLine;
+    if (cur && !ours(cur.command, STATUS_MARK) && !opts.force) {
+      status = "kept-existing";
+    } else {
+      if (cur && !ours(cur.command, STATUS_MARK)) writeJsonAtomic(prevStatusFile(), cur, true);
+      next = { ...next, statusLine: { type: "command", command: statuslineCommand(), padding: 0 } };
+      status = "set";
+    }
+  }
+  writeSettings(file, next);
+  return { file, backup, statusline: status };
+}
+function uninstall(opts) {
+  const file = claudeSettingsPath(opts.scope, opts.cwd);
+  const { settings, existed } = readSettings(file);
+  if (!existed) return { file, changed: false };
+  let next = removeHooks(settings);
+  if (next.statusLine && ours(next.statusLine.command, STATUS_MARK)) {
+    const prev = readJson(prevStatusFile(), null);
+    if (prev) next = { ...next, statusLine: prev };
+    else {
+      next = { ...next };
+      delete next.statusLine;
+    }
+  }
+  const changed = JSON.stringify(next) !== JSON.stringify(settings);
+  if (changed) {
+    fs4.copyFileSync(file, `${file}.cowait-backup-${stamp()}`);
+    writeSettings(file, next);
+  }
+  return { file, changed };
+}
+function readClaudeSettings(scope, cwd2) {
+  try {
+    return readSettings(claudeSettingsPath(scope, cwd2)).settings;
+  } catch {
+    return {};
+  }
+}
+var HOOK_MARK, STATUS_MARK, HOOK_EVENTS, fwd, ours, prevStatusFile;
+var init_install = __esm({
+  "src/install.ts"() {
+    "use strict";
+    init_paths();
+    init_runtime();
+    init_fsutil();
+    HOOK_MARK = "--cowait-hook";
+    STATUS_MARK = "--cowait-statusline";
+    HOOK_EVENTS = [
+      ["UserPromptSubmit", false],
+      ["PostToolUse", true],
+      ["Stop", false],
+      ["Notification", false],
+      ["SessionEnd", false]
+    ];
+    fwd = (p) => p.replace(/\\/g, "/");
+    ours = (cmd, mark) => typeof cmd === "string" && cmd.includes(mark);
+    prevStatusFile = () => path4.join(dataDir(), "statusline.prev.json");
   }
 });
 
@@ -810,6 +1704,439 @@ async function complete(prompt, cfg) {
 var cliAvailable;
 var init_llm = __esm({
   "src/learn/llm.ts"() {
+    "use strict";
+  }
+});
+
+// src/feedback.ts
+import fs5 from "node:fs";
+import path6 from "node:path";
+function isFor(note, cwd2, sid) {
+  if (note.sid && sid && note.sid === sid) return true;
+  if (!note.cwd || !cwd2) return true;
+  return within(cwd2, note.cwd);
+}
+function addNote(note) {
+  const dir = paths.feedback();
+  ensureDir(dir);
+  const file = path6.join(dir, `${note.t}-${note.id}.json`);
+  const tmp = file + ".tmp";
+  fs5.writeFileSync(tmp, JSON.stringify(note));
+  fs5.renameSync(tmp, file);
+}
+function noteFiles() {
+  try {
+    return fs5.readdirSync(paths.feedback()).filter((f2) => f2.endsWith(".json")).sort();
+  } catch {
+    return [];
+  }
+}
+function claimNotes(cwd2, sid) {
+  const dir = paths.feedback();
+  const out = [];
+  for (const f2 of noteFiles()) {
+    const src = path6.join(dir, f2);
+    let note = null;
+    try {
+      note = parseJson(fs5.readFileSync(src, "utf8"));
+    } catch {
+    }
+    if (note && typeof note.text === "string" && !isFor(note, cwd2, sid)) continue;
+    const claimed = `${src}.claimed-${process.pid}`;
+    try {
+      fs5.renameSync(src, claimed);
+    } catch {
+      continue;
+    }
+    try {
+      note ??= parseJson(fs5.readFileSync(claimed, "utf8"));
+      if (!note || typeof note.text !== "string") throw new Error("not a note");
+      out.push(note);
+      fs5.unlinkSync(claimed);
+    } catch {
+      try {
+        fs5.renameSync(claimed, `${src}.unreadable`);
+      } catch {
+      }
+    }
+  }
+  return out;
+}
+function formatNotes(notes) {
+  const lines = notes.map((n) => `- ${n.file ? `${n.file}: ` : ""}"${n.text.replace(/\s+/g, " ").trim()}"`);
+  return [
+    "[Cowait] While you were working, the user reviewed your recent changes in a side panel and left these notes.",
+    "Take them into account now: fix what they point out, or briefly explain why not.",
+    ...lines
+  ].join("\n");
+}
+var init_feedback = __esm({
+  "src/feedback.ts"() {
+    "use strict";
+    init_paths();
+    init_fsutil();
+  }
+});
+
+// src/product.ts
+function licenseApi() {
+  const env3 = process.env.COWAIT_LICENSE_API?.trim();
+  const base = !env3 ? POLAR.api : env3 === "sandbox" ? POLAR_SANDBOX_API : env3;
+  return base.replace(/\/+$/, "");
+}
+function polarOrgId() {
+  return (process.env.COWAIT_POLAR_ORG?.trim() || POLAR.orgId).trim();
+}
+function licensingConfigured() {
+  return polarOrgId() !== "" && licenseApi() !== "";
+}
+var POLAR, POLAR_SANDBOX_API, CHECKOUT, PRICES, SITE;
+var init_product = __esm({
+  "src/product.ts"() {
+    "use strict";
+    POLAR = {
+      api: "https://api.polar.sh",
+      /** Polar organization id (a UUID). */
+      orgId: "",
+      /** License-key benefit ids per plan. A key whose benefit is in `team` is a Team key; any other is Pro. */
+      benefits: { pro: [], team: [] }
+    };
+    POLAR_SANDBOX_API = "https://sandbox-api.polar.sh";
+    CHECKOUT = { pro: "", team: "" };
+    PRICES = {
+      currency: "US$",
+      pro: { monthly: 4, yearly: 36 },
+      team: { perSeatMonthly: 8 }
+    };
+    SITE = "https://jaspinxu.github.io/Cowait/";
+  }
+});
+
+// src/license.ts
+import fs6 from "node:fs";
+import os4 from "node:os";
+import path7 from "node:path";
+function licensePath() {
+  return path7.join(dataDir(), "license.json");
+}
+function loadLicense() {
+  const raw = readJson(licensePath(), null);
+  if (!raw || typeof raw !== "object") return null;
+  const key2 = str2(raw.key);
+  if (!key2 || !PLANS.includes(raw.plan) || !STATUSES.includes(raw.status)) return null;
+  const lic = {
+    key: key2,
+    display: str2(raw.display) ?? maskKey(key2),
+    plan: raw.plan,
+    status: raw.status,
+    label: typeof raw.label === "string" ? raw.label : "",
+    activatedAt: num(raw.activatedAt) ?? 0,
+    checkedAt: num(raw.checkedAt) ?? 0,
+    expiresAt: num(raw.expiresAt) ?? null
+  };
+  if (str2(raw.activationId)) lic.activationId = raw.activationId;
+  if (str2(raw.benefitId)) lic.benefitId = raw.benefitId;
+  return lic;
+}
+function saveLicense(l4) {
+  const file = licensePath();
+  writeJsonAtomic(file, l4, true);
+  if (process.platform !== "win32") {
+    try {
+      fs6.chmodSync(file, 384);
+    } catch {
+    }
+  }
+}
+function clearLicense() {
+  try {
+    fs6.rmSync(licensePath(), { force: true });
+  } catch {
+  }
+}
+function currentPlan(lic, now) {
+  if (!lic || lic.status !== "granted") return "free";
+  if (lic.expiresAt !== null && now >= lic.expiresAt) return "free";
+  if (now - lic.checkedAt > OFFLINE_GRACE_MS) return "free";
+  return lic.plan;
+}
+function needsCheck(lic, now) {
+  if (!lic) return false;
+  return now - lic.checkedAt > CHECK_EVERY_MS || lic.checkedAt > now + DAY;
+}
+function maskKey(key2) {
+  const k = key2.trim();
+  if (k.length <= 8) return k.length <= 4 ? "\u2026" : `${k.slice(0, 2)}\u2026${k.slice(-2)}`;
+  return `${k.slice(0, 4)}\u2026${k.slice(-4)}`;
+}
+function userAgent() {
+  if (ua === void 0) {
+    try {
+      const v = parseJson(fs6.readFileSync(path7.join(packageRoot(), "package.json"), "utf8")).version;
+      ua = typeof v === "string" && v ? `cowait/${v}` : "cowait";
+    } catch {
+      ua = "cowait";
+    }
+  }
+  return ua;
+}
+async function post(endpoint, payload, opts) {
+  const doFetch = opts.fetch ?? globalThis.fetch;
+  if (typeof doFetch !== "function") return { error: "fetch is not available" };
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), opts.timeoutMs ?? TIMEOUT_MS);
+  try {
+    const res = await doFetch(`${licenseApi()}/v1/customer-portal/license-keys/${endpoint}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json", "user-agent": userAgent() },
+      body: JSON.stringify(payload),
+      signal: ctl.signal
+    });
+    const text = await res.text();
+    let body = null;
+    try {
+      body = text ? parseJson(text) : null;
+    } catch {
+      body = text;
+    }
+    return { status: res.status, body };
+  } catch (e) {
+    return { error: ctl.signal.aborted ? "timed out" : String(e?.message ?? e) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function detailOf(body) {
+  const d = body && typeof body === "object" ? body.detail : body;
+  if (typeof d === "string") return d.slice(0, 300);
+  if (Array.isArray(d)) return d.map((x) => x && typeof x === "object" ? String(x.msg ?? "") : String(x)).filter(Boolean).join("; ").slice(0, 300);
+  return "";
+}
+function toMs(v) {
+  if (typeof v !== "string" || !v) return null;
+  const t2 = Date.parse(v);
+  return Number.isFinite(t2) ? t2 : null;
+}
+function planFor(benefitId) {
+  return benefitId && POLAR.benefits.team.includes(benefitId) ? "team" : "pro";
+}
+function readKey(lk, key2) {
+  if (!lk || typeof lk !== "object" || lk.organization_id !== polarOrgId()) return null;
+  const benefitId = str2(lk.benefit_id);
+  return {
+    display: str2(lk.display_key) ?? maskKey(key2),
+    status: STATUSES.includes(lk.status) ? lk.status : "disabled",
+    expiresAt: toMs(lk.expires_at),
+    benefitId,
+    plan: planFor(benefitId)
+  };
+}
+function unusable(info2, now) {
+  if (info2.status !== "granted") return { ok: false, reason: "revoked", detail: info2.status };
+  if (info2.expiresAt !== null && now >= info2.expiresAt) return { ok: false, reason: "revoked", detail: "expired" };
+  return null;
+}
+function defaultLabel() {
+  let host = "computer";
+  try {
+    host = os4.hostname() || host;
+  } catch {
+  }
+  return `${host} (${process.platform})`;
+}
+async function activateLicense(key2, opts = {}) {
+  try {
+    if (!licensingConfigured()) return { ok: false, reason: "not_configured" };
+    const k = typeof key2 === "string" ? key2.trim() : "";
+    if (!k) return { ok: false, reason: "invalid", detail: "empty key" };
+    if (k.length > 256 || /\s/.test(k)) return { ok: false, reason: "invalid", detail: "not a license key" };
+    const now = opts.now ?? Date.now();
+    const prev = loadLicense();
+    if (prev && prev.key === k && prev.activationId) {
+      const r = await validateLicense(prev, opts);
+      if (r.ok || r.reason !== "invalid") return r;
+    }
+    const label = (opts.label ?? defaultLabel()).slice(0, 200);
+    const org = polarOrgId();
+    const res = await post("activate", { key: k, organization_id: org, label, meta: { platform: process.platform } }, opts);
+    if ("error" in res) return unreachable(res);
+    if (res.status === 200 || res.status === 201) {
+      const info2 = readKey(res.body?.license_key, k);
+      if (!info2) return wrongOrg;
+      const bad2 = unusable(info2, now);
+      if (bad2) return bad2;
+      const activationId = str2(res.body?.id);
+      return store({ key: k, ...info2, ...activationId ? { activationId } : {}, label, activatedAt: now, checkedAt: now });
+    }
+    if (res.status === 403) {
+      const detail = detailOf(res.body);
+      if (/support/i.test(detail) && /activation/i.test(detail)) return await validateOnly(k, label, now, opts);
+      if (/limit/i.test(detail)) return { ok: false, reason: "limit", detail };
+      return { ok: false, reason: "revoked", detail: /expire/i.test(detail) ? "expired" : detail || void 0 };
+    }
+    if (res.status === 404 || res.status === 422) return { ok: false, reason: "invalid", detail: detailOf(res.body) || void 0 };
+    return serverError(res.status, res.body);
+  } catch (e) {
+    return { ok: false, reason: "server", detail: String(e?.message ?? e) };
+  }
+}
+async function validateOnly(key2, label, now, opts) {
+  const res = await post("validate", { key: key2, organization_id: polarOrgId() }, opts);
+  if ("error" in res) return unreachable(res);
+  if (res.status === 200) {
+    const info2 = readKey(res.body, key2);
+    if (!info2) return wrongOrg;
+    return unusable(info2, now) ?? store({ key: key2, ...info2, label, activatedAt: now, checkedAt: now });
+  }
+  if (res.status === 403) {
+    const detail = detailOf(res.body);
+    return { ok: false, reason: "revoked", detail: /expire/i.test(detail) ? "expired" : detail || void 0 };
+  }
+  if (res.status === 404 || res.status === 422) return { ok: false, reason: "invalid", detail: detailOf(res.body) || void 0 };
+  return serverError(res.status, res.body);
+}
+function store(l4) {
+  saveLicense(l4);
+  return { ok: true, license: l4 };
+}
+async function validateLicense(lic, opts = {}) {
+  try {
+    if (!licensingConfigured()) return { ok: false, reason: "not_configured" };
+    const now = opts.now ?? Date.now();
+    const payload = { key: lic.key, organization_id: polarOrgId() };
+    if (lic.activationId) payload.activation_id = lic.activationId;
+    const res = await post("validate", payload, opts);
+    if ("error" in res) return unreachable(res);
+    if (res.status === 200) {
+      const info2 = readKey(res.body, lic.key);
+      if (!info2) {
+        saveLicense({ ...lic, status: "revoked", checkedAt: now });
+        return wrongOrg;
+      }
+      const next = { ...lic, ...info2, checkedAt: now };
+      if (!info2.benefitId) delete next.benefitId;
+      saveLicense(next);
+      return unusable(info2, now) ?? { ok: true, license: next };
+    }
+    if (res.status === 403) {
+      const detail = detailOf(res.body);
+      if (/expire/i.test(detail)) {
+        saveLicense({ ...lic, expiresAt: lic.expiresAt !== null && lic.expiresAt <= now ? lic.expiresAt : now, checkedAt: now });
+        return { ok: false, reason: "revoked", detail: "expired" };
+      }
+      saveLicense({ ...lic, status: "revoked", checkedAt: now });
+      return { ok: false, reason: "revoked", detail: detail || void 0 };
+    }
+    if (res.status === 404) {
+      saveLicense({ ...lic, status: "revoked", checkedAt: now });
+      return { ok: false, reason: "invalid", detail: detailOf(res.body) || void 0 };
+    }
+    if (res.status === 422) return { ok: false, reason: "invalid", detail: detailOf(res.body) || void 0 };
+    return serverError(res.status, res.body);
+  } catch (e) {
+    return { ok: false, reason: "server", detail: String(e?.message ?? e) };
+  }
+}
+async function deactivateLicense(lic, opts = {}) {
+  try {
+    if (!lic.activationId) {
+      clearLicense();
+      return { ok: true };
+    }
+    if (!licensingConfigured()) return { ok: false, detail: "not_configured" };
+    const res = await post("deactivate", { key: lic.key, organization_id: polarOrgId(), activation_id: lic.activationId }, opts);
+    if ("error" in res) return { ok: false, detail: res.error };
+    if (res.status >= 200 && res.status < 300 || res.status === 404) {
+      clearLicense();
+      return { ok: true };
+    }
+    return { ok: false, detail: detailOf(res.body) || `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, detail: String(e?.message ?? e) };
+  }
+}
+var DAY, OFFLINE_GRACE_MS, CHECK_EVERY_MS, TIMEOUT_MS, STATUSES, PLANS, num, str2, ua, unreachable, serverError, wrongOrg;
+var init_license = __esm({
+  "src/license.ts"() {
+    "use strict";
+    init_paths();
+    init_fsutil();
+    init_product();
+    DAY = 24 * 60 * 60 * 1e3;
+    OFFLINE_GRACE_MS = 30 * DAY;
+    CHECK_EVERY_MS = 3 * DAY;
+    TIMEOUT_MS = 8e3;
+    STATUSES = ["granted", "revoked", "disabled"];
+    PLANS = ["free", "pro", "team"];
+    num = (v) => typeof v === "number" && Number.isFinite(v) ? v : void 0;
+    str2 = (v) => typeof v === "string" && v !== "" ? v : void 0;
+    unreachable = (r) => ({ ok: false, reason: "network", detail: r.error });
+    serverError = (status, body) => ({ ok: false, reason: "server", detail: detailOf(body) || `HTTP ${status}` });
+    wrongOrg = { ok: false, reason: "invalid", detail: "key belongs to another organization" };
+  }
+});
+
+// src/plan.ts
+function activePlan(now = Date.now()) {
+  return currentPlan(loadLicense(), now);
+}
+function proUnlocked(plan) {
+  return plan !== "free" || !licensingConfigured();
+}
+async function refreshLicense(now = Date.now()) {
+  const lic = loadLicense();
+  if (!lic || !licensingConfigured() || !needsCheck(lic, now)) return;
+  await validateLicense(lic).catch(() => void 0);
+}
+var init_plan = __esm({
+  "src/plan.ts"() {
+    "use strict";
+    init_license();
+    init_product();
+  }
+});
+
+// src/open.ts
+import { spawn as spawn2 } from "node:child_process";
+import path8 from "node:path";
+function safeHttpUrl(url) {
+  if (typeof url !== "string") return null;
+  let href;
+  try {
+    const u = new URL(url.trim());
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    href = u.href;
+  } catch {
+    return null;
+  }
+  if (/["\s\x00-\x1f\x7f]/.test(href)) return null;
+  return href;
+}
+function browserCommand(url, platform2 = process.platform) {
+  const href = safeHttpUrl(url);
+  if (!href) return null;
+  if (platform2 === "win32") {
+    const root = process.env.SystemRoot || process.env.windir || "C:\\Windows";
+    return { cmd: path8.win32.join(root, "System32", "rundll32.exe"), args: ["url.dll,FileProtocolHandler", href] };
+  }
+  if (platform2 === "darwin") return { cmd: "/usr/bin/open", args: [href] };
+  return { cmd: "xdg-open", args: [href] };
+}
+function openUrl(url) {
+  const c = browserCommand(url);
+  if (!c) return false;
+  try {
+    const child = spawn2(c.cmd, c.args, { detached: true, stdio: "ignore", windowsHide: true });
+    child.on("error", () => {
+    });
+    child.unref();
+    return child.pid !== void 0;
+  } catch {
+    return false;
+  }
+}
+var init_open = __esm({
+  "src/open.ts"() {
     "use strict";
   }
 });
@@ -885,12 +2212,12 @@ var require_react_production = __commonJS({
     }
     var ReactSharedInternals = { H: null, A: null, T: null, S: null };
     var hasOwnProperty = Object.prototype.hasOwnProperty;
-    function ReactElement(type, key, props) {
+    function ReactElement(type, key2, props) {
       var refProp = props.ref;
       return {
         $$typeof: REACT_ELEMENT_TYPE,
         type,
-        key,
+        key: key2,
         ref: void 0 !== refProp ? refProp : null,
         props
       };
@@ -901,9 +2228,9 @@ var require_react_production = __commonJS({
     function isValidElement(object) {
       return "object" === typeof object && null !== object && object.$$typeof === REACT_ELEMENT_TYPE;
     }
-    function escape3(key) {
+    function escape3(key2) {
       var escaperLookup = { "=": "=0", ":": "=2" };
-      return "$" + key.replace(/[=:]/g, function(match) {
+      return "$" + key2.replace(/[=:]/g, function(match) {
         return escaperLookup[match];
       });
     }
@@ -1010,11 +2337,11 @@ var require_react_production = __commonJS({
     }
     function mapChildren(children, func, context) {
       if (null == children) return children;
-      var result = [], count = 0;
-      mapIntoArray(children, result, "", "", function(child) {
+      var result2 = [], count = 0;
+      mapIntoArray(children, result2, "", "", function(child) {
         return func.call(context, child, count++);
       });
-      return result;
+      return result2;
     }
     function lazyInitializer(payload) {
       if (-1 === payload._status) {
@@ -1131,9 +2458,9 @@ var require_react_production = __commonJS({
         throw Error(
           "The argument must be a React element, but you passed " + element + "."
         );
-      var props = assign({}, element.props), key = element.key;
+      var props = assign({}, element.props), key2 = element.key;
       if (null != config)
-        for (propName in void 0 !== config.key && (key = "" + config.key), config)
+        for (propName in void 0 !== config.key && (key2 = "" + config.key), config)
           !hasOwnProperty.call(config, propName) || "key" === propName || "__self" === propName || "__source" === propName || "ref" === propName && void 0 === config.ref || (props[propName] = config[propName]);
       var propName = arguments.length - 2;
       if (1 === propName) props.children = children;
@@ -1142,7 +2469,7 @@ var require_react_production = __commonJS({
           childArray[i] = arguments[i + 2];
         props.children = childArray;
       }
-      return ReactElement(element.type, key, props);
+      return ReactElement(element.type, key2, props);
     };
     exports.createContext = function(defaultValue) {
       defaultValue = {
@@ -1161,9 +2488,9 @@ var require_react_production = __commonJS({
       return defaultValue;
     };
     exports.createElement = function(type, config, children) {
-      var propName, props = {}, key = null;
+      var propName, props = {}, key2 = null;
       if (null != config)
-        for (propName in void 0 !== config.key && (key = "" + config.key), config)
+        for (propName in void 0 !== config.key && (key2 = "" + config.key), config)
           hasOwnProperty.call(config, propName) && "key" !== propName && "__self" !== propName && "__source" !== propName && (props[propName] = config[propName]);
       var childrenLength = arguments.length - 2;
       if (1 === childrenLength) props.children = children;
@@ -1175,7 +2502,7 @@ var require_react_production = __commonJS({
       if (type && type.defaultProps)
         for (propName in childrenLength = type.defaultProps, childrenLength)
           void 0 === props[propName] && (props[propName] = childrenLength[propName]);
-      return ReactElement(type, key, props);
+      return ReactElement(type, key2, props);
     };
     exports.createRef = function() {
       return { current: null };
@@ -1191,19 +2518,19 @@ var require_react_production = __commonJS({
         _init: lazyInitializer
       };
     };
-    exports.memo = function(type, compare) {
+    exports.memo = function(type, compare2) {
       return {
         $$typeof: REACT_MEMO_TYPE,
         type,
-        compare: void 0 === compare ? null : compare
+        compare: void 0 === compare2 ? null : compare2
       };
     };
     exports.startTransition = startTransition;
     exports.unstable_useCacheRefresh = function() {
       return ReactSharedInternals.H.useCacheRefresh();
     };
-    exports.use = function(usable) {
-      return ReactSharedInternals.H.use(usable);
+    exports.use = function(usable2) {
+      return ReactSharedInternals.H.use(usable2);
     };
     exports.useActionState = function(action, initialState, permalink) {
       return ReactSharedInternals.H.useActionState(action, initialState, permalink);
@@ -1343,29 +2670,29 @@ function debounce2(func, debounceMs = 0, options = {}) {
   const edges = Array(2);
   if (leading) edges[0] = "leading";
   if (trailing) edges[1] = "trailing";
-  let result = void 0;
+  let result2 = void 0;
   let pendingAt = null;
   const _debounced = debounce(function(...args) {
-    result = func.apply(this, args);
+    result2 = func.apply(this, args);
     pendingAt = null;
   }, debounceMs, { edges });
   const debounced = function(...args) {
     if (maxWait != null) {
       if (pendingAt === null) pendingAt = Date.now();
       if (Date.now() - pendingAt >= maxWait) {
-        if (leading || trailing) result = func.apply(this, args);
+        if (leading || trailing) result2 = func.apply(this, args);
         pendingAt = Date.now();
         _debounced.cancel();
         _debounced.schedule();
-        return result;
+        return result2;
       }
     }
     _debounced.apply(this, args);
-    return result;
+    return result2;
   };
   const flush = () => {
     _debounced.flush();
-    return result;
+    return result2;
   };
   debounced.cancel = _debounced.cancel;
   debounced.flush = flush;
@@ -1464,7 +2791,7 @@ __export(base_exports, {
   synchronizedOutput: () => synchronizedOutput
 });
 import process2 from "node:process";
-import os4 from "node:os";
+import os5 from "node:os";
 var ESC, OSC, BEL, SEP, isTerminalApp, isWindows2, isTmux, cwdFunction, wrapOsc, cursorTo, cursorMove, cursorUp, cursorDown, cursorForward, cursorBackward, cursorLeft, cursorSavePosition, cursorRestorePosition, cursorGetPosition, cursorNextLine, cursorPrevLine, cursorHide, cursorShow, eraseLines, eraseEndLine, eraseStartLine, eraseLine, eraseDown, eraseUp, eraseScreen, scrollUp, scrollDown, clearScreen, clearViewport, isOldWindows, clearTerminal, enterAlternativeScreen, exitAlternativeScreen, beginSynchronizedOutput, endSynchronizedOutput, synchronizedOutput, beep, link, image, iTerm, ConEmu, setCwd;
 var init_base = __esm({
   "node_modules/ansi-escapes/base.js"() {
@@ -1547,9 +2874,9 @@ var init_base = __esm({
       if (isBrowser || !isWindows2) {
         return false;
       }
-      const parts = os4.release().split(".");
-      const major = Number(parts[0]);
-      const build = Number(parts[2] ?? 0);
+      const parts2 = os5.release().split(".");
+      const major = Number(parts2[0]);
+      const build = Number(parts2[2] ?? 0);
       if (major < 10) {
         return true;
       }
@@ -1623,7 +2950,7 @@ import { env } from "node:process";
 var check, isInCi, is_in_ci_default;
 var init_is_in_ci = __esm({
   "node_modules/is-in-ci/index.js"() {
-    check = (key) => key in env && env[key] !== "0" && env[key] !== "false";
+    check = (key2) => key2 in env && env[key2] !== "0" && env[key2] !== "false";
     isInCi = check("CI") || check("CONTINUOUS_INTEGRATION");
     is_in_ci_default = isInCi;
   }
@@ -1631,8 +2958,8 @@ var init_is_in_ci = __esm({
 
 // node_modules/auto-bind/index.js
 function autoBind(self, { include, exclude } = {}) {
-  const filter = (key) => {
-    const match = (pattern) => typeof pattern === "string" ? key === pattern : pattern.test(key);
+  const filter = (key2) => {
+    const match = (pattern) => typeof pattern === "string" ? key2 === pattern : pattern.test(key2);
     if (include) {
       return include.some(match);
     }
@@ -1641,13 +2968,13 @@ function autoBind(self, { include, exclude } = {}) {
     }
     return true;
   };
-  for (const [object, key] of getAllProperties(self.constructor.prototype)) {
-    if (key === "constructor" || !filter(key)) {
+  for (const [object, key2] of getAllProperties(self.constructor.prototype)) {
+    if (key2 === "constructor" || !filter(key2)) {
       continue;
     }
-    const descriptor = Reflect.getOwnPropertyDescriptor(object, key);
+    const descriptor = Reflect.getOwnPropertyDescriptor(object, key2);
     if (descriptor && typeof descriptor.value === "function") {
-      self[key] = self[key].bind(self);
+      self[key2] = self[key2].bind(self);
     }
   }
   return self;
@@ -1658,8 +2985,8 @@ var init_auto_bind = __esm({
     getAllProperties = (object) => {
       const properties = /* @__PURE__ */ new Set();
       do {
-        for (const key of Reflect.ownKeys(object)) {
-          properties.add([object, key]);
+        for (const key2 of Reflect.ownKeys(object)) {
+          properties.add([object, key2]);
         }
       } while ((object = Reflect.getPrototypeOf(object)) && object !== Object.prototype);
       return properties;
@@ -2012,12 +3339,12 @@ var init_yoga_wasm_base64_esm = __esm({
           ca(a);
           throw a;
         }
-        function ua(a) {
+        function ua2(a) {
           return a.startsWith("data:application/octet-stream;base64,");
         }
         var H;
         H = "data:application/octet-stream;base64,AGFzbQEAAAABugM3YAF/AGACf38AYAF/AX9gA39/fwBgAn98AGACf38Bf2ADf39/AX9gBH9/f30BfWADf398AGAAAGAEf39/fwBgAX8BfGACf38BfGAFf39/f38Bf2AAAX9gA39/fwF9YAZ/f31/fX8AYAV/f39/fwBgAn9/AX1gBX9/f319AX1gAX8BfWADf35/AX5gB39/f39/f38AYAZ/f39/f38AYAR/f39/AX9gBn9/f319fQF9YAR/f31/AGADf399AX1gBn98f39/fwF/YAR/fHx/AGACf30AYAh/f39/f39/fwBgDX9/f39/f39/f39/f38AYAp/f39/f39/f39/AGAFf39/f38BfGAEfHx/fwF9YA1/fX1/f399fX9/f39/AX9gB39/f319f38AYAJ+fwF/YAN/fX0BfWABfAF8YAN/fHwAYAR/f319AGAHf39/fX19fQF9YA1/fX99f31/fX19fX1/AX9gC39/f39/f399fX19AX9gCH9/f39/f319AGAEf39+fgBgB39/f39/f38Bf2ACfH8BfGAFf398fH8AYAN/f38BfGAEf39/fABgA39/fQBgBn9/fX99fwF/ArUBHgFhAWEAHwFhAWIAAwFhAWMACQFhAWQAFgFhAWUAEQFhAWYAIAFhAWcAAAFhAWgAIQFhAWkAAwFhAWoAAAFhAWsAFwFhAWwACgFhAW0ABQFhAW4AAwFhAW8AAQFhAXAAFwFhAXEABgFhAXIAAAFhAXMAIgFhAXQACgFhAXUADQFhAXYAFgFhAXcAAgFhAXgAAwFhAXkAGAFhAXoAAgFhAUEAAQFhAUIAEQFhAUMAAQFhAUQAAAOiAqACAgMSBwcACRkDAAoRBgYKEwAPDxMBBiMTCgcHGgMUASQFJRQHAwMKCgMmAQYYDxobFAAKBw8KBwMDAgkCAAAFGwACBwIHBgIDAQMIDAABKAkHBQURACkZASoAAAIrLAIALQcHBy4HLwkFCgMCMA0xAgMJAgACAQYKAQIBBQEACQIFAQEABQAODQ0GFQIBHBUGAgkCEAAAAAUyDzMMBQYINAUCAwUODg41AgMCAgIDBgICNgIBDAwMAQsLCwsLCx0CAAIAAAABABABBQICAQMCEgMMCwEBAQEBAQsLAQICAwICAgICAgIDAgIICAEICAgEBAQEBAQEBAQABAQABAQEBAAE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GiABQQA2AvADIAFCADcC6AMgAigC7AMiAyACKALoAyIERwRAIAMgBGsiBEEASA0FIAEgBBAeIgM2AuwDIAEgAzYC6AMgASADIARqNgLwAyACKALoAyIEIAIoAuwDIghHBEADQCADIAQoAgA2AgAgA0EEaiEDIARBBGoiBCAIRw0ACwsgASADNgLsAwsgASACKQL0AzcC9AMgASACKAKEBDYChAQgASACKQL8AzcC/AMgAUEANgLkAwsgBSABNgIAIAEgADYC5AMLIAZBAWohBiAFQQRqIgUgB0cNAAsLDwsQAgALUAACQAJAAkACQAJAIAIOBAQAAQIDCyAAIAEgAUEwahBDDwsgACABIAFBMGogAxBEDwsgACABIAFBMGoQQg8LECQACyAAIAEgAUEwaiADEEULcAIBfwF9IwBBEGsiBCQAIARBCGogACABQQJ0QdwlaigCACACEDZDAADAfyEFAkACQAJAIAQtAAxBAWsOAgABAgsgBCoCCCEFDAELIAQqAgggA5RDCtcjPJQhBQsgBEEQaiQAIAVDAAAAACAFIAVbGwt5AgF/AX0jAEEQayIDJAAgA0EIaiAAIAFBAnRB7CVqKAIAIAIQU0MAAMB/IQQCQAJAAkAgAy0ADEEBaw4CAAECCyADKgIIIQQMAQsgAyoCCEMAAAAAlEMK1yM8lCEECyADQRBqJAAgBEMAAAAAl0MAAAAAIAQgBFsbC1QAAkACQAJAAkACQCACDgQEAAECAwsgACABIAFBwgBqEEMPCyAAIAEgAUHCAGogAxBEDwsgACABIAFBwgBqEEIPCxAkAAsgACABIAFBwgBqIAMQRQsvACAAIAJFQQF0IgIgASADEGAgACACIAEQS5IgACACIAEgAxB/IAAgAiABEFKSkgvOAQIDfwJ9IwBBEGsiAyQAQQEhBCADQQhqIABB/ABqIgUgACABQQF0akH2AGoiAS8BABAfAkACQCADKgIIIgcgAioCACIGXARAIAcgB1sEQCACLQAEIQIMAgsgBiAGXCEECyACLQAEIQIgBEUNACADLQAMIAJB/wFxRg0BCyAFIAEgBiACEDkDQCAALQAAIgFBBHENASAAIAFBBHI6AAAgACgCECIBBEAgACABEQAACyAAQYCAgP4HNgKcASAAKALkAyIADQALCyADQRBqJAALzgECA38CfSMAQRBrIgMk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AWsOAgABAgsgBCoCCCEFDAELIAQqAgggA5RDCtcjPJQhBQsgBEEQaiQAIAVDAAAAACAFIAVbGwscACAAIAFBCCACpyACQiCIpyADpyADQiCIpxAVCwUAEFgACzkAIABFBEBBAA8LAn8gAUGAf3FBgL8DRiABQf8ATXJFBEBB/DtBGTYCAEF/DAELIAAgAToAAEEBCwvEAgACQAJAAkACQAJAAkACQAJAAkACQAJAAkACQCABQQlrDhIACgsMCgsCAwQFDAsMDAoLBwgJCyACIAIoAgAiAUEEajYCACAAIAEoAgA2AgAPCwALIAIgAigCACIBQQRqNgIAIAAgATIBADcDAA8LIAIgAigCACIBQQRqNgIAIAAgATMBADcDAA8LIAIgAigCACIBQQRqNgIAIAAgATAAADcDAA8LIAIgAigCACIBQQRqNgIAIAAgATEAADcDAA8LAAsgAiACKAIAQQdqQXhxIgFBCGo2AgAgACABKwMAOQMADwsgACACIAMRAQALDwsgAiACKAIAIgFBBGo2AgAgACABNAIANwMADwsgAiACKAIAIgFBBGo2AgAgACABNQIANwMADwsgAiACKAIAQQdqQXhxIgFBCGo2AgAgACABKQMANwMAC84BAgN/An0jAEEQayIDJABBASEEIANBCGogAEH8AGoiBSAAIAFBAXRqQegAaiIBLwEAEB8CQAJAIAMqAggiByACKgIAIgZcBEAgByAHWwRAIAItAAQhAgwCCyAGIAZcIQQLIAItAAQhAiAERQ0AIAMtAAwgAkH/AXFGDQELIAUgASAGIAIQOQNAIAAtAAAiAUEEcQ0BIAAgAUEEcjoAACAAKAIQIgEEQCAAIAERAAALIABBgICA/gc2ApwBIAAoAuQDIgANAAsLIANBEGokAAtdAQR/IAAoAgAhAgNAIAIsAAAiAxBXBEBBfyEEIAAgAkEBaiICNgIAIAFBzJmz5gBNBH9BfyADQTBrIgMgAUEKbCIEaiADIARB/////wdzShsFIAQLIQEMAQsLIAELrhQCEn8BfiMAQdAAayIIJAAgCCABNgJMIAhBN2ohFyAIQThqIRQCQAJAAkACQANAIAEhDSAHIA5B/////wdzSg0BIAcgDmohDgJAAkACQCANIgctAAAiCQRAA0ACQAJAIAlB/wFxIgFFBEAgByEBDAELIAFBJUcNASAH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IQEgAEIANwIEIAAgATYCACABIAA2AgQgAkEQaiQAIAALGwEBfyAABEAgACgCACIBBEAgARAjCyAAECMLC0kBAn9BBBAeIQFBIBAeIgBBADYCHCAAQoCAgICAgIDAPzcCFCAAQgA3AgwgAEEAOgAIIABBAzYCBCAAQQA2AgAgASAANgIAIAELIAAgAkEFR0EAIAIbRQRAQbgwIAMgBBBJDwsgAyAEEHALIgEBfiABIAKtIAOtQiCGhCAEIAARFQAiBUIgiKckASAFpwuoAQEFfyAAKAJUIgMoAgAhBSADKAIEIgQgACgCFCAAKAIcIgdrIgYgBCAGSRsiBgRAIAUgByAGECsaIAMgAygCACAGaiIFNgIAIAMgAygCBCAGayIENgIECyAEIAIgAiAESxsiBARAIAUgASAEECsaIAMgAygCACAEaiIFNgIAIAMgAygCBCAEazYCBAsgBUEAOgAAIAAgACgCLCIBNgIcIAAgATYCFCACCwQAQgALBABBAAuKBQIGfgJ/IAEgASgCAEEHakF4cSIBQRBqNgIAIAAhCSABKQMAIQMgASkDCCEGIwBBIGsiCCQAAkAgBkL///////////8AgyIEQoCAgICAgMCAPH0gBEKAgICAgIDA/8MAfVQEQCAGQgSGIANCPIiEIQQgA0L//////////w+DIgNCgYCAgICAgIAIWgRAIARCgYCAgICAgIDAAHwhAgwCCyAEQoCAgICAgICAQH0hAiADQoCAgICAgICACFINASACIARCAYN8IQIMAQsgA1AgBEKAgICAgIDA//8AVCAEQoCAgICAgMD//wBRG0UEQCAGQgSGIANCPIiEQv////////8Dg0KAgICAgICA/P8AhCECDAELQoCAgICAgID4/wAhAiAEQv///////7//wwBWDQBCACECIARCMIinIgBBkfcASQ0AIAMhAiAGQv///////z+DQoCAgICAgMAAhCIFIQcCQCAAQYH3AGsiAUHAAHEEQCACIAFBQGqthiEHQgAhAgwBCyABRQ0AIAcgAa0iBIYgAkHAACABa62IhCEHIAIgBIYhAgsgCCACNwMQIAggBzcDGAJAQYH4ACAAayIAQcAAcQRAIAUgAEFAaq2IIQNCACEFDAELIABFDQAgBUHAACAAa62GIAMgAK0iAoiEIQMgBSACiCEFCyAIIAM3AwAgCCAF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ASAAKAIAIQAgASACQQFxBH8gASgCACAAaigCAAUgAAsRCwALYQECfyMAQRBrIgIkACABIAAoAgQiA0EBdWohASAAKAIAIQAgAiABIANBAXEEfyABKAIAIABqKAIABSAACxEBAEEQEB4iACACKQMINwMIIAAgAikDADcDACACQRBqJAAgAAtjAQJ/IwBBEGsiAyQAIAEgACgCBCIEQQF1aiEBIAAoAgAhACADIAEgAiAEQQFxBH8gASgCACAAaigCAAUgAAsRAwBBEBAeIgAgAykDCDcDCCAAIAMpAwA3AwAgA0EQaiQAIAALNwEBfyABIAAoAgQiA0EBdWohASAAKAIAIQAgASACIANBAXEEfyABKAIAIABqKAIABSAACxEEAAs5AQF/IAEgACgCBCIEQQF1aiEBIAAoAgAhACABIAIgAyAEQQFxBH8gASgCACAAaigCAAUgAAsRCAALCQAgASAAEQIACwUAQcM7Cw8AIAEgACgCAGogAjYCAAsNACABIAAoAgBqKAIACxgBAX9BEBAeIgBCADcDCCAAQQA2AgAgAAsYAQF/QRAQHiIAQgA3AwAgAEIANwMIIAALDABBMBAeQQBBMBAqCzcBAX8gASAAKAIEIgNBAXVqIQEgACgCACEAIAEgAiADQQFxBH8gASgCACAAaigCAAUgAAsRHgALBQBBvjsLIQAgACABKAIAIAEgASwAC0EASBtBuzsgAigCABAQNgIACyoBAX9BDBAeIgFBADoABCABIAAoAgA2AgggAEEANgIAIAFB2Cc2AgAgAQsFAEG7OwsFAEG4OwshACAAIAEoAgAgASABLAALQQBIG0GkOyACKAIAEBA2AgAL2AEBBH8jAEEgayIDJAAgASgCACIEQfD///8HSQRAAkACQCAEQQtPBEAgBEEPckEBaiIFEB4hBiADIAVBgICAgHhyNgIQIAMgBjYCCCADIAQ2AgwgBCAGaiEFDAELIAMgBDoAEyADQQhqIgYgBGohBSAERQ0BCyAGIAFBBGogBBArGgsgBUEAOgAAIAMgAjYCACADQRhqIANBCGogAyAAEQMAIAMoAhgQHSADKAIYIgAQBiADKAIAEAYgAywAE0EASARAIAMoAggQIwsgA0EgaiQAIAAPCxACAAsqAQF/QQwQHiIBQQA6AAQgASAAKAIANgIIIABBADYCACABQeAmNgIA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AkEIaiAIIAYQHyACIAcgAC8AABAfQQEhAyACKgIIIgogAioCACILXAR/IAogClsNAyALIAtcBSADC0UNAiACLQAMIAItAARHDQILIABBAmohAEEBIQMgBCEGQQEhBCAGRQ0ACyABLwB6IgBBB3FFBEAgBS0AekEHcUUNAgsgCCAAECAiCiAHIAUvAHoQICILWw0BIAogClsNACALIAtcDQELIAFBFGogBUEUakHoABArGiABQfwAaiAFQfwAahCgAQNAIAEtAAAiAEEEcQ0BIAEgAEEEcjoAACABKAIQIgAEQCABIAARAAALIAFBgICA/gc2ApwBIAEoAuQDIgENAAsLIAJBEGokAAvGAwEEfyMAQaAEayICJAAgACgCBCEBIABBADYCBCABBEAgASABKAIAKAIEEQAACyAAKAIIIQEgAEEANgIIIAEEQCABIAEoAgAoAgQRAAALAkAgACgCACIAKALoAyAAKALsA0YEQCAAKALkAw0BIAAgAkEYaiAAKAL0AxBcIgEpAgA3AgAgACABKAIQNgIQIAAgASkCCDcCCCAAQRRqIAFBFGpB6AAQKxogACABKQKMATcCjAEgACABKQKEATcChAEgACABKQJ8NwJ8IAEoApQBIQQgAUEANgKUASAAKAKUASEDIAAgBDYClAEgAwRAIAMQWwsgAEGYAWogAUGYAWpB0AIQKxogACgC6AMiAwRAIAAgAzYC7AMgAxAjCyAAIAEoAugDNgLoAyAAIAEoAuwDNgLsAyAAIAEoAvADNgLwAyABQQA2AvADIAFCADcC6AMgACABKQL8AzcC/AMgACABKQL0AzcC9AMgACABKAKEBDYChAQgASgClAEhACABQQA2ApQBIAAEQCAAEFsLIAJBoARqJAAPCyACQfAcNgIQIABBBUHYJSACQRBqECwQJAALIAJB5hE2AgAgAEEFQdglIAIQLBAkAAsLAEEMEB4gABCiAQsLAEEMEB5BABCiAQsNACAAKAIALQAIQQFxCwoAIAAoAgAoAhQLGQAgAUH/AXEEQBACAAsgACgCACgCEEEBcQsYACAAKAIAIgAgAC0ACEH+AXEgAXI6AAgLJgAgASAAKAIAIgAoAhRHBEAgACABNgIUIAAgACgCDEEBajYCDAsLkgEBAn8jAEEQayICJAAgACgCACEAIAFDAAAAAGAEQCABIAAqAhhcBEAgACABOAIYIAAgACgCDEEBajYCDAsgAkEQaiQADwsgAkGIFDYCACMAQRBrIgMkACADIAI2AgwCQCAARQRAQbgwQdglIAIQSRoMAQsgAEEAQQVB2CUgAiAAKAIEEQ0AGgsgA0EQaiQAECQACz8AIAFB/wFxRQRAIAIgACgCACIAKAIQIgFBAXFHBEAgACABQX5xIAJyNgIQIAAgACgCDEEBajYCDAsPCxACAAsL4CYjAEGACAuBHk9ubHkgbGVhZiBub2RlcyB3aXRoIGN1c3RvbSBtZWFzdXJlIGZ1bmN0aW9ucyBzaG91bGQgbWFudWFsbHkgbWFyayB0aGVtc2VsdmVzIGFzIGRpcnR5AGlzRGlydHkAbWFya0RpcnR5AGRlc3Ryb3kAc2V0RGlzcGxheQBnZXREaXNwbGF5AHNldEZsZXgALSsgICAwWDB4AC0wWCswWCAwWC0weCsweCAweABzZXRGbGV4R3JvdwBnZXRGbGV4R3JvdwBzZXRPdmVyZmxvdwBnZXRPdmVyZmxvdwBoYXNOZXdMYXlvdXQAY2FsY3VsYXRlTGF5b3V0AGdldENvbXB1dGVkTGF5b3V0AHVuc2lnbmVkIHNob3J0AGdldENoaWxkQ291bnQAdW5zaWduZWQgaW50AHNldEp1c3RpZnlDb250ZW50AGdldEp1c3RpZnlDb250ZW50AGF2YWlsYWJsZUhlaWdodCBpcyBpbmRlZmluaXRlIHNvIGhlaWdodFNpemluZ01vZGUgbXVzdCBiZSBTaXppbmdNb2RlOjpNYXhDb250ZW50AGF2YWlsYWJsZVdpZHRoIGlzIGluZGVmaW5pdGUgc28gd2lkdGhTaXppbmdNb2RlIG11c3QgYmUgU2l6aW5nTW9kZTo6TWF4Q29udGVudABzZXRBbGlnbkNvbnRlbnQAZ2V0QWxpZ25Db250ZW50AGdldFBhcmVudABpbXBsZW1lbnQAc2V0TWF4SGVpZ2h0UGVyY2VudABzZXRIZWlnaHRQZXJjZW50AHNldE1pbkhlaWdodFBlcmNlbnQAc2V0RmxleEJhc2lzUGVyY2VudABzZXRHYXBQZXJjZW50AHNldFBvc2l0aW9uUGVyY2VudABzZXRNYXJnaW5QZXJjZW50AHNldE1heFdpZHRoUGVyY2VudABzZXRXaWR0aFBlcmNlbnQAc2V0TWluV2lkdGhQZXJjZW50AHNldFBhZGRpbmdQZXJjZW50AGhhbmRsZS50eXBlKCkgPT0gU3R5bGVWYWx1ZUhhbmRsZTo6VHlwZTo6UG9pbnQgfHwgaGFuZGxlLnR5cGUoKSA9PSBTdHlsZVZhbHVlSGFuZGxlOjpUeXBlOjpQZXJjZW50AGNyZWF0ZURlZmF1bHQAdW5pdAByaWdodABoZWlnaHQAc2V0TWF4SGVpZ2h0AGdldE1heEhlaWdodABzZXRIZWlnaHQAZ2V0SGVpZ2h0AHNldE1pbkhlaWdodABnZXRNaW5IZWlnaHQAZ2V0Q29tcHV0ZWRIZWlnaHQAZ2V0Q29tcHV0ZWRSaWdodABsZWZ0AGdldENvbXB1dGVkTGVmdAByZXNldABfX2Rlc3RydWN0AGZsb2F0AHVpbnQ2NF90AHVzZVdlYkRlZmF1bHRzAHNldFVzZVdlYkRlZmF1bHRzAHNldEFsaWduSXRlbXMAZ2V0QWxpZ25JdGVtcwBzZXRGbGV4QmFzaXMAZ2V0RmxleEJhc2lzAENhbm5vdCBnZXQgbGF5b3V0IHByb3BlcnRpZXMgb2YgbXVsdGktZWRnZSBzaG9ydGhhbmRzAHNldFBvaW50U2NhbGVGYWN0b3IATWVhc3VyZUNhbGxiYWNrV3JhcHBlcgBEaXJ0aWVkQ2FsbGJhY2tXcmFwcGVyAENhbm5vdCByZXNldCBhIG5vZGUgc3RpbGwgYXR0YWNoZWQgdG8gYSBvd25lcgBzZXRCb3JkZXIAZ2V0Qm9yZGVyAGdldENvbXB1dGVkQm9yZGVyAGdldE51bWJlcgBoYW5kbGUudHlwZSgpID09IFN0eWxlVmFsdWVIYW5kbGU6OlR5cGU6Ok51bWJlcgB1bnNpZ25lZCBjaGFyAHRvcABnZXRDb21wdXRlZFRvcABzZXRGbGV4V3JhcABnZXRGbGV4V3JhcABzZXRHYXAAZ2V0R2FwACVwAHNldEhlaWdodEF1dG8Ac2V0RmxleEJhc2lzQXV0bwBzZXRQb3NpdGlvbkF1dG8Ac2V0TWFyZ2luQXV0bwBzZXRXaWR0aEF1dG8AU2NhbGUgZmFjdG9yIHNob3VsZCBub3QgYmUgbGVzcyB0aGFuIHplcm8Ac2V0QXNwZWN0UmF0aW8AZ2V0QXNwZWN0UmF0aW8Ac2V0UG9zaXRpb24AZ2V0UG9zaXRpb24Abm90aWZ5T25EZXN0cnVjdGlvbgBzZXRGbGV4RGlyZWN0aW9uAGdldEZsZXhEaXJlY3Rpb24Ac2V0RGlyZWN0aW9uAGdldERpcmVjdGlvbgBzZXRNYXJnaW4AZ2V0TWFyZ2luAGdldENvbXB1dGVkTWFyZ2luAG1hcmtMYXlvdXRTZWVuAG5hbgBib3R0b20AZ2V0Q29tcHV0ZWRCb3R0b20AYm9vbABlbXNjcmlwdGVuOjp2YWwAc2V0RmxleFNocmluawBnZXRGbGV4U2hyaW5rAHNldEFsd2F5c0Zvcm1zQ29udGFpbmluZ0Jsb2NrAE1lYXN1cmVDYWxsYmFjawBEaXJ0aWVkQ2FsbGJhY2sAZ2V0TGVuZ3RoAHdpZHRoAHNldE1heFdpZHRoAGdldE1heFdpZHRoAHNldFdpZHRoAGdldFdpZHRoAHNldE1pbldpZHRoAGdldE1pbldpZHRoAGdldENvbXB1dGVkV2lkdGgAcHVzaAAvaG9tZS9ydW5uZXIvd29yay95b2dhL3lvZ2EvamF2YXNjcmlwdC8uLi95b2dhL3N0eWxlL1NtYWxsVmFsdWVCdWZmZXIuaAAvaG9tZS9ydW5uZXIvd29yay95b2dhL3lvZ2EvamF2YXNjcmlwdC8uLi95b2dhL3N0eWxlL1N0eWxlVmFsdWVQb29sLmgAdW5zaWduZWQgbG9uZwBzZXRCb3hTaXppbmcAZ2V0Qm94U2l6aW5nAHN0ZDo6d3N0cmluZwBzdGQ6OnN0cmluZwBzdGQ6OnUxNnN0cmluZwBzdGQ6OnUzMnN0cmluZwBzZXRQYWRkaW5nAGdldFBhZGRpbmcAZ2V0Q29tcHV0ZWRQYWRkaW5nAFRyaWVkIHRvIGNvbnN0cnVjdCBZR05vZGUgd2l0aCBudWxsIGNvbmZpZwBBdHRlbXB0aW5nIHRvIGNvbnN0cnVjdCBOb2RlIHdpdGggbnVsbCBjb25maWcAY3JlYXRlV2l0aENvbmZpZwBpbmYAc2V0QWxpZ25TZWxmAGdldEFsaWduU2VsZgBTaXplAHZhbHVlAFZhbHVlAGNyZWF0ZQBtZWFzdXJlAHNldFBvc2l0aW9uVHlwZQBnZXRQb3NpdGlvblR5cGUAaXNSZWZlcmVuY2VCYXNlbGluZQBzZXRJc1JlZmVyZW5jZUJhc2VsaW5lAGNvcHlTdHlsZQBkb3VibGUATm9kZQBleHRlbmQAaW5zZXJ0Q2hpbGQAZ2V0Q2hpbGQAcmVtb3ZlQ2hpbGQAdm9pZABzZXRFeHBlcmltZW50YWxGZWF0dXJlRW5hYmxlZABpc0V4cGVyaW1lbnRhbEZlYXR1cmVFbmFibGVkAGRpcnRpZWQAQ2Fubm90IHJlc2V0IGEgbm9kZSB3aGljaCBzdGlsbCBoYXMgY2hpbGRyZW4gYXR0YWNoZWQAdW5zZXRNZWFzdXJlRnVuYwB1bnNldERpcnRpZWRGdW5jAHNldEVycmF0YQBnZXRFcnJhdGEATWVhc3VyZSBmdW5jdGlvbiByZXR1cm5lZCBhbiBpbnZhbGlkIGRpbWVuc2lvbiB0byBZb2dhOiBbd2lkdGg9JWYsIGhlaWdodD0lZl0ARXhwZWN0IGN1c3RvbSBiYXNlbGluZSBmdW5jdGlvbiB0byBub3QgcmV0dXJuIE5hTgBOQU4ASU5GAGVtc2NyaXB0ZW46Om1lbW9yeV92aWV3PHNob3J0PgBlbXNjcmlwdGVuOjptZW1vcnlfdmlldzx1bnNpZ25lZCBzaG9ydD4AZW1zY3JpcHRlbjo6bWVtb3J5X3ZpZXc8aW50PgBlbXNjcmlwdGVuOjptZW1vcnlfdmlldzx1bnNpZ25lZCBpbnQ+AGVtc2NyaXB0ZW46Om1lbW9yeV92aWV3PGZsb2F0PgBlbXNjcmlwdGVuOjptZW1vcnlfdmlldzx1aW50OF90PgBlbXNjcmlwdGVuOjptZW1vcnlfdmlldzxpbnQ4X3Q+AGVtc2NyaXB0ZW46Om1lbW9yeV92aWV3PHVpbnQxNl90PgBlbXNjcmlwdGVuOjptZW1vcnlfdmlldzxpbnQxNl90PgBlbXNjcmlwdGVuOjptZW1vcnlfdmlldzx1aW50MzJfdD4AZW1zY3JpcHRlbjo6bWVtb3J5X3ZpZXc8aW50MzJfdD4AZW1zY3JpcHRlbjo6bWVtb3J5X3ZpZXc8Y2hhcj4AZW1zY3JpcHRlbjo6bWVtb3J5X3ZpZXc8dW5zaWduZWQgY2hhcj4Ac3RkOjpiYXNpY19zdHJpbmc8dW5zaWduZWQgY2hhcj4AZW1zY3JpcHRlbjo6bWVtb3J5X3ZpZXc8c2lnbmVk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";
-        if (!ua(H)) {
+        if (!ua2(H)) {
           var va = H;
           H = h.locateFile ? h.locateFile(va, q) : q + va;
         }
@@ -2025,7 +3352,7 @@ var init_yoga_wasm_base64_esm = __esm({
           var a = H;
           try {
             if (a == H && w) return new Uint8Array(w);
-            if (ua(a)) try {
+            if (ua2(a)) try {
               var b = xa(a.slice(37)), c = new Uint8Array(b.length);
               for (a = 0; a < b.length; ++a) c[a] = b.charCodeAt(a);
               var d = c;
@@ -2158,14 +3485,14 @@ var init_yoga_wasm_base64_esm = __esm({
           b.P && b.O || Ta("makeClassHandle requires ptr and ptrType");
           !!b.U !== !!b.T && Ta("Both smartPtrType and smartPtr must be specified");
           b.count = { value: 1 };
-          return T(Object.create(a, { M: { value: b } }));
+          return T2(Object.create(a, { M: { value: b } }));
         }
-        function T(a) {
-          if ("undefined" === typeof FinalizationRegistry) return T = (b) => b, a;
+        function T2(a) {
+          if ("undefined" === typeof FinalizationRegistry) return T2 = (b) => b, a;
           Na = new FinalizationRegistry((b) => {
             Oa(b.M);
           });
-          T = (b) => {
+          T2 = (b) => {
             var c = b.M;
             c.T && Na.register(b, { M: c }, b);
             return b;
@@ -2173,7 +3500,7 @@ var init_yoga_wasm_base64_esm = __esm({
           Ma = (b) => {
             Na.unregister(b);
           };
-          return T(a);
+          return T2(a);
         }
         var Va = {};
         function Wa(a) {
@@ -2363,9 +3690,9 @@ var init_yoga_wasm_base64_esm = __esm({
             k = true;
             break;
           }
-          var m = "void" !== b[0].name, l2 = f2 - 2, n = Array(l2), p = [], r = [];
+          var m = "void" !== b[0].name, l4 = f2 - 2, n = Array(l4), p = [], r = [];
           return function() {
-            arguments.length !== l2 && L("function " + a + " called with " + arguments.length + " arguments, expected " + l2 + " args!");
+            arguments.length !== l4 && L("function " + a + " called with " + arguments.length + " arguments, expected " + l4 + " args!");
             r.length = 0;
             p.length = g ? 2 : 1;
             p[0] = e;
@@ -2373,7 +3700,7 @@ var init_yoga_wasm_base64_esm = __esm({
               var u = b[1].toWireType(r, this);
               p[1] = u;
             }
-            for (var t2 = 0; t2 < l2; ++t2) n[t2] = b[t2 + 2].toWireType(r, arguments[t2]), p.push(n[t2]);
+            for (var t2 = 0; t2 < l4; ++t2) n[t2] = b[t2 + 2].toWireType(r, arguments[t2]), p.push(n[t2]);
             t2 = d.apply(null, p);
             if (k) Wa(r);
             else for (var y = g ? 1 : 2; y < b.length; y++) {
@@ -2542,7 +3869,7 @@ var init_yoga_wasm_base64_esm = __esm({
         X.prototype.clone = function() {
           this.M.O || $a(this);
           if (this.M.aa) return this.M.count.value += 1, this;
-          var a = T, b = Object, c = b.create, d = Object.getPrototypeOf(this), e = this.M;
+          var a = T2, b = Object, c = b.create, d = Object.getPrototypeOf(this), e = this.M;
           a = a(c.call(b, d, { M: { value: { count: e.count, $: e.$, aa: e.aa, O: e.O, P: e.P, T: e.T, U: e.U } } }));
           a.M.count.value += 1;
           a.M.$ = false;
@@ -2625,31 +3952,31 @@ var init_yoga_wasm_base64_esm = __esm({
             c = M(c);
             var d = [].slice, e = b.N, f2 = e.X, g = e.R.X, k = e.R.constructor;
             a = Ba(a, function() {
-              e.R.ja.forEach(function(l2) {
-                if (this[l2] === g[l2]) throw new Fa("Pure virtual function " + l2 + " must be implemented in JavaScript");
+              e.R.ja.forEach(function(l4) {
+                if (this[l4] === g[l4]) throw new Fa("Pure virtual function " + l4 + " must be implemented in JavaScript");
               }.bind(this));
               Object.defineProperty(this, "__parent", { value: f2 });
               this.__construct.apply(this, d.call(arguments));
             });
             f2.__construct = function() {
               this === f2 && L("Pass correct 'this' to __construct");
-              var l2 = k.implement.apply(void 0, [this].concat(d.call(arguments)));
-              Ma(l2);
-              var n = l2.M;
-              l2.notifyOnDestruction();
+              var l4 = k.implement.apply(void 0, [this].concat(d.call(arguments)));
+              Ma(l4);
+              var n = l4.M;
+              l4.notifyOnDestruction();
               n.aa = true;
               Object.defineProperties(this, { M: { value: n } });
-              T(this);
-              l2 = n.O;
-              l2 = Ia(e, l2);
-              Q.hasOwnProperty(l2) ? L("Tried to register registered instance: " + l2) : Q[l2] = this;
+              T2(this);
+              l4 = n.O;
+              l4 = Ia(e, l4);
+              Q.hasOwnProperty(l4) ? L("Tried to register registered instance: " + l4) : Q[l4] = this;
             };
             f2.__destruct = function() {
               this === f2 && L("Pass correct 'this' to __destruct");
               Ma(this);
-              var l2 = this.M.O;
-              l2 = Ia(e, l2);
-              Q.hasOwnProperty(l2) ? delete Q[l2] : L("Tried to unregister unregistered instance: " + l2);
+              var l4 = this.M.O;
+              l4 = Ia(e, l4);
+              Q.hasOwnProperty(l4) ? delete Q[l4] : L("Tried to unregister unregistered instance: " + l4);
             };
             a.prototype = Object.create(f2);
             for (var m in c) a.prototype[m] = c[m];
@@ -2661,8 +3988,8 @@ var init_yoga_wasm_base64_esm = __esm({
             var c = b.fa, d = b.W, e = b.ia, f2 = e.map((g) => g.ta).concat(e.map((g) => g.za));
             V([a], f2, (g) => {
               var k = {};
-              e.forEach((m, l2) => {
-                var n = g[l2], p = m.ra, r = m.sa, u = g[l2 + e.length], t2 = m.ya, y = m.Aa;
+              e.forEach((m, l4) => {
+                var n = g[l4], p = m.ra, r = m.sa, u = g[l4 + e.length], t2 = m.ya, y = m.Aa;
                 k[m.oa] = { read: (B) => n.fromWireType(p(r, B)), write: (B, ba) => {
                   var I = [];
                   t2(
@@ -2674,14 +4001,14 @@ var init_yoga_wasm_base64_esm = __esm({
                 } };
               });
               return [{ name: b.name, fromWireType: function(m) {
-                var l2 = {}, n;
-                for (n in k) l2[n] = k[n].read(m);
+                var l4 = {}, n;
+                for (n in k) l4[n] = k[n].read(m);
                 d(m);
-                return l2;
-              }, toWireType: function(m, l2) {
-                for (var n in k) if (!(n in l2)) throw new TypeError('Missing field:  "' + n + '"');
+                return l4;
+              }, toWireType: function(m, l4) {
+                for (var n in k) if (!(n in l4)) throw new TypeError('Missing field:  "' + n + '"');
                 var p = c();
-                for (n in k) k[n].write(p, l2[n]);
+                for (n in k) k[n].write(p, l4[n]);
                 null !== m && m.push(d, p);
                 return p;
               }, argPackAdvance: 8, readValueFromPointer: Xa, V: d }];
@@ -2711,11 +4038,11 @@ var init_yoga_wasm_base64_esm = __esm({
               V: null
             });
           },
-          f: function(a, b, c, d, e, f2, g, k, m, l2, n, p, r) {
+          f: function(a, b, c, d, e, f2, g, k, m, l4, n, p, r) {
             n = N(n);
             f2 = Z(e, f2);
             k && (k = Z(g, k));
-            l2 && (l2 = Z(m, l2));
+            l4 && (l4 = Z(m, l4));
             r = Z(p, r);
             var u = Aa(n);
             bb(u, function() {
@@ -2736,7 +4063,7 @@ var init_yoga_wasm_base64_esm = __esm({
               });
               var ba = Object.create(B, { constructor: { value: t2 } });
               t2.prototype = ba;
-              var I = new cb(n, t2, ba, r, y, f2, k, l2);
+              var I = new cb(n, t2, ba, r, y, f2, k, l4);
               y = new Y(n, I, true, false);
               B = new Y(n + "*", I, false, false);
               var lb = new Y(n + " const*", I, false, true);
@@ -2753,14 +4080,14 @@ var init_yoga_wasm_base64_esm = __esm({
             b = N(b);
             f2 = Z(e, f2);
             V([], [a], function(m) {
-              function l2() {
+              function l4() {
                 nb("Cannot call " + n + " due to unbound types", k);
               }
               m = m[0];
               var n = m.name + "." + b;
               b.startsWith("@@") && (b = Symbol[b.substring(2)]);
               var p = m.N.constructor;
-              void 0 === p[b] ? (l2.Z = c - 1, p[b] = l2) : (ab(p, b, n), p[b].S[c - 1] = l2);
+              void 0 === p[b] ? (l4.Z = c - 1, p[b] = l4) : (ab(p, b, n), p[b].S[c - 1] = l4);
               V([], k, function(r) {
                 r = ob(n, [r[0], null].concat(r.slice(1)), null, f2, g);
                 void 0 === p[b].S ? (r.Z = c - 1, p[b] = r) : p[b].S[c - 1] = r;
@@ -2784,9 +4111,9 @@ var init_yoga_wasm_base64_esm = __esm({
               k.N.Y[b - 1] = () => {
                 nb("Cannot construct " + k.name + " due to unbound types", g);
               };
-              V([], g, function(l2) {
-                l2.splice(1, 0, null);
-                k.N.Y[b - 1] = ob(m, l2, null, e, f2);
+              V([], g, function(l4) {
+                l4.splice(1, 0, null);
+                k.N.Y[b - 1] = ob(m, l4, null, e, f2);
                 return [];
               });
               return [];
@@ -2796,18 +4123,18 @@ var init_yoga_wasm_base64_esm = __esm({
             var m = pb(c, d);
             b = N(b);
             f2 = Z(e, f2);
-            V([], [a], function(l2) {
+            V([], [a], function(l4) {
               function n() {
                 nb("Cannot call " + p + " due to unbound types", m);
               }
-              l2 = l2[0];
-              var p = l2.name + "." + b;
+              l4 = l4[0];
+              var p = l4.name + "." + b;
               b.startsWith("@@") && (b = Symbol[b.substring(2)]);
-              k && l2.N.ja.push(b);
-              var r = l2.N.X, u = r[b];
-              void 0 === u || void 0 === u.S && u.className !== l2.name && u.Z === c - 2 ? (n.Z = c - 2, n.className = l2.name, r[b] = n) : (ab(r, b, p), r[b].S[c - 2] = n);
+              k && l4.N.ja.push(b);
+              var r = l4.N.X, u = r[b];
+              void 0 === u || void 0 === u.S && u.className !== l4.name && u.Z === c - 2 ? (n.Z = c - 2, n.className = l4.name, r[b] = n) : (ab(r, b, p), r[b].S[c - 2] = n);
               V([], m, function(t2) {
-                t2 = ob(p, t2, l2, f2, g);
+                t2 = ob(p, t2, l4, f2, g);
                 void 0 === r[b].S ? (t2.Z = c - 2, r[b] = t2) : r[b].S[c - 2] = t2;
                 return [];
               });
@@ -2871,18 +4198,18 @@ var init_yoga_wasm_base64_esm = __esm({
                 var m = f2 + k;
                 if (k == e || 0 == A[m]) {
                   g = g ? z(A, g, m - g) : "";
-                  if (void 0 === l2) var l2 = g;
-                  else l2 += String.fromCharCode(0), l2 += g;
+                  if (void 0 === l4) var l4 = g;
+                  else l4 += String.fromCharCode(0), l4 += g;
                   g = m + 1;
                 }
               }
               else {
-                l2 = Array(e);
-                for (k = 0; k < e; ++k) l2[k] = String.fromCharCode(A[f2 + k]);
-                l2 = l2.join("");
+                l4 = Array(e);
+                for (k = 0; k < e; ++k) l4[k] = String.fromCharCode(A[f2 + k]);
+                l4 = l4.join("");
               }
               S2(d);
-              return l2;
+              return l4;
             }, toWireType: function(d, e) {
               e instanceof ArrayBuffer && (e = new Uint8Array(e));
               var f2, g = "string" == typeof e;
@@ -2901,10 +4228,10 @@ var init_yoga_wasm_base64_esm = __esm({
               if (c && g) {
                 if (g = m, m = f2 + 1, f2 = A, 0 < m) {
                   m = g + m - 1;
-                  for (var l2 = 0; l2 < e.length; ++l2) {
-                    var n = e.charCodeAt(l2);
+                  for (var l4 = 0; l4 < e.length; ++l4) {
+                    var n = e.charCodeAt(l4);
                     if (55296 <= n && 57343 >= n) {
-                      var p = e.charCodeAt(++l2);
+                      var p = e.charCodeAt(++l4);
                       n = 65536 + ((n & 1023) << 10) | p & 1023;
                     }
                     if (127 >= n) {
@@ -2930,7 +4257,7 @@ var init_yoga_wasm_base64_esm = __esm({
                   }
                   f2[g] = 0;
                 }
-              } else if (g) for (g = 0; g < f2; ++g) l2 = e.charCodeAt(g), 255 < l2 && (S2(m), L("String has UTF-16 code units that do not fit in 8 bits")), A[m + g] = l2;
+              } else if (g) for (g = 0; g < f2; ++g) l4 = e.charCodeAt(g), 255 < l4 && (S2(m), L("String has UTF-16 code units that do not fit in 8 bits")), A[m + g] = l4;
               else for (g = 0; g < f2; ++g) A[m + g] = e[g];
               null !== d && d.push(S2, k);
               return k;
@@ -2948,17 +4275,17 @@ var init_yoga_wasm_base64_esm = __esm({
               var k = 1;
             } else 4 === b && (d = wb, e = xb, f2 = yb, g = () => E, k = 2);
             W(a, { name: c, fromWireType: function(m) {
-              for (var l2 = E[m >> 2], n = g(), p, r = m + 4, u = 0; u <= l2; ++u) {
+              for (var l4 = E[m >> 2], n = g(), p, r = m + 4, u = 0; u <= l4; ++u) {
                 var t2 = m + 4 + u * b;
-                if (u == l2 || 0 == n[t2 >> k]) r = d(r, t2 - r), void 0 === p ? p = r : (p += String.fromCharCode(0), p += r), r = t2 + b;
+                if (u == l4 || 0 == n[t2 >> k]) r = d(r, t2 - r), void 0 === p ? p = r : (p += String.fromCharCode(0), p += r), r = t2 + b;
               }
               S2(m);
               return p;
-            }, toWireType: function(m, l2) {
-              "string" != typeof l2 && L("Cannot pass non-string to C++ string type " + c);
-              var n = f2(l2), p = Ib(4 + n + b);
+            }, toWireType: function(m, l4) {
+              "string" != typeof l4 && L("Cannot pass non-string to C++ string type " + c);
+              var n = f2(l4), p = Ib(4 + n + b);
               E[p >> 2] = n >> k;
-              e(l2, p + 4, n + b);
+              e(l4, p + 4, n + b);
               null !== m && m.push(S2, p);
               return p;
             }, argPackAdvance: 8, readValueFromPointer: Xa, V: function(m) {
@@ -2968,8 +4295,8 @@ var init_yoga_wasm_base64_esm = __esm({
           k: function(a, b, c, d, e, f2) {
             Va[a] = { name: N(b), fa: Z(c, d), W: Z(e, f2), ia: [] };
           },
-          h: function(a, b, c, d, e, f2, g, k, m, l2) {
-            Va[a].ia.push({ oa: N(b), ta: c, ra: Z(d, e), sa: f2, za: g, ya: Z(k, m), Aa: l2 });
+          h: function(a, b, c, d, e, f2, g, k, m, l4) {
+            Va[a].ia.push({ oa: N(b), ta: c, ra: Z(d, e), sa: f2, za: g, ya: Z(k, m), Aa: l4 });
           },
           C: function(a, b) {
             b = N(b);
@@ -3006,8 +4333,8 @@ var init_yoga_wasm_base64_esm = __esm({
             var e = Eb[b];
             if (void 0 !== e) return e;
             var f2 = Array(a - 1);
-            e = Cb((g, k, m, l2) => {
-              for (var n = 0, p = 0; p < a - 1; ++p) f2[p] = c[p + 1].readValueFromPointer(l2 + n), n += c[p + 1].argPackAdvance;
+            e = Cb((g, k, m, l4) => {
+              for (var n = 0, p = 0; p < a - 1; ++p) f2[p] = c[p + 1].readValueFromPointer(l4 + n), n += c[p + 1].argPackAdvance;
               g = g[k].apply(
                 g,
                 f2
@@ -3066,8 +4393,8 @@ var init_yoga_wasm_base64_esm = __esm({
               var g = E[b >> 2], k = E[b + 4 >> 2];
               b += 8;
               for (var m = 0; m < k; m++) {
-                var l2 = A[g + m], n = Fb[a];
-                0 === l2 || 10 === l2 ? ((1 === a ? ea : v)(z(n, 0)), n.length = 0) : n.push(l2);
+                var l4 = A[g + m], n = Fb[a];
+                0 === l4 || 10 === l4 ? ((1 === a ? ea : v)(z(n, 0)), n.length = 0) : n.push(l4);
               }
               e += k;
             }
@@ -3111,7 +4438,7 @@ var init_yoga_wasm_base64_esm = __esm({
             v("Module.instantiateWasm callback failed with error: " + e), ca(e);
           }
           (function() {
-            return w || "function" != typeof WebAssembly.instantiateStreaming || ua(H) || "function" != typeof fetch ? c(b) : fetch(H, { credentials: "same-origin" }).then(function(e) {
+            return w || "function" != typeof WebAssembly.instantiateStreaming || ua2(H) || "function" != typeof fetch ? c(b) : fetch(H, { credentials: "same-origin" }).then(function(e) {
               return WebAssembly.instantiateStreaming(e, d).then(b, function(f2) {
                 v("wasm streaming compile failed: " + f2);
                 v("falling back to ArrayBuffer instantiation");
@@ -3467,7 +4794,7 @@ function wrapAssembly(lib) {
     lib.Node.destroy(this);
   });
   patch(lib.Node.prototype, "freeRecursive", function() {
-    for (let t2 = 0, T = this.getChildCount(); t2 < T; ++t2) {
+    for (let t2 = 0, T2 = this.getChildCount(); t2 < T2; ++t2) {
       this.getChild(0).freeRecursive();
     }
     this.free();
@@ -3803,11 +5130,11 @@ function assembleStyles() {
         if (value === 0) {
           return 30;
         }
-        let result = 30 + (Math.round(blue) << 2 | Math.round(green) << 1 | Math.round(red));
+        let result2 = 30 + (Math.round(blue) << 2 | Math.round(green) << 1 | Math.round(red));
         if (value === 2) {
-          result += 60;
+          result2 += 60;
         }
-        return result;
+        return result2;
       },
       enumerable: false
     },
@@ -4064,7 +5391,7 @@ var init_wrap_ansi = __esm({
 // node_modules/terminal-size/index.js
 import process3 from "node:process";
 import { execFileSync } from "node:child_process";
-import fs4 from "node:fs";
+import fs7 from "node:fs";
 import tty from "node:tty";
 function terminalSize() {
   const { env: env3, stdout, stderr } = process3;
@@ -4120,7 +5447,7 @@ var init_terminal_size = __esm({
         return true;
       }
       try {
-        const statContents = fs4.readFileSync("/proc/self/stat", "utf8");
+        const statContents = fs7.readFileSync("/proc/self/stat", "utf8");
         const closingParenthesisIndex = statContents.lastIndexOf(") ");
         if (closingParenthesisIndex === -1) {
           return false;
@@ -4141,8 +5468,8 @@ var init_terminal_size = __esm({
     };
     devTty = () => {
       try {
-        const flags = process3.platform === "darwin" ? fs4.constants.O_EVTONLY | fs4.constants.O_NONBLOCK : fs4.constants.O_NONBLOCK;
-        const { columns, rows } = tty.WriteStream(fs4.openSync("/dev/tty", flags));
+        const flags = process3.platform === "darwin" ? fs7.constants.O_EVTONLY | fs7.constants.O_NONBLOCK : fs7.constants.O_NONBLOCK;
+        const { columns, rows } = tty.WriteStream(fs7.openSync("/dev/tty", flags));
         return { columns, rows };
       } catch {
       }
@@ -4190,7 +5517,7 @@ var require_scheduler_production = __commonJS({
       heap.push(node);
       a: for (; 0 < index; ) {
         var parentIndex = index - 1 >>> 1, parent = heap[parentIndex];
-        if (0 < compare(parent, node))
+        if (0 < compare2(parent, node))
           heap[parentIndex] = node, heap[index] = parent, index = parentIndex;
         else break a;
       }
@@ -4205,16 +5532,16 @@ var require_scheduler_production = __commonJS({
         heap[0] = last2;
         a: for (var index = 0, length = heap.length, halfLength = length >>> 1; index < halfLength; ) {
           var leftIndex = 2 * (index + 1) - 1, left = heap[leftIndex], rightIndex = leftIndex + 1, right = heap[rightIndex];
-          if (0 > compare(left, last2))
-            rightIndex < length && 0 > compare(right, left) ? (heap[index] = right, heap[rightIndex] = last2, index = rightIndex) : (heap[index] = left, heap[leftIndex] = last2, index = leftIndex);
-          else if (rightIndex < length && 0 > compare(right, last2))
+          if (0 > compare2(left, last2))
+            rightIndex < length && 0 > compare2(right, left) ? (heap[index] = right, heap[rightIndex] = last2, index = rightIndex) : (heap[index] = left, heap[leftIndex] = last2, index = leftIndex);
+          else if (rightIndex < length && 0 > compare2(right, last2))
             heap[index] = right, heap[rightIndex] = last2, index = rightIndex;
           else break a;
         }
       }
       return first2;
     }
-    function compare(a, b) {
+    function compare2(a, b) {
       var diff2 = a.sortIndex - b.sortIndex;
       return 0 !== diff2 ? diff2 : a.id - b.id;
     }
@@ -4471,8 +5798,8 @@ var require_react_reconciler_production = __commonJS({
   "node_modules/react-reconciler/cjs/react-reconciler.production.js"(exports, module) {
     "use strict";
     module.exports = function($$$config) {
-      function createFiber(tag, pendingProps, key, mode) {
-        return new FiberNode(tag, pendingProps, key, mode);
+      function createFiber(tag, pendingProps, key2, mode) {
+        return new FiberNode(tag, pendingProps, key2, mode);
       }
       function noop2() {
       }
@@ -4865,7 +6192,7 @@ var require_react_reconciler_production = __commonJS({
         return 2 < lanes ? 8 < lanes ? 0 !== (lanes & 134217727) ? 32 : 268435456 : 8 : 2;
       }
       function setIsStrictModeForDevtools(newIsStrictMode) {
-        "function" === typeof log && unstable_setDisableYieldValue(newIsStrictMode);
+        "function" === typeof log2 && unstable_setDisableYieldValue(newIsStrictMode);
         if (injectedHook && "function" === typeof injectedHook.setStrictMode)
           try {
             injectedHook.setStrictMode(rendererID, newIsStrictMode);
@@ -4928,9 +6255,9 @@ var require_react_reconciler_production = __commonJS({
                   (Fake = fn()) && "function" === typeof Fake.catch && Fake.catch(function() {
                   });
                 }
-              } catch (sample2) {
-                if (sample2 && control && "string" === typeof sample2.stack)
-                  return [sample2.stack, control.stack];
+              } catch (sample3) {
+                if (sample3 && control && "string" === typeof sample3.stack)
+                  return [sample3.stack, control.stack];
               }
               return [null, null];
             }
@@ -5488,7 +6815,7 @@ var require_react_reconciler_production = __commonJS({
           for (var i = 0; i < listeners.length; i++) (0, listeners[i])();
         }
       }
-      function chainThenableValue(thenable, result) {
+      function chainThenableValue(thenable, result2) {
         var listeners = [], thenableWithOverride = {
           status: "pending",
           value: null,
@@ -5500,8 +6827,8 @@ var require_react_reconciler_production = __commonJS({
         thenable.then(
           function() {
             thenableWithOverride.status = "fulfilled";
-            thenableWithOverride.value = result;
-            for (var i = 0; i < listeners.length; i++) (0, listeners[i])(result);
+            thenableWithOverride.value = result2;
+            for (var i = 0; i < listeners.length; i++) (0, listeners[i])(result2);
           },
           function(error) {
             thenableWithOverride.status = "rejected";
@@ -5703,13 +7030,13 @@ var require_react_reconciler_production = __commonJS({
           current.return = returnFiber;
           return current;
         }
-        function updateFragment(returnFiber, current, fragment, lanes, key) {
+        function updateFragment(returnFiber, current, fragment, lanes, key2) {
           if (null === current || 7 !== current.tag)
             return current = createFiberFromFragment(
               fragment,
               returnFiber.mode,
               lanes,
-              key
+              key2
             ), current.return = returnFiber, current;
           current = useFiber(current, fragment);
           current.return = returnFiber;
@@ -5762,20 +7089,20 @@ var require_react_reconciler_production = __commonJS({
           return null;
         }
         function updateSlot(returnFiber, oldFiber, newChild, lanes) {
-          var key = null !== oldFiber ? oldFiber.key : null;
+          var key2 = null !== oldFiber ? oldFiber.key : null;
           if ("string" === typeof newChild && "" !== newChild || "number" === typeof newChild || "bigint" === typeof newChild)
-            return null !== key ? null : updateTextNode(returnFiber, oldFiber, "" + newChild, lanes);
+            return null !== key2 ? null : updateTextNode(returnFiber, oldFiber, "" + newChild, lanes);
           if ("object" === typeof newChild && null !== newChild) {
             switch (newChild.$$typeof) {
               case REACT_ELEMENT_TYPE:
-                return newChild.key === key ? updateElement(returnFiber, oldFiber, newChild, lanes) : null;
+                return newChild.key === key2 ? updateElement(returnFiber, oldFiber, newChild, lanes) : null;
               case REACT_PORTAL_TYPE:
-                return newChild.key === key ? updatePortal(returnFiber, oldFiber, newChild, lanes) : null;
+                return newChild.key === key2 ? updatePortal(returnFiber, oldFiber, newChild, lanes) : null;
               case REACT_LAZY_TYPE:
                 return newChild = resolveLazy(newChild), updateSlot(returnFiber, oldFiber, newChild, lanes);
             }
             if (isArrayImpl(newChild) || getIteratorFn(newChild))
-              return null !== key ? null : updateFragment(returnFiber, oldFiber, newChild, lanes, null);
+              return null !== key2 ? null : updateFragment(returnFiber, oldFiber, newChild, lanes, null);
             if ("function" === typeof newChild.then)
               return updateSlot(
                 returnFiber,
@@ -5891,9 +7218,9 @@ var require_react_reconciler_production = __commonJS({
         }
         function reconcileChildrenIterator(returnFiber, currentFirstChild, newChildren, lanes) {
           if (null == newChildren) throw Error(formatProdErrorMessage(151));
-          for (var resultingFirstChild = null, previousNewFiber = null, oldFiber = currentFirstChild, newIdx = currentFirstChild = 0, nextOldFiber = null, step = newChildren.next(); null !== oldFiber && !step.done; newIdx++, step = newChildren.next()) {
+          for (var resultingFirstChild = null, previousNewFiber = null, oldFiber = currentFirstChild, newIdx = currentFirstChild = 0, nextOldFiber = null, step2 = newChildren.next(); null !== oldFiber && !step2.done; newIdx++, step2 = newChildren.next()) {
             oldFiber.index > newIdx ? (nextOldFiber = oldFiber, oldFiber = null) : nextOldFiber = oldFiber.sibling;
-            var newFiber = updateSlot(returnFiber, oldFiber, step.value, lanes);
+            var newFiber = updateSlot(returnFiber, oldFiber, step2.value, lanes);
             if (null === newFiber) {
               null === oldFiber && (oldFiber = nextOldFiber);
               break;
@@ -5904,26 +7231,26 @@ var require_react_reconciler_production = __commonJS({
             previousNewFiber = newFiber;
             oldFiber = nextOldFiber;
           }
-          if (step.done)
+          if (step2.done)
             return deleteRemainingChildren(returnFiber, oldFiber), isHydrating && pushTreeFork(returnFiber, newIdx), resultingFirstChild;
           if (null === oldFiber) {
-            for (; !step.done; newIdx++, step = newChildren.next())
-              step = createChild(returnFiber, step.value, lanes), null !== step && (currentFirstChild = placeChild(
-                step,
+            for (; !step2.done; newIdx++, step2 = newChildren.next())
+              step2 = createChild(returnFiber, step2.value, lanes), null !== step2 && (currentFirstChild = placeChild(
+                step2,
                 currentFirstChild,
                 newIdx
-              ), null === previousNewFiber ? resultingFirstChild = step : previousNewFiber.sibling = step, previousNewFiber = step);
+              ), null === previousNewFiber ? resultingFirstChild = step2 : previousNewFiber.sibling = step2, previousNewFiber = step2);
             isHydrating && pushTreeFork(returnFiber, newIdx);
             return resultingFirstChild;
           }
-          for (oldFiber = mapRemainingChildren(oldFiber); !step.done; newIdx++, step = newChildren.next())
-            step = updateFromMap(
+          for (oldFiber = mapRemainingChildren(oldFiber); !step2.done; newIdx++, step2 = newChildren.next())
+            step2 = updateFromMap(
               oldFiber,
               returnFiber,
               newIdx,
-              step.value,
+              step2.value,
               lanes
-            ), null !== step && (shouldTrackSideEffects && null !== step.alternate && oldFiber.delete(null === step.key ? newIdx : step.key), currentFirstChild = placeChild(step, currentFirstChild, newIdx), null === previousNewFiber ? resultingFirstChild = step : previousNewFiber.sibling = step, previousNewFiber = step);
+            ), null !== step2 && (shouldTrackSideEffects && null !== step2.alternate && oldFiber.delete(null === step2.key ? newIdx : step2.key), currentFirstChild = placeChild(step2, currentFirstChild, newIdx), null === previousNewFiber ? resultingFirstChild = step2 : previousNewFiber.sibling = step2, previousNewFiber = step2);
           shouldTrackSideEffects && oldFiber.forEach(function(child) {
             return deleteChild(returnFiber, child);
           });
@@ -5936,10 +7263,10 @@ var require_react_reconciler_production = __commonJS({
             switch (newChild.$$typeof) {
               case REACT_ELEMENT_TYPE:
                 a: {
-                  for (var key = newChild.key; null !== currentFirstChild; ) {
-                    if (currentFirstChild.key === key) {
-                      key = newChild.type;
-                      if (key === REACT_FRAGMENT_TYPE) {
+                  for (var key2 = newChild.key; null !== currentFirstChild; ) {
+                    if (currentFirstChild.key === key2) {
+                      key2 = newChild.type;
+                      if (key2 === REACT_FRAGMENT_TYPE) {
                         if (7 === currentFirstChild.tag) {
                           deleteRemainingChildren(
                             returnFiber,
@@ -5953,7 +7280,7 @@ var require_react_reconciler_production = __commonJS({
                           returnFiber = lanes;
                           break a;
                         }
-                      } else if (currentFirstChild.elementType === key || "object" === typeof key && null !== key && key.$$typeof === REACT_LAZY_TYPE && resolveLazy(key) === currentFirstChild.type) {
+                      } else if (currentFirstChild.elementType === key2 || "object" === typeof key2 && null !== key2 && key2.$$typeof === REACT_LAZY_TYPE && resolveLazy(key2) === currentFirstChild.type) {
                         deleteRemainingChildren(
                           returnFiber,
                           currentFirstChild.sibling
@@ -5986,8 +7313,8 @@ var require_react_reconciler_production = __commonJS({
                 return placeSingleChild(returnFiber);
               case REACT_PORTAL_TYPE:
                 a: {
-                  for (key = newChild.key; null !== currentFirstChild; ) {
-                    if (currentFirstChild.key === key)
+                  for (key2 = newChild.key; null !== currentFirstChild; ) {
+                    if (currentFirstChild.key === key2)
                       if (4 === currentFirstChild.tag && currentFirstChild.stateNode.containerInfo === newChild.containerInfo && currentFirstChild.stateNode.implementation === newChild.implementation) {
                         deleteRemainingChildren(
                           returnFiber,
@@ -6028,10 +7355,10 @@ var require_react_reconciler_production = __commonJS({
                 lanes
               );
             if (getIteratorFn(newChild)) {
-              key = getIteratorFn(newChild);
-              if ("function" !== typeof key)
+              key2 = getIteratorFn(newChild);
+              if ("function" !== typeof key2)
                 throw Error(formatProdErrorMessage(150));
-              newChild = key.call(newChild);
+              newChild = key2.call(newChild);
               return reconcileChildrenIterator(
                 returnFiber,
                 currentFirstChild,
@@ -6515,12 +7842,12 @@ var require_react_reconciler_production = __commonJS({
         null === (null === workInProgressHook ? index.memoizedState : workInProgressHook.next) && (index = index.alternate, ReactSharedInternals.H = null === index || null === index.memoizedState ? HooksDispatcherOnMount : HooksDispatcherOnUpdate);
         return thenable;
       }
-      function use(usable) {
-        if (null !== usable && "object" === typeof usable) {
-          if ("function" === typeof usable.then) return useThenable(usable);
-          if (usable.$$typeof === REACT_CONTEXT_TYPE) return readContext(usable);
+      function use(usable2) {
+        if (null !== usable2 && "object" === typeof usable2) {
+          if ("function" === typeof usable2.then) return useThenable(usable2);
+          if (usable2.$$typeof === REACT_CONTEXT_TYPE) return readContext(usable2);
         }
-        throw Error(formatProdErrorMessage(438, String(usable)));
+        throw Error(formatProdErrorMessage(438, String(usable2)));
       }
       function useMemoCache(size) {
         var memoCache = null, updateQueue = currentlyRenderingFiber.updateQueue;
@@ -7418,8 +8745,8 @@ var require_react_reconciler_production = __commonJS({
         var ref = workInProgress2.ref;
         if ("ref" in nextProps) {
           var propsWithoutRef = {};
-          for (var key in nextProps)
-            "ref" !== key && (propsWithoutRef[key] = nextProps[key]);
+          for (var key2 in nextProps)
+            "ref" !== key2 && (propsWithoutRef[key2] = nextProps[key2]);
         } else propsWithoutRef = nextProps;
         prepareToReadContext(workInProgress2);
         nextProps = renderWithHooks(
@@ -7430,10 +8757,10 @@ var require_react_reconciler_production = __commonJS({
           ref,
           renderLanes2
         );
-        key = checkDidRenderIdHook();
+        key2 = checkDidRenderIdHook();
         if (null !== current && !didReceiveUpdate)
           return bailoutHooks(current, workInProgress2, renderLanes2), bailoutOnAlreadyFinishedWork(current, workInProgress2, renderLanes2);
-        isHydrating && key && pushMaterializedTreeId(workInProgress2);
+        isHydrating && key2 && pushMaterializedTreeId(workInProgress2);
         workInProgress2.flags |= 1;
         reconcileChildren(current, workInProgress2, nextProps, renderLanes2);
         return workInProgress2.child;
@@ -11087,17 +12414,17 @@ var require_react_reconciler_production = __commonJS({
                 case 9:
                 case 6:
                   null === suspenseHandlerStackCursor.current && (lanes = true);
-                  var reason = workInProgressSuspendedReason;
+                  var reason2 = workInProgressSuspendedReason;
                   workInProgressSuspendedReason = 0;
                   workInProgressThrownValue = null;
-                  throwAndUnwindWorkLoop(root, unitOfWork, thrownValue, reason);
+                  throwAndUnwindWorkLoop(root, unitOfWork, thrownValue, reason2);
                   if (shouldYieldForPrerendering && workInProgressRootIsPrerendering) {
                     exitStatus = 0;
                     break a;
                   }
                   break;
                 default:
-                  reason = workInProgressSuspendedReason, workInProgressSuspendedReason = 0, workInProgressThrownValue = null, throwAndUnwindWorkLoop(root, unitOfWork, thrownValue, reason);
+                  reason2 = workInProgressSuspendedReason, workInProgressSuspendedReason = 0, workInProgressThrownValue = null, throwAndUnwindWorkLoop(root, unitOfWork, thrownValue, reason2);
               }
             }
             workLoopSync();
@@ -11619,9 +12946,9 @@ var require_react_reconciler_production = __commonJS({
       function scheduleCallback(priorityLevel, callback) {
         return scheduleCallback$3(priorityLevel, callback);
       }
-      function FiberNode(tag, pendingProps, key, mode) {
+      function FiberNode(tag, pendingProps, key2, mode) {
         this.tag = tag;
-        this.key = key;
+        this.key = key2;
         this.sibling = this.child = this.return = this.stateNode = this.type = this.elementType = null;
         this.index = 0;
         this.refCleanup = this.ref = null;
@@ -11672,7 +12999,7 @@ var require_react_reconciler_production = __commonJS({
         });
         return workInProgress2;
       }
-      function createFiberFromTypeAndProps(type, key, pendingProps, owner, mode, lanes) {
+      function createFiberFromTypeAndProps(type, key2, pendingProps, owner, mode, lanes) {
         var fiberTag = 0;
         owner = type;
         if ("function" === typeof type) shouldConstruct(type) && (fiberTag = 1);
@@ -11685,24 +13012,24 @@ var require_react_reconciler_production = __commonJS({
         else
           a: switch (type) {
             case REACT_ACTIVITY_TYPE:
-              return type = createFiber(31, pendingProps, key, mode), type.elementType = REACT_ACTIVITY_TYPE, type.lanes = lanes, type;
+              return type = createFiber(31, pendingProps, key2, mode), type.elementType = REACT_ACTIVITY_TYPE, type.lanes = lanes, type;
             case REACT_FRAGMENT_TYPE:
               return createFiberFromFragment(
                 pendingProps.children,
                 mode,
                 lanes,
-                key
+                key2
               );
             case REACT_STRICT_MODE_TYPE:
               fiberTag = 8;
               mode |= 24;
               break;
             case REACT_PROFILER_TYPE:
-              return type = createFiber(12, pendingProps, key, mode | 2), type.elementType = REACT_PROFILER_TYPE, type.lanes = lanes, type;
+              return type = createFiber(12, pendingProps, key2, mode | 2), type.elementType = REACT_PROFILER_TYPE, type.lanes = lanes, type;
             case REACT_SUSPENSE_TYPE:
-              return type = createFiber(13, pendingProps, key, mode), type.elementType = REACT_SUSPENSE_TYPE, type.lanes = lanes, type;
+              return type = createFiber(13, pendingProps, key2, mode), type.elementType = REACT_SUSPENSE_TYPE, type.lanes = lanes, type;
             case REACT_SUSPENSE_LIST_TYPE:
-              return type = createFiber(19, pendingProps, key, mode), type.elementType = REACT_SUSPENSE_LIST_TYPE, type.lanes = lanes, type;
+              return type = createFiber(19, pendingProps, key2, mode), type.elementType = REACT_SUSPENSE_LIST_TYPE, type.lanes = lanes, type;
             default:
               if ("object" === typeof type && null !== type)
                 switch (type.$$typeof) {
@@ -11733,14 +13060,14 @@ var require_react_reconciler_production = __commonJS({
               );
               owner = null;
           }
-        key = createFiber(fiberTag, pendingProps, key, mode);
-        key.elementType = type;
-        key.type = owner;
-        key.lanes = lanes;
-        return key;
+        key2 = createFiber(fiberTag, pendingProps, key2, mode);
+        key2.elementType = type;
+        key2.type = owner;
+        key2.lanes = lanes;
+        return key2;
       }
-      function createFiberFromFragment(elements, mode, lanes, key) {
-        elements = createFiber(7, elements, key, mode);
+      function createFiberFromFragment(elements, mode, lanes, key2) {
+        elements = createFiber(7, elements, key2, mode);
         elements.lanes = lanes;
         return elements;
       }
@@ -11858,14 +13185,14 @@ var require_react_reconciler_production = __commonJS({
       }
       var exports2 = {};
       "use strict";
-      var React16 = require_react(), Scheduler2 = require_scheduler(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.element"), REACT_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = /* @__PURE__ */ Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = /* @__PURE__ */ Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = /* @__PURE__ */ Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = /* @__PURE__ */ Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = /* @__PURE__ */ Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = /* @__PURE__ */ Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = /* @__PURE__ */ Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = /* @__PURE__ */ Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = /* @__PURE__ */ Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = /* @__PURE__ */ Symbol.for("react.memo"), REACT_LAZY_TYPE = /* @__PURE__ */ Symbol.for("react.lazy");
+      var React20 = require_react(), Scheduler2 = require_scheduler(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.element"), REACT_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = /* @__PURE__ */ Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = /* @__PURE__ */ Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = /* @__PURE__ */ Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = /* @__PURE__ */ Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = /* @__PURE__ */ Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = /* @__PURE__ */ Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = /* @__PURE__ */ Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = /* @__PURE__ */ Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = /* @__PURE__ */ Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = /* @__PURE__ */ Symbol.for("react.memo"), REACT_LAZY_TYPE = /* @__PURE__ */ Symbol.for("react.lazy");
       /* @__PURE__ */ Symbol.for("react.scope");
       var REACT_ACTIVITY_TYPE = /* @__PURE__ */ Symbol.for("react.activity");
       /* @__PURE__ */ Symbol.for("react.legacy_hidden");
       /* @__PURE__ */ Symbol.for("react.tracing_marker");
       var REACT_MEMO_CACHE_SENTINEL = /* @__PURE__ */ Symbol.for("react.memo_cache_sentinel");
       /* @__PURE__ */ Symbol.for("react.view_transition");
-      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = /* @__PURE__ */ Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React16.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
+      var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = /* @__PURE__ */ Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React20.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, rendererVersion = $$$config.rendererVersion, rendererPackageName = $$$config.rendererPackageName, extraDevToolsConfig = $$$config.extraDevToolsConfig, getPublicInstance = $$$config.getPublicInstance, getRootHostContext = $$$config.getRootHostContext, getChildHostContext = $$$config.getChildHostContext, prepareForCommit = $$$config.prepareForCommit, resetAfterCommit = $$$config.resetAfterCommit, createInstance = $$$config.createInstance;
       $$$config.cloneMutableInstance;
       var appendInitialChild = $$$config.appendInitialChild, finalizeInitialChildren = $$$config.finalizeInitialChildren, shouldSetTextContent = $$$config.shouldSetTextContent, createTextInstance = $$$config.createTextInstance;
       $$$config.cloneMutableTextInstance;
@@ -11915,7 +13242,7 @@ var require_react_reconciler_production = __commonJS({
       $$$config.diffHydratedPropsForDevWarnings;
       $$$config.diffHydratedTextForDevWarnings;
       $$$config.describeHydratableInstanceForDevWarnings;
-      var validateHydratableInstance = $$$config.validateHydratableInstance, validateHydratableTextInstance = $$$config.validateHydratableTextInstance, supportsResources = $$$config.supportsResources, isHostHoistableType = $$$config.isHostHoistableType, getHoistableRoot = $$$config.getHoistableRoot, getResource = $$$config.getResource, acquireResource = $$$config.acquireResource, releaseResource = $$$config.releaseResource, hydrateHoistable = $$$config.hydrateHoistable, mountHoistable = $$$config.mountHoistable, unmountHoistable = $$$config.unmountHoistable, createHoistableInstance = $$$config.createHoistableInstance, prepareToCommitHoistables = $$$config.prepareToCommitHoistables, mayResourceSuspendCommit = $$$config.mayResourceSuspendCommit, preloadResource = $$$config.preloadResource, suspendResource = $$$config.suspendResource, supportsSingletons = $$$config.supportsSingletons, resolveSingletonInstance = $$$config.resolveSingletonInstance, acquireSingletonInstance = $$$config.acquireSingletonInstance, releaseSingletonInstance = $$$config.releaseSingletonInstance, isHostSingletonType = $$$config.isHostSingletonType, isSingletonScope = $$$config.isSingletonScope, valueStack = [], index$jscomp$0 = -1, emptyContextObject = {}, clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$1 = Math.log, LN2 = Math.LN2, nextTransitionUpdateLane = 256, nextTransitionDeferredLane = 262144, nextRetryLane = 4194304, scheduleCallback$3 = Scheduler2.unstable_scheduleCallback, cancelCallback$1 = Scheduler2.unstable_cancelCallback, shouldYield = Scheduler2.unstable_shouldYield, requestPaint = Scheduler2.unstable_requestPaint, now = Scheduler2.unstable_now, ImmediatePriority = Scheduler2.unstable_ImmediatePriority, UserBlockingPriority = Scheduler2.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler2.unstable_NormalPriority, IdlePriority = Scheduler2.unstable_IdlePriority, log = Scheduler2.log, unstable_setDisableYieldValue = Scheduler2.unstable_setDisableYieldValue, rendererID = null, injectedHook = null, objectIs = "function" === typeof Object.is ? Object.is : is, reportGlobalError = "function" === typeof reportError ? reportError : function(error) {
+      var validateHydratableInstance = $$$config.validateHydratableInstance, validateHydratableTextInstance = $$$config.validateHydratableTextInstance, supportsResources = $$$config.supportsResources, isHostHoistableType = $$$config.isHostHoistableType, getHoistableRoot = $$$config.getHoistableRoot, getResource = $$$config.getResource, acquireResource = $$$config.acquireResource, releaseResource = $$$config.releaseResource, hydrateHoistable = $$$config.hydrateHoistable, mountHoistable = $$$config.mountHoistable, unmountHoistable = $$$config.unmountHoistable, createHoistableInstance = $$$config.createHoistableInstance, prepareToCommitHoistables = $$$config.prepareToCommitHoistables, mayResourceSuspendCommit = $$$config.mayResourceSuspendCommit, preloadResource = $$$config.preloadResource, suspendResource = $$$config.suspendResource, supportsSingletons = $$$config.supportsSingletons, resolveSingletonInstance = $$$config.resolveSingletonInstance, acquireSingletonInstance = $$$config.acquireSingletonInstance, releaseSingletonInstance = $$$config.releaseSingletonInstance, isHostSingletonType = $$$config.isHostSingletonType, isSingletonScope = $$$config.isSingletonScope, valueStack = [], index$jscomp$0 = -1, emptyContextObject = {}, clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$1 = Math.log, LN2 = Math.LN2, nextTransitionUpdateLane = 256, nextTransitionDeferredLane = 262144, nextRetryLane = 4194304, scheduleCallback$3 = Scheduler2.unstable_scheduleCallback, cancelCallback$1 = Scheduler2.unstable_cancelCallback, shouldYield = Scheduler2.unstable_shouldYield, requestPaint = Scheduler2.unstable_requestPaint, now = Scheduler2.unstable_now, ImmediatePriority = Scheduler2.unstable_ImmediatePriority, UserBlockingPriority = Scheduler2.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler2.unstable_NormalPriority, IdlePriority = Scheduler2.unstable_IdlePriority, log2 = Scheduler2.log, unstable_setDisableYieldValue = Scheduler2.unstable_setDisableYieldValue, rendererID = null, injectedHook = null, objectIs = "function" === typeof Object.is ? Object.is : is, reportGlobalError = "function" === typeof reportError ? reportError : function(error) {
         if ("object" === typeof window && "function" === typeof window.ErrorEvent) {
           var event = new window.ErrorEvent("error", {
             bubbles: true,
@@ -12407,10 +13734,10 @@ var require_react_reconciler_production = __commonJS({
         return initialChildren;
       };
       exports2.createPortal = function(children, containerInfo, implementation) {
-        var key = 3 < arguments.length && void 0 !== arguments[3] ? arguments[3] : null;
+        var key2 = 3 < arguments.length && void 0 !== arguments[3] ? arguments[3] : null;
         return {
           $$typeof: REACT_PORTAL_TYPE,
-          key: null == key ? null : "" + key,
+          key: null == key2 ? null : "" + key2,
           children,
           containerInfo,
           implementation
@@ -14272,12 +15599,12 @@ var init_dom = __esm({
         markNodeAsDirty(node);
       }
     };
-    setAttribute = (node, key, value) => {
-      if (key === "internal_accessibility") {
+    setAttribute = (node, key2, value) => {
+      if (key2 === "internal_accessibility") {
         node.internal_accessibility = value;
         return;
       }
-      node.attributes[key] = value;
+      node.attributes[key2] = value;
     };
     setStyle = (node, style) => {
       node.style = style;
@@ -14896,44 +16223,44 @@ var require_permessage_deflate = __commonJS({
        */
       normalizeParams(configurations) {
         configurations.forEach((params) => {
-          Object.keys(params).forEach((key) => {
-            let value = params[key];
+          Object.keys(params).forEach((key2) => {
+            let value = params[key2];
             if (value.length > 1) {
-              throw new Error(`Parameter "${key}" must have only a single value`);
+              throw new Error(`Parameter "${key2}" must have only a single value`);
             }
             value = value[0];
-            if (key === "client_max_window_bits") {
+            if (key2 === "client_max_window_bits") {
               if (value !== true) {
-                const num = +value;
-                if (!Number.isInteger(num) || num < 8 || num > 15) {
+                const num2 = +value;
+                if (!Number.isInteger(num2) || num2 < 8 || num2 > 15) {
                   throw new TypeError(
-                    `Invalid value for parameter "${key}": ${value}`
+                    `Invalid value for parameter "${key2}": ${value}`
                   );
                 }
-                value = num;
+                value = num2;
               } else if (!this._isServer) {
                 throw new TypeError(
-                  `Invalid value for parameter "${key}": ${value}`
+                  `Invalid value for parameter "${key2}": ${value}`
                 );
               }
-            } else if (key === "server_max_window_bits") {
-              const num = +value;
-              if (!Number.isInteger(num) || num < 8 || num > 15) {
+            } else if (key2 === "server_max_window_bits") {
+              const num2 = +value;
+              if (!Number.isInteger(num2) || num2 < 8 || num2 > 15) {
                 throw new TypeError(
-                  `Invalid value for parameter "${key}": ${value}`
+                  `Invalid value for parameter "${key2}": ${value}`
                 );
               }
-              value = num;
-            } else if (key === "client_no_context_takeover" || key === "server_no_context_takeover") {
+              value = num2;
+            } else if (key2 === "client_no_context_takeover" || key2 === "server_no_context_takeover") {
               if (value !== true) {
                 throw new TypeError(
-                  `Invalid value for parameter "${key}": ${value}`
+                  `Invalid value for parameter "${key2}": ${value}`
                 );
               }
             } else {
-              throw new Error(`Unknown parameter "${key}"`);
+              throw new Error(`Unknown parameter "${key2}"`);
             }
-            params[key] = value;
+            params[key2] = value;
           });
         });
         return configurations;
@@ -14948,9 +16275,9 @@ var require_permessage_deflate = __commonJS({
        */
       decompress(data, fin, callback) {
         zlibLimiter.add((done) => {
-          this._decompress(data, fin, (err, result) => {
+          this._decompress(data, fin, (err, result2) => {
             done();
-            callback(err, result);
+            callback(err, result2);
           });
         });
       }
@@ -14964,9 +16291,9 @@ var require_permessage_deflate = __commonJS({
        */
       compress(data, fin, callback) {
         zlibLimiter.add((done) => {
-          this._compress(data, fin, (err, result) => {
+          this._compress(data, fin, (err, result2) => {
             done();
-            callback(err, result);
+            callback(err, result2);
           });
         });
       }
@@ -14981,8 +16308,8 @@ var require_permessage_deflate = __commonJS({
       _decompress(data, fin, callback) {
         const endpoint = this._isServer ? "client" : "server";
         if (!this._inflate) {
-          const key = `${endpoint}_max_window_bits`;
-          const windowBits = typeof this.params[key] !== "number" ? zlib.Z_DEFAULT_WINDOWBITS : this.params[key];
+          const key2 = `${endpoint}_max_window_bits`;
+          const windowBits = typeof this.params[key2] !== "number" ? zlib.Z_DEFAULT_WINDOWBITS : this.params[key2];
           this._inflate = zlib.createInflateRaw({
             ...this._options.zlibInflateOptions,
             windowBits
@@ -15032,8 +16359,8 @@ var require_permessage_deflate = __commonJS({
       _compress(data, fin, callback) {
         const endpoint = this._isServer ? "server" : "client";
         if (!this._deflate) {
-          const key = `${endpoint}_max_window_bits`;
-          const windowBits = typeof this.params[key] !== "number" ? zlib.Z_DEFAULT_WINDOWBITS : this.params[key];
+          const key2 = `${endpoint}_max_window_bits`;
+          const windowBits = typeof this.params[key2] !== "number" ? zlib.Z_DEFAULT_WINDOWBITS : this.params[key2];
           this._deflate = zlib.createDeflateRaw({
             ...this._options.zlibDeflateOptions,
             windowBits
@@ -15637,8 +16964,8 @@ var require_receiver = __commonJS({
           return;
         }
         const buf = this.consume(8);
-        const num = buf.readUInt32BE(0);
-        if (num > Math.pow(2, 53 - 32) - 1) {
+        const num2 = buf.readUInt32BE(0);
+        if (num2 > Math.pow(2, 53 - 32) - 1) {
           const error = this.createError(
             RangeError,
             "Unsupported WebSocket frame: payload length > 2^53 - 1",
@@ -15649,7 +16976,7 @@ var require_receiver = __commonJS({
           cb(error);
           return;
         }
-        this._payloadLength = num * Math.pow(2, 32) + buf.readUInt32BE(4);
+        this._payloadLength = num2 * Math.pow(2, 32) + buf.readUInt32BE(4);
         this.haveLength(cb);
       }
       /**
@@ -17356,7 +18683,7 @@ var require_websocket = __commonJS({
         }
       }
       const defaultPort = isSecure ? 443 : 80;
-      const key = randomBytes(16).toString("base64");
+      const key2 = randomBytes(16).toString("base64");
       const request = isSecure ? https.request : http.request;
       const protocolSet = /* @__PURE__ */ new Set();
       let perMessageDeflate;
@@ -17367,7 +18694,7 @@ var require_websocket = __commonJS({
       opts.headers = {
         ...opts.headers,
         "Sec-WebSocket-Version": opts.protocolVersion,
-        "Sec-WebSocket-Key": key,
+        "Sec-WebSocket-Key": key2,
         Connection: "Upgrade",
         Upgrade: "websocket"
       };
@@ -17423,8 +18750,8 @@ var require_websocket = __commonJS({
           const headers = options && options.headers;
           options = { ...options, headers: {} };
           if (headers) {
-            for (const [key2, value] of Object.entries(headers)) {
-              options.headers[key2.toLowerCase()] = value;
+            for (const [key3, value] of Object.entries(headers)) {
+              options.headers[key3.toLowerCase()] = value;
             }
           }
         } else if (websocket.listenerCount("redirect") === 0) {
@@ -17491,7 +18818,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash("sha1").update(key + GUID).digest("base64");
+        const digest = createHash("sha1").update(key2 + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -17604,16 +18931,16 @@ var require_websocket = __commonJS({
         process.nextTick(cb, err);
       }
     }
-    function receiverOnConclude(code, reason) {
+    function receiverOnConclude(code, reason2) {
       const websocket = this[kWebSocket];
       websocket._closeFrameReceived = true;
-      websocket._closeMessage = reason;
+      websocket._closeMessage = reason2;
       websocket._closeCode = code;
       if (websocket._socket[kWebSocket] === void 0) return;
       websocket._socket.removeListener("data", socketOnData);
       process.nextTick(resume, websocket._socket);
       if (code === 1005) websocket.close();
-      else websocket.close(code, reason);
+      else websocket.close(code, reason2);
     }
     function receiverOnDrain() {
       const websocket = this[kWebSocket];
@@ -18059,7 +19386,7 @@ var require_websocket_server = __commonJS({
        */
       handleUpgrade(req, socket, head, cb) {
         socket.on("error", socketOnError);
-        const key = req.headers["sec-websocket-key"];
+        const key2 = req.headers["sec-websocket-key"];
         const upgrade = req.headers.upgrade;
         const version2 = +req.headers["sec-websocket-version"];
         if (req.method !== "GET") {
@@ -18072,7 +19399,7 @@ var require_websocket_server = __commonJS({
           abortHandshakeOrEmitwsClientError(this, req, socket, 400, message);
           return;
         }
-        if (key === void 0 || !keyRegex.test(key)) {
+        if (key2 === void 0 || !keyRegex.test(key2)) {
           const message = "Missing or invalid Sec-WebSocket-Key header";
           abortHandshakeOrEmitwsClientError(this, req, socket, 400, message);
           return;
@@ -18132,7 +19459,7 @@ var require_websocket_server = __commonJS({
               }
               this.completeUpgrade(
                 extensions,
-                key,
+                key2,
                 protocols,
                 req,
                 socket,
@@ -18144,7 +19471,7 @@ var require_websocket_server = __commonJS({
           }
           if (!this.options.verifyClient(info2)) return abortHandshake(socket, 401);
         }
-        this.completeUpgrade(extensions, key, protocols, req, socket, head, cb);
+        this.completeUpgrade(extensions, key2, protocols, req, socket, head, cb);
       }
       /**
        * Upgrade the connection to WebSocket.
@@ -18159,7 +19486,7 @@ var require_websocket_server = __commonJS({
        * @throws {Error} If called more than once with the same socket
        * @private
        */
-      completeUpgrade(extensions, key, protocols, req, socket, head, cb) {
+      completeUpgrade(extensions, key2, protocols, req, socket, head, cb) {
         if (!socket.readable || !socket.writable) return socket.destroy();
         if (socket[kWebSocket]) {
           throw new Error(
@@ -18167,7 +19494,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash("sha1").update(key + GUID).digest("base64");
+        const digest = createHash("sha1").update(key2 + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -18356,8 +19683,8 @@ var init_devtools = __esm({
 
 // node_modules/ink/build/reconciler.js
 async function loadPackageJson() {
-  const fs9 = await import("node:fs");
-  const content = fs9.readFileSync(new URL("../package.json", import.meta.url), "utf8");
+  const fs11 = await import("node:fs");
+  const content = fs11.readFileSync(new URL("../package.json", import.meta.url), "utf8");
   return JSON.parse(content);
 }
 var import_react_reconciler, import_constants, Scheduler, import_react, diff, cleanupYogaNode, currentUpdatePriority, currentRootNode, packageJson, reconciler_default;
@@ -18398,17 +19725,17 @@ $ npm install --save-dev react-devtools-core
       }
       const changed = {};
       let isChanged = false;
-      for (const key of Object.keys(before)) {
-        const isDeleted = after ? !Object.hasOwn(after, key) : true;
+      for (const key2 of Object.keys(before)) {
+        const isDeleted = after ? !Object.hasOwn(after, key2) : true;
         if (isDeleted) {
-          changed[key] = void 0;
+          changed[key2] = void 0;
           isChanged = true;
         }
       }
       if (after) {
-        for (const key of Object.keys(after)) {
-          if (after[key] !== before[key]) {
-            changed[key] = after[key];
+        for (const key2 of Object.keys(after)) {
+          if (after[key2] !== before[key2]) {
+            changed[key2] = after[key2];
             isChanged = true;
           }
         }
@@ -18458,29 +19785,29 @@ $ npm install --save-dev react-devtools-core
         }
         const type = originalType === "ink-text" && hostContext.isInsideText ? "ink-virtual-text" : originalType;
         const node = createNode(type);
-        for (const [key, value] of Object.entries(newProps)) {
-          if (key === "children") {
+        for (const [key2, value] of Object.entries(newProps)) {
+          if (key2 === "children") {
             continue;
           }
-          if (key === "style") {
+          if (key2 === "style") {
             setStyle(node, value);
             if (node.yogaNode) {
               styles_default(node.yogaNode, value);
             }
             continue;
           }
-          if (key === "internal_transform") {
+          if (key2 === "internal_transform") {
             node.internal_transform = value;
             continue;
           }
-          if (key === "internal_static") {
+          if (key2 === "internal_static") {
             currentRootNode = rootNode;
             node.internal_static = true;
             rootNode.isStaticDirty = true;
             rootNode.staticNode = node;
             continue;
           }
-          setAttribute(node, key, value);
+          setAttribute(node, key2, value);
         }
         return node;
       },
@@ -18552,20 +19879,20 @@ $ npm install --save-dev react-devtools-core
           return;
         }
         if (props) {
-          for (const [key, value] of Object.entries(props)) {
-            if (key === "style") {
+          for (const [key2, value] of Object.entries(props)) {
+            if (key2 === "style") {
               setStyle(node, value);
               continue;
             }
-            if (key === "internal_transform") {
+            if (key2 === "internal_transform") {
               node.internal_transform = value;
               continue;
             }
-            if (key === "internal_static") {
+            if (key2 === "internal_static") {
               node.internal_static = true;
               continue;
             }
-            setAttribute(node, key, value);
+            setAttribute(node, key2, value);
           }
         }
         if (style && node.yogaNode) {
@@ -18870,11 +20197,11 @@ function assembleStyles2() {
         if (value === 0) {
           return 30;
         }
-        let result = 30 + (Math.round(blue) << 2 | Math.round(green) << 1 | Math.round(red));
+        let result2 = 30 + (Math.round(blue) << 2 | Math.round(green) << 1 | Math.round(red));
         if (value === 2) {
-          result += 60;
+          result2 += 60;
         }
-        return result;
+        return result2;
       },
       enumerable: false
     },
@@ -18967,7 +20294,7 @@ var init_ansi_styles2 = __esm({
 
 // node_modules/chalk/source/vendor/supports-color/index.js
 import process5 from "node:process";
-import os5 from "node:os";
+import os6 from "node:os";
 import tty2 from "node:tty";
 function hasFlag(flag2, argv = globalThis.Deno ? globalThis.Deno.args : process5.argv) {
   const prefix = flag2.startsWith("-") ? "" : flag2.length === 1 ? "-" : "--";
@@ -19025,14 +20352,14 @@ function _supportsColor(haveStream, { streamIsTTY, sniffFlags = true } = {}) {
     return min;
   }
   if (process5.platform === "win32") {
-    const osRelease = os5.release().split(".");
+    const osRelease = os6.release().split(".");
     if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
       return Number(osRelease[2]) >= 14931 ? 3 : 2;
     }
     return 1;
   }
   if ("CI" in env2) {
-    if (["GITHUB_ACTIONS", "GITEA_ACTIONS", "CIRCLECI"].some((key) => key in env2)) {
+    if (["GITHUB_ACTIONS", "GITEA_ACTIONS", "CIRCLECI"].some((key2) => key2 in env2)) {
       return 3;
     }
     if (["TRAVIS", "APPVEYOR", "GITLAB_CI", "BUILDKITE", "DRONE"].some((sign) => sign in env2) || env2.CI_NAME === "codeship") {
@@ -19300,39 +20627,39 @@ var init_colorize = __esm({
     isNamedColor = (color) => {
       return color in source_default;
     };
-    colorize = (str, color, type) => {
+    colorize = (str3, color, type) => {
       if (!color) {
-        return str;
+        return str3;
       }
       if (isNamedColor(color)) {
         if (type === "foreground") {
-          return source_default[color](str);
+          return source_default[color](str3);
         }
         const methodName = `bg${color[0].toUpperCase() + color.slice(1)}`;
-        return source_default[methodName](str);
+        return source_default[methodName](str3);
       }
       if (color.startsWith("#")) {
-        return type === "foreground" ? source_default.hex(color)(str) : source_default.bgHex(color)(str);
+        return type === "foreground" ? source_default.hex(color)(str3) : source_default.bgHex(color)(str3);
       }
       if (color.startsWith("ansi256")) {
         const matches = ansiRegex2.exec(color);
         if (!matches) {
-          return str;
+          return str3;
         }
         const value = Number(matches[1]);
-        return type === "foreground" ? source_default.ansi256(value)(str) : source_default.bgAnsi256(value)(str);
+        return type === "foreground" ? source_default.ansi256(value)(str3) : source_default.bgAnsi256(value)(str3);
       }
       if (color.startsWith("rgb")) {
         const matches = rgbRegex.exec(color);
         if (!matches) {
-          return str;
+          return str3;
         }
         const firstValue = Number(matches[1]);
         const secondValue = Number(matches[2]);
         const thirdValue = Number(matches[3]);
-        return type === "foreground" ? source_default.rgb(firstValue, secondValue, thirdValue)(str) : source_default.bgRgb(firstValue, secondValue, thirdValue)(str);
+        return type === "foreground" ? source_default.rgb(firstValue, secondValue, thirdValue)(str3) : source_default.bgRgb(firstValue, secondValue, thirdValue)(str3);
       }
-      return str;
+      return str3;
     };
     colorize_default = colorize;
   }
@@ -19482,7 +20809,7 @@ var init_render_node_to_output = __esm({
         const { role, state } = node.internal_accessibility;
         if (state) {
           const stateKeys = Object.keys(state);
-          const stateDescription = stateKeys.filter((key) => state[key]).join(", ");
+          const stateDescription = stateKeys.filter((key2) => state[key2]).join(", ");
           if (stateDescription) {
             output = `(${stateDescription}) ${output}`;
           }
@@ -19740,9 +21067,9 @@ function parseLinkCode(string, offset) {
     return void 0;
   return string.slice(0, endIndex + 1);
 }
-function findSGRSequenceEndIndex(str) {
-  for (let index = 2; index < str.length; index++) {
-    const charCode = str.charCodeAt(index);
+function findSGRSequenceEndIndex(str3) {
+  for (let index = 2; index < str3.length; index++) {
+    const charCode = str3.charCodeAt(index);
     if (charCode === CC_M)
       return index;
     if (charCode === CC_SEMI)
@@ -19783,19 +21110,19 @@ function splitCompoundSGRSequences(code) {
   }
   return ret.map((part) => `\x1B[${part}m`);
 }
-function tokenize(str, endChar = Number.POSITIVE_INFINITY) {
+function tokenize(str3, endChar = Number.POSITIVE_INFINITY) {
   const ret = [];
   let visible = 0;
   let codeEndIndex = 0;
-  for (const { segment, index } of segmenter3.segment(str)) {
+  for (const { segment, index } of segmenter3.segment(str3)) {
     if (index < codeEndIndex)
       continue;
     const codePoint = segment.codePointAt(0);
     if (ESCAPES3.has(codePoint)) {
       let code;
-      const nextCodePoint = str.codePointAt(index + 1);
+      const nextCodePoint = str3.codePointAt(index + 1);
       if (nextCodePoint === OSC2) {
-        code = parseLinkCode(str, index);
+        code = parseLinkCode(str3, index);
         if (code) {
           ret.push({
             type: "ansi",
@@ -19804,7 +21131,7 @@ function tokenize(str, endChar = Number.POSITIVE_INFINITY) {
           });
         }
       } else if (nextCodePoint === CSI) {
-        code = parseSGRSequence(str, index);
+        code = parseSGRSequence(str3, index);
         if (code) {
           const codes = splitCompoundSGRSequences(code);
           for (const individualCode of codes) {
@@ -19922,10 +21249,10 @@ var init_output = __esm({
           transformers
         });
       }
-      clip(clip) {
+      clip(clip2) {
         this.operations.push({
           type: "clip",
-          clip
+          clip: clip2
         });
       }
       unclip() {
@@ -19959,47 +21286,47 @@ var init_output = __esm({
             const { text, transformers } = operation;
             let { x, y } = operation;
             let lines = text.split("\n");
-            const clip = clips.at(-1);
-            if (clip) {
-              const clipHorizontally = typeof clip?.x1 === "number" && typeof clip?.x2 === "number";
-              const clipVertically = typeof clip?.y1 === "number" && typeof clip?.y2 === "number";
+            const clip2 = clips.at(-1);
+            if (clip2) {
+              const clipHorizontally = typeof clip2?.x1 === "number" && typeof clip2?.x2 === "number";
+              const clipVertically = typeof clip2?.y1 === "number" && typeof clip2?.y2 === "number";
               if (clipHorizontally) {
                 const width = this.caches.getWidestLine(text);
-                if (x + width < clip.x1 || x > clip.x2) {
+                if (x + width < clip2.x1 || x > clip2.x2) {
                   continue;
                 }
               }
               if (clipVertically) {
                 const height = lines.length;
-                if (y + height < clip.y1 || y > clip.y2) {
+                if (y + height < clip2.y1 || y > clip2.y2) {
                   continue;
                 }
               }
               if (clipHorizontally) {
                 lines = lines.map((line) => {
-                  const from = x < clip.x1 ? clip.x1 - x : 0;
+                  const from = x < clip2.x1 ? clip2.x1 - x : 0;
                   const width = this.caches.getStringWidth(line);
-                  const to = x + width > clip.x2 ? clip.x2 - x : width;
+                  const to = x + width > clip2.x2 ? clip2.x2 - x : width;
                   return sliceAnsi(line, from, to);
                 });
-                if (x < clip.x1) {
-                  x = clip.x1;
+                if (x < clip2.x1) {
+                  x = clip2.x1;
                 }
               }
               if (clipVertically) {
-                const from = y < clip.y1 ? clip.y1 - y : 0;
+                const from = y < clip2.y1 ? clip2.y1 - y : 0;
                 const height = lines.length;
-                const to = y + height > clip.y2 ? clip.y2 - y : height;
+                const to = y + height > clip2.y2 ? clip2.y2 - y : height;
                 lines = lines.slice(from, to);
-                if (y < clip.y1) {
-                  y = clip.y1;
+                if (y < clip2.y1) {
+                  y = clip2.y1;
                 }
               }
             }
             let offsetY = 0;
             for (let [index, line] of lines.entries()) {
-              const currentLine = output[y + offsetY];
-              if (!currentLine) {
+              const currentLine2 = output[y + offsetY];
+              if (!currentLine2) {
                 continue;
               }
               for (const transformer of transformers) {
@@ -20008,11 +21335,11 @@ var init_output = __esm({
               const characters = this.caches.getStyledChars(line);
               let offsetX = x;
               for (const character of characters) {
-                currentLine[offsetX] = character;
+                currentLine2[offsetX] = character;
                 const characterWidth = Math.max(1, this.caches.getStringWidth(character.value));
                 if (characterWidth > 1) {
                   for (let index2 = 1; index2 < characterWidth; index2++) {
-                    currentLine[offsetX + index2] = {
+                    currentLine2[offsetX + index2] = {
                       type: "char",
                       value: "",
                       fullWidth: false,
@@ -20252,7 +21579,7 @@ var init_log_update = __esm({
     init_ansi_escapes();
     init_cli_cursor();
     init_cursor_helpers();
-    visibleLineCount = (lines, str) => str.endsWith("\n") ? lines.length - 1 : lines.length;
+    visibleLineCount = (lines, str3) => str3.endsWith("\n") ? lines.length - 1 : lines.length;
     createStandard = (stream, { showCursor = false } = {}) => {
       let previousLineCount = 0;
       let previousOutput = "";
@@ -20262,11 +21589,11 @@ var init_log_update = __esm({
       let previousCursorPosition;
       let cursorWasShown = false;
       const getActiveCursor = () => cursorDirty ? cursorPosition : void 0;
-      const hasChanges = (str, activeCursor) => {
+      const hasChanges = (str3, activeCursor) => {
         const cursorChanged = cursorPositionChanged(activeCursor, previousCursorPosition);
-        return str !== previousOutput || cursorChanged;
+        return str3 !== previousOutput || cursorChanged;
       };
-      const render2 = (str) => {
+      const render2 = (str3) => {
         if (!showCursor && !hasHiddenCursor) {
           cli_cursor_default.hide(stream);
           hasHiddenCursor = true;
@@ -20274,13 +21601,13 @@ var init_log_update = __esm({
         const activeCursor = getActiveCursor();
         cursorDirty = false;
         const cursorChanged = cursorPositionChanged(activeCursor, previousCursorPosition);
-        if (!hasChanges(str, activeCursor)) {
+        if (!hasChanges(str3, activeCursor)) {
           return false;
         }
-        const lines = str.split("\n");
-        const visibleCount = visibleLineCount(lines, str);
+        const lines = str3.split("\n");
+        const visibleCount = visibleLineCount(lines, str3);
         const cursorSuffix = buildCursorSuffix(visibleCount, activeCursor);
-        if (str === previousOutput && cursorChanged) {
+        if (str3 === previousOutput && cursorChanged) {
           stream.write(buildCursorOnlySequence({
             cursorWasShown,
             previousLineCount,
@@ -20289,9 +21616,9 @@ var init_log_update = __esm({
             cursorPosition: activeCursor
           }));
         } else {
-          previousOutput = str;
+          previousOutput = str3;
           const returnPrefix = buildReturnToBottomPrefix(cursorWasShown, previousLineCount, previousCursorPosition);
-          stream.write(returnPrefix + base_exports.eraseLines(previousLineCount) + str + cursorSuffix);
+          stream.write(returnPrefix + base_exports.eraseLines(previousLineCount) + str3 + cursorSuffix);
           previousLineCount = lines.length;
         }
         previousCursorPosition = activeCursor ? { ...activeCursor } : void 0;
@@ -20316,17 +21643,17 @@ var init_log_update = __esm({
           hasHiddenCursor = false;
         }
       };
-      render2.sync = (str) => {
+      render2.sync = (str3) => {
         const activeCursor = cursorDirty ? cursorPosition : void 0;
         cursorDirty = false;
-        const lines = str.split("\n");
-        previousOutput = str;
+        const lines = str3.split("\n");
+        previousOutput = str3;
         previousLineCount = lines.length;
         if (!activeCursor && cursorWasShown) {
           stream.write(hideCursorEscape);
         }
         if (activeCursor) {
-          stream.write(buildCursorSuffix(visibleLineCount(lines, str), activeCursor));
+          stream.write(buildCursorSuffix(visibleLineCount(lines, str3), activeCursor));
         }
         previousCursorPosition = activeCursor ? { ...activeCursor } : void 0;
         cursorWasShown = activeCursor !== void 0;
@@ -20336,7 +21663,7 @@ var init_log_update = __esm({
         cursorDirty = true;
       };
       render2.isCursorDirty = () => cursorDirty;
-      render2.willRender = (str) => hasChanges(str, getActiveCursor());
+      render2.willRender = (str3) => hasChanges(str3, getActiveCursor());
       return render2;
     };
     createIncremental = (stream, { showCursor = false } = {}) => {
@@ -20348,11 +21675,11 @@ var init_log_update = __esm({
       let previousCursorPosition;
       let cursorWasShown = false;
       const getActiveCursor = () => cursorDirty ? cursorPosition : void 0;
-      const hasChanges = (str, activeCursor) => {
+      const hasChanges = (str3, activeCursor) => {
         const cursorChanged = cursorPositionChanged(activeCursor, previousCursorPosition);
-        return str !== previousOutput || cursorChanged;
+        return str3 !== previousOutput || cursorChanged;
       };
-      const render2 = (str) => {
+      const render2 = (str3) => {
         if (!showCursor && !hasHiddenCursor) {
           cli_cursor_default.hide(stream);
           hasHiddenCursor = true;
@@ -20360,13 +21687,13 @@ var init_log_update = __esm({
         const activeCursor = getActiveCursor();
         cursorDirty = false;
         const cursorChanged = cursorPositionChanged(activeCursor, previousCursorPosition);
-        if (!hasChanges(str, activeCursor)) {
+        if (!hasChanges(str3, activeCursor)) {
           return false;
         }
-        const nextLines = str.split("\n");
-        const visibleCount = visibleLineCount(nextLines, str);
+        const nextLines = str3.split("\n");
+        const visibleCount = visibleLineCount(nextLines, str3);
         const previousVisible = visibleLineCount(previousLines, previousOutput);
-        if (str === previousOutput && cursorChanged) {
+        if (str3 === previousOutput && cursorChanged) {
           stream.write(buildCursorOnlySequence({
             cursorWasShown,
             previousLineCount: previousLines.length,
@@ -20379,16 +21706,16 @@ var init_log_update = __esm({
           return true;
         }
         const returnPrefix = buildReturnToBottomPrefix(cursorWasShown, previousLines.length, previousCursorPosition);
-        if (str === "\n" || previousOutput.length === 0) {
+        if (str3 === "\n" || previousOutput.length === 0) {
           const cursorSuffix2 = buildCursorSuffix(visibleCount, activeCursor);
-          stream.write(returnPrefix + base_exports.eraseLines(previousLines.length) + str + cursorSuffix2);
+          stream.write(returnPrefix + base_exports.eraseLines(previousLines.length) + str3 + cursorSuffix2);
           cursorWasShown = activeCursor !== void 0;
           previousCursorPosition = activeCursor ? { ...activeCursor } : void 0;
-          previousOutput = str;
+          previousOutput = str3;
           previousLines = nextLines;
           return true;
         }
-        const hasTrailingNewline = str.endsWith("\n");
+        const hasTrailingNewline = str3.endsWith("\n");
         const buffer = [];
         buffer.push(returnPrefix);
         if (visibleCount < previousVisible) {
@@ -20415,7 +21742,7 @@ var init_log_update = __esm({
         stream.write(buffer.join(""));
         cursorWasShown = activeCursor !== void 0;
         previousCursorPosition = activeCursor ? { ...activeCursor } : void 0;
-        previousOutput = str;
+        previousOutput = str3;
         previousLines = nextLines;
         return true;
       };
@@ -20437,17 +21764,17 @@ var init_log_update = __esm({
           hasHiddenCursor = false;
         }
       };
-      render2.sync = (str) => {
+      render2.sync = (str3) => {
         const activeCursor = cursorDirty ? cursorPosition : void 0;
         cursorDirty = false;
-        const lines = str.split("\n");
-        previousOutput = str;
+        const lines = str3.split("\n");
+        previousOutput = str3;
         previousLines = lines;
         if (!activeCursor && cursorWasShown) {
           stream.write(hideCursorEscape);
         }
         if (activeCursor) {
-          stream.write(buildCursorSuffix(visibleLineCount(lines, str), activeCursor));
+          stream.write(buildCursorSuffix(visibleLineCount(lines, str3), activeCursor));
         }
         previousCursorPosition = activeCursor ? { ...activeCursor } : void 0;
         cursorWasShown = activeCursor !== void 0;
@@ -20457,7 +21784,7 @@ var init_log_update = __esm({
         cursorDirty = true;
       };
       render2.isCursorDirty = () => cursorDirty;
-      render2.willRender = (str) => hasChanges(str, getActiveCursor());
+      render2.willRender = (str3) => hasChanges(str3, getActiveCursor());
       return render2;
     };
     create2 = (stream, { showCursor = false, incremental = false } = {}) => {
@@ -20827,7 +22154,7 @@ var require_stack_utils = __commonJS({
         }
         let outdent = false;
         let lastNonAtLine = null;
-        const result = [];
+        const result2 = [];
         stack.forEach((st) => {
           st = st.replace(/\\/g, "/");
           if (this._internals.some((internal) => internal.test(st))) {
@@ -20846,17 +22173,17 @@ var require_stack_utils = __commonJS({
           if (st) {
             if (isAtLine) {
               if (lastNonAtLine) {
-                result.push(lastNonAtLine);
+                result2.push(lastNonAtLine);
                 lastNonAtLine = null;
               }
-              result.push(st);
+              result2.push(st);
             } else {
               outdent = true;
               lastNonAtLine = st;
             }
           }
         });
-        return result.map((line) => `${indent}${line}
+        return result2.map((line) => `${indent}${line}
 `).join("");
       }
       captureString(limit, fn = this.captureString) {
@@ -21008,13 +22335,13 @@ var require_stack_utils = __commonJS({
         return res;
       }
     };
-    function setFile(result, filename, cwd3) {
+    function setFile(result2, filename, cwd3) {
       if (filename) {
         filename = filename.replace(/\\/g, "/");
         if (filename.startsWith(`${cwd3}/`)) {
           filename = filename.slice(cwd3.length + 1);
         }
-        result.file = filename;
+        result2.file = filename;
       }
     }
     function ignoredPackagesRegExp(ignoredPackages) {
@@ -21184,7 +22511,7 @@ var init_Text = __esm({
 });
 
 // node_modules/ink/build/components/ErrorOverview.js
-import * as fs5 from "node:fs";
+import * as fs8 from "node:fs";
 import { cwd } from "node:process";
 function ErrorOverview({ error }) {
   const stack = error.stack ? error.stack.split("\n").slice(1) : void 0;
@@ -21192,8 +22519,8 @@ function ErrorOverview({ error }) {
   const filePath = cleanupPath(origin?.file);
   let excerpt;
   let lineWidth = 0;
-  if (filePath && origin?.line && fs5.existsSync(filePath)) {
-    const sourceCode = fs5.readFileSync(filePath, "utf8");
+  if (filePath && origin?.line && fs8.existsSync(filePath)) {
+    const sourceCode = fs8.readFileSync(filePath, "utf8");
     excerpt = dist_default3(sourceCode, origin.line);
     if (excerpt) {
       for (const { line } of excerpt) {
@@ -21294,8 +22621,8 @@ var init_ErrorOverview = __esm({
     init_dist3();
     init_Box();
     init_Text();
-    cleanupPath = (path10) => {
-      return path10?.replace(`file://${cwd()}/`, "");
+    cleanupPath = (path14) => {
+      return path14?.replace(`file://${cwd()}/`, "");
     };
     stackUtils = new import_stack_utils.default({
       cwd: cwd(),
@@ -21684,11 +23011,11 @@ var init_App = __esm({
 
 // node_modules/ink/build/kitty-keyboard.js
 function resolveFlags(flags) {
-  let result = 0;
+  let result2 = 0;
   for (const flag2 of flags) {
-    result |= kittyFlags[flag2];
+    result2 |= kittyFlags[flag2];
   }
-  return result;
+  return result2;
 }
 var kittyFlags, kittyModifiers;
 var init_kitty_keyboard = __esm({
@@ -22804,7 +24131,7 @@ var init_parse_keypress = __esm({
       };
     };
     parseKeypress = (s = "") => {
-      let parts;
+      let parts2;
       if (Buffer2.isBuffer(s)) {
         if (s[0] > 127 && s[1] === void 0) {
           s[0] -= 128;
@@ -22836,7 +24163,7 @@ var init_parse_keypress = __esm({
           isPrintable: false
         };
       }
-      const key = {
+      const key2 = {
         name: "",
         ctrl: false,
         meta: false,
@@ -22845,56 +24172,56 @@ var init_parse_keypress = __esm({
         sequence: s,
         raw: s
       };
-      key.sequence = key.sequence || s || key.name;
+      key2.sequence = key2.sequence || s || key2.name;
       if (s === "\r" || s === "\x1B\r") {
-        key.raw = void 0;
-        key.name = "return";
-        key.option = s.length === 2;
+        key2.raw = void 0;
+        key2.name = "return";
+        key2.option = s.length === 2;
       } else if (s === "\n") {
-        key.name = "enter";
+        key2.name = "enter";
       } else if (s === "	") {
-        key.name = "tab";
+        key2.name = "tab";
       } else if (s === "\b" || s === "\x1B\b") {
-        key.name = "backspace";
-        key.meta = s.charAt(0) === "\x1B";
+        key2.name = "backspace";
+        key2.meta = s.charAt(0) === "\x1B";
       } else if (s === "\x7F" || s === "\x1B\x7F") {
-        key.name = "delete";
-        key.meta = s.charAt(0) === "\x1B";
+        key2.name = "delete";
+        key2.meta = s.charAt(0) === "\x1B";
       } else if (s === "\x1B" || s === "\x1B\x1B") {
-        key.name = "escape";
-        key.meta = s.length === 2;
+        key2.name = "escape";
+        key2.meta = s.length === 2;
       } else if (s === " " || s === "\x1B ") {
-        key.name = "space";
-        key.meta = s.length === 2;
+        key2.name = "space";
+        key2.meta = s.length === 2;
       } else if (s.length === 1 && s <= "") {
-        key.name = String.fromCharCode(s.charCodeAt(0) + "a".charCodeAt(0) - 1);
-        key.ctrl = true;
+        key2.name = String.fromCharCode(s.charCodeAt(0) + "a".charCodeAt(0) - 1);
+        key2.ctrl = true;
       } else if (s.length === 1 && s >= "0" && s <= "9") {
-        key.name = "number";
+        key2.name = "number";
       } else if (s.length === 1 && s >= "a" && s <= "z") {
-        key.name = s;
+        key2.name = s;
       } else if (s.length === 1 && s >= "A" && s <= "Z") {
-        key.name = s.toLowerCase();
-        key.shift = true;
-      } else if (parts = metaKeyCodeRe.exec(s)) {
-        key.meta = true;
-        key.shift = /^[A-Z]$/.test(parts[1]);
-      } else if (parts = fnKeyRe.exec(s)) {
+        key2.name = s.toLowerCase();
+        key2.shift = true;
+      } else if (parts2 = metaKeyCodeRe.exec(s)) {
+        key2.meta = true;
+        key2.shift = /^[A-Z]$/.test(parts2[1]);
+      } else if (parts2 = fnKeyRe.exec(s)) {
         const segs = [...s];
         if (segs[0] === "\x1B" && segs[1] === "\x1B") {
-          key.option = true;
+          key2.option = true;
         }
-        const code = [parts[1], parts[2], parts[4], parts[6]].filter(Boolean).join("");
-        const modifier = (parts[3] || parts[5] || 1) - 1;
-        key.ctrl = !!(modifier & 4);
-        key.meta = !!(modifier & 10);
-        key.shift = !!(modifier & 1);
-        key.code = code;
-        key.name = keyName[code];
-        key.shift = isShiftKey(code) || key.shift;
-        key.ctrl = isCtrlKey(code) || key.ctrl;
+        const code = [parts2[1], parts2[2], parts2[4], parts2[6]].filter(Boolean).join("");
+        const modifier = (parts2[3] || parts2[5] || 1) - 1;
+        key2.ctrl = !!(modifier & 4);
+        key2.meta = !!(modifier & 10);
+        key2.shift = !!(modifier & 1);
+        key2.code = code;
+        key2.name = keyName[code];
+        key2.shift = isShiftKey(code) || key2.shift;
+        key2.ctrl = isCtrlKey(code) || key2.ctrl;
       }
-      return key;
+      return key2;
     };
     parse_keypress_default = parseKeypress;
   }
@@ -22936,7 +24263,7 @@ var init_use_input = __esm({
         }
         const handleData = (data) => {
           const keypress = parse_keypress_default(data);
-          const key = {
+          const key2 = {
             upArrow: keypress.name === "up",
             downArrow: keypress.name === "down",
             leftArrow: keypress.name === "left",
@@ -22985,11 +24312,11 @@ var init_use_input = __esm({
             input = input.slice(1);
           }
           if (input.length === 1 && typeof input[0] === "string" && /[A-Z]/.test(input[0])) {
-            key.shift = true;
+            key2.shift = true;
           }
-          if (!(input === "c" && key.ctrl) || !internal_exitOnCtrlC) {
+          if (!(input === "c" && key2.ctrl) || !internal_exitOnCtrlC) {
             reconciler_default.batchedUpdates(() => {
-              inputHandler(input, key);
+              inputHandler(input, key2);
             });
           }
         };
@@ -23208,6 +24535,17 @@ function session(s, sid, cwd2, t2) {
   if (cwd2) x.cwd = cwd2;
   return x;
 }
+function turnOf(s, sid, x, t2) {
+  const start = x.turnStart ?? t2;
+  const key2 = sid + "@" + start;
+  let m = turnByKey(s, key2);
+  if (!m) {
+    m = { key: key2, sid, cwd: x.cwd, start, files: 0 };
+    s.turns.push(m);
+    if (s.turns.length > MAX_TURNS) s.turns = s.turns.slice(-MAX_TURNS);
+  }
+  return m;
+}
 function trimCards(s) {
   if (s.review.length <= ECON.maxCards) return;
   const overflow = s.review.length - ECON.maxCards;
@@ -23227,6 +24565,8 @@ function applyEvents(s, events) {
       case "prompt": {
         const x = session(s, e.sid, e.cwd, e.t);
         Object.assign(x, { status: "busy", turnStart: e.t, lastAt: e.t, tools: 0, edits: 0, pass: false, fail: false });
+        const m = turnOf(s, e.sid, x, e.t);
+        if (e.p) m.title = e.p;
         out.push({ type: "turn_start", t: e.t, sid: e.sid, cwd: x.cwd });
         break;
       }
@@ -23248,16 +24588,19 @@ function applyEvents(s, events) {
           lastEdit = e.t;
           const edit = e.edit;
           const file = normPath(edit.file);
+          const turn = turnOf(s, e.sid, x, e.t);
           const open = s.review.find(
-            (c) => c.status === "new" && c.sid === e.sid && normPath(c.file) === file && (c.more?.length ?? 0) < MAX_PARTS - 1 && e.t - (c.last ?? c.t) <= MERGE_WINDOW_MS
+            (c) => c.status === "new" && c.turn === turn.key && normPath(c.file) === file && (c.more?.length ?? 0) < MAX_PARTS - 1
           );
           if (open) {
             (open.more ??= []).push(edit);
             open.last = e.t;
           } else {
             s.seq++;
-            s.review.push({ ...edit, id: `${e.t.toString(36)}-${s.seq}`, t: e.t, sid: e.sid, cwd: x.cwd, status: "new" });
+            s.review.push({ ...edit, id: e.t.toString(36) + "-" + s.seq, t: e.t, sid: e.sid, cwd: x.cwd, turn: turn.key, status: "new" });
             s.totals.cards++;
+            turn.files++;
+            dayOf(s, e.t).files++;
             trimCards(s);
           }
         }
@@ -23274,8 +24617,11 @@ function applyEvents(s, events) {
           if (x.tools > 0) {
             s.history.push({ cwd: x.cwd, ms, t: e.t });
             if (s.history.length > 200) s.history = s.history.slice(-200);
+            dayOf(s, e.t).turns++;
           }
-          out.push({ type: "turn_done", t: e.t, sid: e.sid, cwd: x.cwd, ms, coins, pass: x.pass, fail: x.fail, edits: x.edits });
+          const m = turnOf(s, e.sid, x, e.t);
+          Object.assign(m, { end: e.t, pass: x.pass || void 0, fail: x.fail || void 0 });
+          out.push({ type: "turn_done", t: e.t, sid: e.sid, cwd: x.cwd, turn: m.key, ms, coins, pass: x.pass, fail: x.fail, edits: x.edits });
         }
         Object.assign(x, { status: "idle", turnStart: void 0, lastAt: e.t });
         break;
@@ -23306,7 +24652,7 @@ function applyEvents(s, events) {
   return out;
 }
 function sweep(s, now) {
-  let changed = false;
+  let changed = expireOld(s, now) > 0;
   for (const [sid, x] of Object.entries(s.sessions)) {
     if (x.status !== "idle" && now - x.lastAt > STALE_BUSY_MS) {
       Object.assign(x, { status: "idle", turnStart: void 0 });
@@ -23318,16 +24664,16 @@ function sweep(s, now) {
   }
   return changed;
 }
-var STALE_BUSY_MS, FORGET_IDLE_MS, MAX_PARTS, MERGE_WINDOW_MS;
+var STALE_BUSY_MS, FORGET_IDLE_MS, MAX_PARTS;
 var init_reducer = __esm({
   "src/engine/reducer.ts"() {
     "use strict";
     init_paths();
     init_economy();
+    init_state();
     STALE_BUSY_MS = 15 * 60 * 1e3;
     FORGET_IDLE_MS = 24 * 60 * 60 * 1e3;
     MAX_PARTS = 20;
-    MERGE_WINDOW_MS = 30 * 60 * 1e3;
   }
 });
 
@@ -23356,8 +24702,8 @@ function predictWait(history, cwd2, elapsedMs = 0) {
 function chooseMode(s, cfg, predictedMs) {
   if (pendingCards(s).length > 0) return "review";
   if (s.totals.turns === 0 && s.totals.cards === 0) return "review";
-  const short = predictedMs !== null && predictedMs < cfg.shortWaitSec * 1e3;
-  if (short) return "learn";
+  const short2 = predictedMs !== null && predictedMs < cfg.shortWaitSec * 1e3;
+  if (short2) return "learn";
   const canPlay = s.game !== null && s.game.phase !== "dead" && s.game.phase !== "victory" || s.energy >= cfg.runCost;
   return canPlay ? "game" : "learn";
 }
@@ -23366,69 +24712,7 @@ var init_predict = __esm({
   "src/engine/predict.ts"() {
     "use strict";
     init_state();
-    MODES = ["review", "game", "learn"];
-  }
-});
-
-// src/feedback.ts
-import fs6 from "node:fs";
-import path5 from "node:path";
-function isFor(note, cwd2, sid) {
-  if (note.sid && sid && note.sid === sid) return true;
-  if (!note.cwd || !cwd2) return true;
-  return within(cwd2, note.cwd);
-}
-function addNote(note) {
-  const dir = paths.feedback();
-  ensureDir(dir);
-  const file = path5.join(dir, `${note.t}-${note.id}.json`);
-  const tmp = file + ".tmp";
-  fs6.writeFileSync(tmp, JSON.stringify(note));
-  fs6.renameSync(tmp, file);
-}
-function noteFiles() {
-  try {
-    return fs6.readdirSync(paths.feedback()).filter((f2) => f2.endsWith(".json")).sort();
-  } catch {
-    return [];
-  }
-}
-function claimNotes(cwd2, sid) {
-  const dir = paths.feedback();
-  const out = [];
-  for (const f2 of noteFiles()) {
-    const src = path5.join(dir, f2);
-    let note = null;
-    try {
-      note = parseJson(fs6.readFileSync(src, "utf8"));
-    } catch {
-    }
-    if (note && typeof note.text === "string" && !isFor(note, cwd2, sid)) continue;
-    const claimed = `${src}.claimed-${process.pid}`;
-    try {
-      fs6.renameSync(src, claimed);
-    } catch {
-      continue;
-    }
-    try {
-      note ??= parseJson(fs6.readFileSync(claimed, "utf8"));
-      if (!note || typeof note.text !== "string") throw new Error("not a note");
-      out.push(note);
-      fs6.unlinkSync(claimed);
-    } catch {
-      try {
-        fs6.renameSync(claimed, `${src}.unreadable`);
-      } catch {
-      }
-    }
-  }
-  return out;
-}
-var init_feedback = __esm({
-  "src/feedback.ts"() {
-    "use strict";
-    init_paths();
-    init_fsutil();
+    MODES = ["review", "game", "learn", "me"];
   }
 });
 
@@ -23535,16 +24819,16 @@ var init_base2 = __esm({
           }
         }
       }
-      addToPath(path10, added, removed, oldPosInc, options) {
-        const last2 = path10.lastComponent;
+      addToPath(path14, added, removed, oldPosInc, options) {
+        const last2 = path14.lastComponent;
         if (last2 && !options.oneChangePerToken && last2.added === added && last2.removed === removed) {
           return {
-            oldPos: path10.oldPos + oldPosInc,
+            oldPos: path14.oldPos + oldPosInc,
             lastComponent: { count: last2.count + 1, added, removed, previousComponent: last2.previousComponent }
           };
         } else {
           return {
-            oldPos: path10.oldPos + oldPosInc,
+            oldPos: path14.oldPos + oldPosInc,
             lastComponent: { count: 1, added, removed, previousComponent: last2 }
           };
         }
@@ -23802,13 +25086,13 @@ function structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, ne
 }
 function splitLines(text) {
   const hasTrailingNl = text.endsWith("\n");
-  const result = text.split("\n").map((line) => line + "\n");
+  const result2 = text.split("\n").map((line) => line + "\n");
   if (hasTrailingNl) {
-    result.pop();
+    result2.pop();
   } else {
-    result.push(result.pop().slice(0, -1));
+    result2.push(result2.pop().slice(0, -1));
   }
-  return result;
+  return result2;
 }
 var init_create = __esm({
   "node_modules/diff/libesm/patch/create.js"() {
@@ -24014,9 +25298,9 @@ var require_react_jsx_runtime_production = __commonJS({
     var REACT_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.transitional.element");
     var REACT_FRAGMENT_TYPE = /* @__PURE__ */ Symbol.for("react.fragment");
     function jsxProd(type, config, maybeKey) {
-      var key = null;
-      void 0 !== maybeKey && (key = "" + maybeKey);
-      void 0 !== config.key && (key = "" + config.key);
+      var key2 = null;
+      void 0 !== maybeKey && (key2 = "" + maybeKey);
+      void 0 !== config.key && (key2 = "" + config.key);
       if ("key" in config) {
         maybeKey = {};
         for (var propName in config)
@@ -24026,7 +25310,7 @@ var require_react_jsx_runtime_production = __commonJS({
       return {
         $$typeof: REACT_ELEMENT_TYPE,
         type,
-        key,
+        key: key2,
         ref: void 0 !== config ? config : null,
         props: maybeKey
       };
@@ -24050,6 +25334,29 @@ var require_jsx_runtime = __commonJS({
 });
 
 // src/ui/common.tsx
+function useHint(setHint, text, active = true) {
+  (0, import_react29.useEffect)(() => {
+    if (active) setHint(text);
+  }, [text, active]);
+}
+function Meter({ value, max, width, color = "cyan" }) {
+  const filled = max > 0 ? Math.min(width, Math.round(Math.max(0, value) / max * width)) : 0;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color, children: "\u2501".repeat(filled) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: "gray", children: "\u2500".repeat(Math.max(0, width - filled)) })
+  ] });
+}
+function padTo(s, width) {
+  let out = "";
+  let w = 0;
+  for (const ch of s) {
+    const cw = stringWidth2(ch);
+    if (w + cw > width) break;
+    out += ch;
+    w += cw;
+  }
+  return out + " ".repeat(Math.max(0, width - w));
+}
 function Bar({ value, max, width, color }) {
   const filled = max > 0 ? Math.round(Math.max(0, value) / max * width) : 0;
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { children: [
@@ -24089,17 +25396,17 @@ function useLine() {
     value,
     isOpen: () => ref.current !== null,
     open: () => set(""),
-    handle(input, key, onSubmit, onCancel) {
+    handle(input, key2, onSubmit, onCancel) {
       const cur = ref.current ?? "";
-      if (key.return) {
+      if (key2.return) {
         set(null);
         onSubmit(cur);
-      } else if (key.escape) {
+      } else if (key2.escape) {
         set(null);
         onCancel();
-      } else if (key.backspace || key.delete) {
+      } else if (key2.backspace || key2.delete) {
         set(Array.from(cur).slice(0, -1).join(""));
-      } else if (!key.ctrl && !key.meta && !key.tab && input) {
+      } else if (!key2.ctrl && !key2.meta && !key2.tab && input) {
         set(cur + input.replace(/[\r\n]+/g, " "));
       }
     }
@@ -24124,72 +25431,252 @@ var init_common = __esm({
   }
 });
 
-// src/ui/Review.tsx
-import path6 from "node:path";
-function seenSince(key) {
-  let at = firstSeen.get(key);
-  if (at === void 0) {
-    at = Date.now();
-    firstSeen.set(key, at);
-    if (firstSeen.size > 500) firstSeen.delete(firstSeen.keys().next().value);
+// src/ui/Today.tsx
+function Today({ st, lang, width, now }) {
+  const lv = levelInfo(st.xp);
+  const sk = streak(st, now);
+  const quests = questProgress(st, now);
+  const head = t(lang, "me_level", { l: lv.level, title: levelTitle(lv.level)[lang] });
+  const nums = `${lv.into}/${lv.need}`;
+  const barW = Math.max(6, Math.min(24, width - head.length * 2 - nums.length - 6));
+  const doneN = quests.filter((q) => q.done).length;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { bold: true, children: head }),
+      " ",
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Meter, { value: lv.into, max: lv.need, width: barW, color: "magenta" }),
+      " ",
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
+        nums,
+        " XP"
+      ] })
+    ] }),
+    sk.days > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: sk.today ? "yellow" : "gray", bold: sk.today, children: t(lang, "me_streak", { n: sk.days }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: sk.today ? "green" : "yellow", children: [
+        " \xB7 ",
+        t(lang, sk.today ? "me_streak_kept" : "me_streak_todo")
+      ] }),
+      st.bestStreak > sk.days ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
+        " \xB7 ",
+        t(lang, "me_streak_best", { n: st.bestStreak })
+      ] }) : null
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "me_streak_zero"), width, color: "gray" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: " " }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { bold: true, children: t(lang, "me_quests") }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
+        " ",
+        doneN,
+        "/3"
+      ] })
+    ] }),
+    quests.map(({ def, value, done }) => {
+      const right = done ? `+${QUEST_ENERGY}\u26A1` : def.goal > 1 ? `${value}/${def.goal}` : "";
+      const labelW = Math.max(10, width - 4 - 7);
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: done ? "green" : "gray", children: done ? " \u2713 " : " \u25CB " }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: done ? "gray" : void 0, strikethrough: false, children: padTo(def.label[lang], labelW) }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: done ? "green" : "cyan", children: right.padStart(6) })
+      ] }, def.id);
+    })
+  ] });
+}
+var import_jsx_runtime2;
+var init_Today = __esm({
+  async "src/ui/Today.tsx"() {
+    "use strict";
+    await init_build2();
+    init_progress();
+    init_i18n();
+    await init_common();
+    import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
   }
-  return at;
+});
+
+// src/ui/Review.tsx
+import path9 from "node:path";
+function startDwell(key2) {
+  stopDwell();
+  showing = { key: key2, since: Date.now() };
+}
+function stopDwell() {
+  if (!showing) return;
+  dwell.set(showing.key, (dwell.get(showing.key) ?? 0) + Date.now() - showing.since);
+  showing = null;
+  if (dwell.size > 500) dwell.delete(dwell.keys().next().value);
+}
+function shownMs(key2) {
+  return (dwell.get(key2) ?? 0) + (showing?.key === key2 ? Date.now() - showing.since : 0);
+}
+function reviewGroups(s) {
+  const pend = pendingCards(s);
+  const keys = new Set(pend.map(turnKeyOf));
+  const groups = [];
+  for (const key2 of keys) {
+    const cards = s.review.filter((c) => turnKeyOf(c) === key2).sort((a, b) => a.t - b.t);
+    groups.push({ key: key2, meta: turnByKey(s, key2), cards, pending: cards.filter((c) => c.status === "new") });
+  }
+  const start = (g) => g.meta?.start ?? g.cards[0]?.t ?? 0;
+  return groups.sort((a, b) => start(b) - start(a));
 }
 function rel(file, cwd2) {
-  if (cwd2 && file.toLowerCase().startsWith(cwd2.toLowerCase())) {
-    const r = path6.relative(cwd2, file);
+  if (cwd2 && normPath(file).startsWith(normPath(cwd2) + "/")) {
+    const r = path9.relative(cwd2, file);
     if (r && !r.startsWith("..")) return r.replace(/\\/g, "/");
   }
   return file.replace(/\\/g, "/");
 }
-function Review({ st, update, lang, active, blocked, width, height, now, busy, setTyping, setupHint }) {
-  const pending = pendingCards(st);
-  const [idx, setIdx] = (0, import_react30.useState)(0);
+function layoutChips(cards, width, maxLines) {
+  const lines = [[]];
+  let used = 0;
+  let hidden = 0;
+  for (const card2 of cards) {
+    const label = baseName(card2.file);
+    const w = stringWidth2(label) + 4;
+    if (used + w > width - 4 && lines[lines.length - 1].length) {
+      if (lines.length >= maxLines) {
+        hidden++;
+        continue;
+      }
+      lines.push([]);
+      used = 0;
+    }
+    lines[lines.length - 1].push({ card: card2, label });
+    used += w;
+  }
+  return { lines, hidden };
+}
+function Chips({ lines, hidden, current }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Box_default, { flexDirection: "column", children: lines.map((row, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { wrap: "truncate-end", children: [
+    row.map(({ card: card2, label }) => {
+      const [mark, color] = MARK[card2.quick ? "quick" : card2.status];
+      const on = card2.id === current;
+      return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color, children: [
+          mark,
+          " "
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: on, bold: on, color: on ? "cyan" : card2.status === "new" ? void 0 : "gray", children: label }),
+        "  "
+      ] }, card2.id);
+    }),
+    i === lines.length - 1 && hidden ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "gray", children: [
+      "+",
+      hidden
+    ] }) : null
+  ] }, i)) });
+}
+function turnLine(g, st, lang, now, manyProjects) {
+  const m = g.meta;
+  const start = m?.start ?? g.cards[0].t;
+  const bits = [];
+  const session2 = m ? st.sessions[m.sid] : void 0;
+  const running = !!m && !m.end && session2?.status !== "idle" && session2?.turnStart === m.start;
+  bits.push(running ? t(lang, "rv_running") : t(lang, "rv_ago", { t: fmtAgo(now - (m?.end ?? g.cards[g.cards.length - 1].last ?? start), lang) }));
+  if (m?.end) bits.push(t(lang, "rv_took", { t: fmtDur(m.end - m.start) }));
+  if (m?.pass) bits.push(t(lang, "rv_pass"));
+  else if (m?.fail) bits.push(t(lang, "rv_fail"));
+  bits.push(t(lang, "rv_files", { n: g.cards.length }));
+  if (manyProjects) bits.push(path9.basename(g.cards[0].cwd));
+  return bits.join(" \xB7 ");
+}
+function Review({ st, update, lang, active, blocked, width, height, now, busy, setTyping, setupHint, toast, setHint, focusTurn, clearFocus }) {
+  const groups = (0, import_react30.useMemo)(() => reviewGroups(st), [st.review, st.turns]);
+  const flat = (0, import_react30.useMemo)(() => groups.flatMap((g) => g.pending), [groups]);
+  const [sel, setSel, selRef] = useRefState(null);
   const [scroll, setScroll] = (0, import_react30.useState)(0);
   const line = useLine();
   const noteCard = (0, import_react30.useRef)(null);
-  const [flash, setFlash] = (0, import_react30.useState)("");
-  const i = Math.min(idx, Math.max(0, pending.length - 1));
-  const card2 = pending[i];
-  const parts = card2 ? 1 + (card2.more?.length ?? 0) : 0;
-  const contentKey = card2 ? `${card2.id}:${parts}` : "";
-  if (card2) seenSince(contentKey);
-  const lines = (0, import_react30.useMemo)(() => card2 ? cardDiff(card2) : [], [contentKey]);
+  (0, import_react30.useEffect)(() => {
+    if (!focusTurn) return;
+    const g = groups.find((x) => x.key === focusTurn);
+    if (g?.pending[0]) {
+      setSel(g.pending[0].id);
+      setScroll(0);
+    }
+    clearFocus();
+  }, [focusTurn]);
+  const card2 = flat.find((c) => c.id === sel) ?? flat[0];
+  const group = card2 ? groups.find((g) => g.key === turnKeyOf(card2)) : void 0;
+  const ck = card2 ? contentKey(card2) : "";
+  (0, import_react30.useEffect)(() => {
+    if (!ck) return;
+    startDwell(ck);
+    return () => stopDwell();
+  }, [ck]);
+  const lines = (0, import_react30.useMemo)(() => card2 ? cardDiff(card2) : [], [ck]);
   const stats = diffStats(lines);
   const textW = Math.max(10, width - 8);
   const rows = (0, import_react30.useMemo)(() => diffRows(lines, textW), [lines, textW]);
-  const file = card2 ? rel(card2.file, card2.cwd) : "";
-  const manyProjects = new Set(pending.map((c) => normPath(c.cwd))).size > 1;
-  const view = Math.max(3, height - 4);
+  const manyProjects = new Set(flat.map((c) => normPath(c.cwd))).size > 1;
+  const chips = group && group.cards.length > 1 ? layoutChips(group.cards, width - 1, height >= 18 ? 2 : 1) : null;
+  const view = Math.max(3, height - (3 + (chips?.lines.length ?? 0) + 1));
   const maxScroll = Math.max(0, rows.length - view);
   const sc = Math.min(scroll, maxScroll);
+  const neighbour = (id, list = flat) => {
+    const i = list.findIndex((c) => c.id === id);
+    if (i < 0) return list[0]?.id ?? null;
+    return list[i + 1]?.id ?? list[i - 1]?.id ?? null;
+  };
   const go = (d) => {
-    setIdx((x) => Math.max(0, Math.min(pending.length - 1, Math.min(x, pending.length - 1) + d)));
+    if (!card2) return;
+    const i = flat.findIndex((c) => c.id === card2.id);
+    const next = flat[Math.max(0, Math.min(flat.length - 1, i + d))];
+    if (next) setSel(next.id);
+    setScroll(0);
+  };
+  const goTurn = (d) => {
+    if (!group) return;
+    const gi2 = groups.findIndex((g2) => g2.key === group.key);
+    const g = groups[Math.max(0, Math.min(groups.length - 1, gi2 + d))];
+    if (g?.pending[0]) setSel(g.pending[0].id);
     setScroll(0);
   };
   const skipAllAsked = (0, import_react30.useRef)(0);
   const skipAll = () => {
     if (Date.now() - skipAllAsked.current > 4e3) {
       skipAllAsked.current = Date.now();
-      setFlash(t(lang, "rv_skip_all_ask", { n: pending.length }));
+      toast(t(lang, "rv_skip_all_ask", { n: flat.length }), "yellow");
       return;
     }
     skipAllAsked.current = 0;
-    const ids = pending.map((c) => c.id);
+    const ids = flat.map((c) => c.id);
     update((s) => {
       for (const id of ids) applyVerdict(s, id, "skip");
     });
-    setFlash(t(lang, "rv_skip_all_done", { n: ids.length }));
+    toast(t(lang, "rv_skip_all_done", { n: ids.length }), "gray");
     setScroll(0);
   };
   const verdict = (v) => {
     if (!card2) return;
-    const quick = v === "ok" && isSkim(stats.add + stats.del, Date.now() - seenSince(contentKey));
+    const quick = v === "ok" && isSkim(stats.add + stats.del, shownMs(ck));
     let gain = 0;
+    const next = neighbour(card2.id);
     update((s) => {
       gain = applyVerdict(s, card2.id, v, { quick });
     });
-    setFlash(v === "skip" ? t(lang, "rv_skip") : quick ? t(lang, "rv_skim") : t(lang, "rv_ok", { n: gain }));
+    setSel(next);
+    if (v === "skip") toast(t(lang, "rv_skip"), "gray");
+    else toast(quick ? t(lang, "rv_skim") : t(lang, "rv_ok", { n: gain }), quick ? "yellow" : "green");
+    setScroll(0);
+  };
+  const approveTurn = () => {
+    if (!group) return;
+    const todo = group.pending.map((c) => ({ id: c.id, quick: isSkim(changedLines(c), shownMs(contentKey(c))) }));
+    const rest = flat.filter((c) => !todo.some((x) => x.id === c.id));
+    const after = groups.slice(groups.findIndex((g) => g.key === group.key) + 1).find((g) => g.pending.length)?.pending[0]?.id;
+    let gain = 0;
+    update((s) => {
+      for (const x of todo) gain += applyVerdict(s, x.id, "ok", { quick: x.quick });
+    });
+    setSel(after ?? rest[0]?.id ?? null);
+    const unread = todo.filter((x) => x.quick).length;
+    const read2 = todo.length - unread;
+    toast(
+      !unread ? t(lang, "rv_turn_all", { n: read2, e: gain }) : !read2 ? t(lang, "rv_turn_none", { n: unread }) : t(lang, "rv_turn_some", { r: read2, e: gain, q: unread }),
+      unread ? "yellow" : "green"
+    );
     setScroll(0);
   };
   const submitNote = (raw) => {
@@ -24202,141 +25689,130 @@ function Review({ st, update, lang, active, blocked, width, height, now, busy, s
     const cwd2 = target.cwd || void 0;
     addNote({ id: noteId, t: at, text, file: target.file, cardId: target.id, cwd: cwd2, sid: target.sid });
     let gain = 0;
+    const next = neighbour(target.id);
     update((s) => {
       gain = applyVerdict(s, target.id, "flag", { note: text, noteId });
       recordNote(s, { id: noteId, t: at, text, file: target.file, cwd: cwd2 });
     });
-    setFlash(t(lang, busy ? "rv_queued_busy" : "rv_queued_idle", { n: gain }));
+    if (selRef.current === target.id) setSel(next);
+    toast(t(lang, busy ? "rv_queued_busy" : "rv_queued_idle", { n: gain }), "cyan");
     setScroll(0);
   };
   use_input_default(
-    (input, key) => {
+    (input, key2) => {
       if (blocked()) return;
       if (line.isOpen()) {
-        line.handle(input, key, submitNote, () => setTyping(false));
+        line.handle(input, key2, submitNote, () => setTyping(false));
         return;
       }
       if (!card2) return;
       if (input === "S") return skipAll();
       skipAllAsked.current = 0;
       if (input === "y") verdict("ok");
+      else if (input === "Y") approveTurn();
       else if (input === "s") verdict("skip");
       else if (input === "n") {
-        noteCard.current = { id: card2.id, file, cwd: card2.cwd, sid: card2.sid };
+        noteCard.current = { id: card2.id, file: rel(card2.file, card2.cwd), cwd: card2.cwd, sid: card2.sid };
         line.open();
         setTyping(true);
-        setFlash("");
-      } else if (key.rightArrow || input === "l") go(1);
-      else if (key.leftArrow || input === "h") go(-1);
-      else if (key.downArrow || input === "j") setScroll(Math.min(maxScroll, sc + 1));
-      else if (key.upArrow || input === "k") setScroll(Math.max(0, sc - 1));
-      else if (key.pageDown || input === " ") setScroll(Math.min(maxScroll, sc + view));
-      else if (key.pageUp) setScroll(Math.max(0, sc - view));
+      } else if (key2.rightArrow || input === "l") go(1);
+      else if (key2.leftArrow || input === "h") go(-1);
+      else if (input === "]") goTurn(1);
+      else if (input === "[") goTurn(-1);
+      else if (key2.downArrow || input === "j") setScroll(Math.min(maxScroll, sc + 1));
+      else if (key2.upArrow || input === "k") setScroll(Math.max(0, sc - 1));
+      else if (key2.pageDown || input === " ") setScroll(Math.min(maxScroll, sc + view));
+      else if (key2.pageUp) setScroll(Math.max(0, sc - view));
     },
     { isActive: active }
   );
-  const cov = coverage(st);
-  const head = /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { bold: true, children: t(lang, "rv_title") }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
-      "  ",
-      t(lang, "rv_pending", { n: pending.length }),
-      cov !== null ? " \xB7 " + t(lang, "rv_cov", { p: `${Math.round(cov * 100)}%` }) : "",
-      st.totals.delivered ? " \xB7 " + t(lang, "rv_relayed", { n: st.totals.delivered }) : ""
-    ] })
-  ] });
+  const hint2 = !card2 ? t(lang, "rv_empty_keys") : line.value !== null ? t(lang, "rv_note_hint") : fit([t(lang, "rv_keys"), t(lang, "rv_keys_short")], width - 12);
+  useHint(setHint, hint2, active);
   const paraW = width - 1;
-  if (!card2) {
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", children: [
-      head,
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: " " }),
-      setupHint ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_setup"), width: paraW, color: "yellow" }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_setup_cmd"), width: paraW }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_setup_then"), width: paraW, color: "gray" })
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "green", children: t(lang, "rv_empty") }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_empty_hint"), width: paraW, color: "gray" })
+  if (!card2 || !group) {
+    const last2 = [...st.turns].reverse().find((m) => m.files > 0);
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "column", children: [
+      setupHint ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { bold: true, color: "yellow", children: t(lang, "rv_setup") }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Para, { text: t(lang, "rv_setup_cmd"), width: paraW }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Para, { text: t(lang, "rv_setup_then"), width: paraW, color: "gray" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { bold: true, color: last2 ? "green" : void 0, children: t(lang, last2 ? "rv_empty" : "rv_empty_first") }),
+        last2 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+          Para,
+          {
+            text: last2.end ? t(lang, "rv_last", { title: short(last2.title ?? t(lang, "rv_untitled"), 16), n: last2.files, ago: fmtAgo(now - last2.end, lang) }) : t(lang, "rv_last_running", { title: short(last2.title ?? t(lang, "rv_untitled"), 16), n: last2.files }),
+            width: paraW,
+            color: "gray"
+          }
+        ) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Para, { text: t(lang, "rv_empty_wait"), width: paraW, color: "gray" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: " " }),
-      st.totals.cards > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: t(lang, "rv_empty_play", { e: st.energy }), width: paraW, color: "cyan" }),
-      flash ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Para, { text: flash, width: paraW, color: "yellow" }) : null
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Today, { st, lang, width: paraW, now })
     ] });
   }
-  const kind = parts > 1 ? t(lang, "rv_parts", { n: parts }) : card2.created ? t(lang, "rv_new_file") : t(lang, `kind_${card2.kind}`);
+  const gi = groups.findIndex((g) => g.key === group.key);
+  const title = group.meta?.title ?? t(lang, "rv_untitled");
+  const pos = groups.length > 1 ? t(lang, "rv_turn", { i: gi + 1, n: groups.length }) : "";
+  const file = rel(card2.file, card2.cwd);
+  const n = parts(card2);
+  const kind = n > 1 ? t(lang, "rv_parts", { n }) : card2.created ? t(lang, "rv_new_file") : t(lang, `kind_${card2.kind}`);
   const shownRows = rows.slice(sc, sc + view);
   const below = rows.length - sc - view;
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", children: [
-    head,
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
-      manyProjects ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
-        path6.basename(card2.cwd),
-        " \u203A "
-      ] }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", bold: true, children: file }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "column", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { width: paraW, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Box_default, { flexGrow: 1, flexShrink: 1, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { bold: true, wrap: "truncate-end", children: title }) }),
+      pos ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Box_default, { flexShrink: 0, marginLeft: 1, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", children: pos }) }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", wrap: "truncate-end", children: turnLine(group, st, lang, now, manyProjects) }),
+    chips ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Chips, { lines: chips.lines, hidden: chips.hidden, current: card2.id }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { wrap: "truncate-start", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "cyan", bold: true, children: file }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "gray", children: [
         "  ",
         kind,
-        " \xB7 ",
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "green", children: [
+        " ",
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "green", children: [
           "+",
           stats.add
         ] }),
         " ",
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "red", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "red", children: [
           "-",
           stats.del
-        ] }),
-        " \xB7 ",
-        t(lang, "rv_ago", { t: fmtAgo(now - (card2.last ?? card2.t), lang) }),
-        " \xB7 [",
-        i + 1,
-        "/",
-        pending.length,
-        "]"
+        ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box_default, { flexDirection: "column", height: view, children: shownRows.map((r, k) => {
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Box_default, { flexDirection: "column", height: view, children: shownRows.map((r, k) => {
       if (r.type === "hunk")
-        return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", dimColor: true, wrap: "truncate-end", children: r.text }, k);
+        return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "cyan", dimColor: true, wrap: "truncate-end", children: r.text }, k);
       if (r.type === "sep")
-        return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", wrap: "truncate-end", children: t(lang, "rv_part", { n: r.no ?? 0 }) }, k);
+        return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "cyan", wrap: "truncate-end", children: t(lang, "rv_part", { n: r.no ?? 0 }) }, k);
       const color = r.type === "add" ? "green" : r.type === "del" ? "red" : void 0;
       const sign = r.cont ? " " : r.type === "add" ? "+" : r.type === "del" ? "-" : " ";
       const no = r.no !== void 0 ? String(r.no).padStart(4) : "    ";
-      return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "gray", children: [
+      return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { wrap: "truncate-end", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "gray", children: [
           no,
           " "
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color, dimColor: r.type === "ctx", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color, dimColor: r.type === "ctx", children: [
           sign,
           " ",
           r.text
         ] })
       ] }, k);
     }) }),
-    line.value !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(InputLine, { prompt: t(lang, "rv_note"), value: line.value }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "gray", children: t(lang, "rv_note_hint") })
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "gray", children: below > 0 ? t(lang, "rv_more", { n: below }) : " " }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { wrap: "truncate-end", children: [
-        flash ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { color: "yellow", children: [
-          flash,
-          " \xB7 "
-        ] }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "gray", children: fit([t(lang, "rv_keys"), t(lang, "rv_keys_short")], width - 1) })
-      ] })
-    ] })
+    line.value !== null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(InputLine, { prompt: t(lang, "rv_note"), value: line.value }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", children: below > 0 ? t(lang, "rv_more", { n: below }) : " " })
   ] });
 }
-var import_react30, import_jsx_runtime2, firstSeen;
+var import_react30, import_jsx_runtime3, dwell, showing, parts, contentKey, changedLines, turnKeyOf, short, baseName, MARK;
 var init_Review = __esm({
   async "src/ui/Review.tsx"() {
     "use strict";
     import_react30 = __toESM(require_react(), 1);
     await init_build2();
+    init_string_width2();
     init_state();
     init_economy();
     init_diff2();
@@ -24344,8 +25820,26 @@ var init_Review = __esm({
     init_paths();
     init_i18n();
     await init_common();
-    import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
-    firstSeen = /* @__PURE__ */ new Map();
+    await init_Today();
+    import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
+    dwell = /* @__PURE__ */ new Map();
+    showing = null;
+    parts = (c) => 1 + (c.more?.length ?? 0);
+    contentKey = (c) => `${c.id}:${parts(c)}`;
+    changedLines = (c) => {
+      const s = diffStats(cardDiff(c));
+      return s.add + s.del;
+    };
+    turnKeyOf = (c) => c.turn ?? `legacy:${c.sid}`;
+    short = (s, n) => Array.from(s).length > n ? Array.from(s).slice(0, n - 1).join("") + "\u2026" : s;
+    baseName = (f2) => f2.replace(/\\/g, "/").split("/").pop() || f2;
+    MARK = {
+      new: ["\u25CF", "yellow"],
+      ok: ["\u2713", "green"],
+      flag: ["\u270E", "cyan"],
+      skip: ["\u2013", "gray"],
+      quick: ["\xB7", "gray"]
+    };
   }
 });
 
@@ -24358,8 +25852,8 @@ __export(decks_exports, {
   saveDeck: () => saveDeck,
   tx: () => tx
 });
-import fs7 from "node:fs";
-import path7 from "node:path";
+import fs9 from "node:fs";
+import path10 from "node:path";
 function tx(t2, lang) {
   return typeof t2 === "string" ? t2 : t2[lang];
 }
@@ -24374,14 +25868,14 @@ function loadUserDecks() {
   const dir = paths.decks();
   let files = [];
   try {
-    files = fs7.readdirSync(dir).filter((f2) => f2.endsWith(".json"));
+    files = fs9.readdirSync(dir).filter((f2) => f2.endsWith(".json"));
   } catch {
     return [];
   }
   const out = [];
   for (const f2 of files) {
     try {
-      const d = parseJson(fs7.readFileSync(path7.join(dir, f2), "utf8"));
+      const d = parseJson(fs9.readFileSync(path10.join(dir, f2), "utf8"));
       if (d && d.id && Array.isArray(d.cards) && d.cards.length) out.push(d);
     } catch {
     }
@@ -24393,7 +25887,7 @@ function allDecks() {
 }
 function saveDeck(d) {
   ensureDir(paths.decks());
-  writeJsonAtomic(path7.join(paths.decks(), `${d.id}.json`), d, true);
+  writeJsonAtomic(path10.join(paths.decks(), `${d.id}.json`), d, true);
 }
 var BUILTIN_DECKS;
 var init_decks = __esm({
@@ -24739,13 +26233,13 @@ function nextCard(ids, srs, now) {
 function dueCount(ids, srs, now) {
   return ids.filter((id) => srs[id] && srs[id].due <= now).length;
 }
-var MIN, DAY, BOX_INTERVALS;
+var MIN, DAY2, BOX_INTERVALS;
 var init_srs = __esm({
   "src/learn/srs.ts"() {
     "use strict";
     MIN = 60 * 1e3;
-    DAY = 24 * 60 * MIN;
-    BOX_INTERVALS = [1 * MIN, 10 * MIN, 1 * DAY, 3 * DAY, 7 * DAY, 21 * DAY];
+    DAY2 = 24 * 60 * MIN;
+    BOX_INTERVALS = [1 * MIN, 10 * MIN, 1 * DAY2, 3 * DAY2, 7 * DAY2, 21 * DAY2];
   }
 });
 
@@ -24826,7 +26320,7 @@ var init_generate = __esm({
 });
 
 // src/ui/Learn.tsx
-function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping }) {
+function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping, setHint }) {
   const [reload, setReload] = (0, import_react31.useState)(0);
   const decks = (0, import_react31.useMemo)(() => allDecks(), [reload]);
   const deckId = st.learnDeck === "all" || decks.some((d) => d.id === st.learnDeck) ? st.learnDeck : "all";
@@ -24875,6 +26369,7 @@ function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping }
       if (!quick) {
         s.energy += ECON.learnCard;
         s.totals.learned++;
+        track(s, "learned");
       }
     });
     setMsg(quick ? t(lang, "ln_quick") : t(lang, "ln_gained", { n: ECON.learnCard }));
@@ -24905,12 +26400,12 @@ function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping }
     }
   };
   use_input_default(
-    (input, key) => {
+    (input, key2) => {
       if (blocked()) return;
       if (topic.isOpen()) {
         topic.handle(
           input,
-          key,
+          key2,
           (text) => {
             const q = text.trim();
             setTyping(false);
@@ -24931,10 +26426,10 @@ function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping }
         return void run(() => generateCodebaseDeck(st.review.slice(-8), 8, lang, cfg));
       }
       if (!curRef.current) return;
-      if (!flippedRef.current && (input === " " || key.return)) return setFlipped(true);
+      if (!flippedRef.current && (input === " " || key2.return)) return setFlipped(true);
       if (flippedRef.current) {
         if (input === "1") doRate("again");
-        else if (input === "2" || input === " " || key.return) doRate("good");
+        else if (input === "2" || input === " " || key2.return) doRate("good");
         else if (input === "3") doRate("easy");
       }
     },
@@ -24944,12 +26439,14 @@ function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping }
   const due = dueCount(ids, st.srs, now);
   const unseen = ids.filter((id) => !st.srs[id]).length;
   const item = cur ? cards.get(cur.id) : void 0;
+  const hint2 = topic.value !== null ? t(lang, "note_hint") : item && flipped ? t(lang, "ln_rate") : item ? fit([t(lang, "ln_flip"), t(lang, "ln_flip_short")], width - 12) : fit([t(lang, "ln_keys"), t(lang, "ln_keys_short")], width - 12);
+  useHint(setHint, hint2, active);
   const boxW = Math.min(width - 2, 90);
   const inner = boxW - 4;
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "column", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { wrap: "truncate-end", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { bold: true, children: t(lang, "ln_title") }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "gray", children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { wrap: "truncate-end", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: t(lang, "ln_title") }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
         "  ",
         deckTitle,
         " \xB7 ",
@@ -24960,28 +26457,26 @@ function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping }
         unseen
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: " " }),
-    item ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "column", borderStyle: "round", borderColor: flipped ? "green" : "cyan", paddingX: 1, width: boxW, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
+    item ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", borderStyle: "round", borderColor: flipped ? "green" : "cyan", paddingX: 1, width: boxW, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
         tx(item.deck.title, lang),
         " \xB7 ",
         cur.isNew ? t(lang, "ln_new") : t(lang, "ln_review")
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Labeled, { label: t(lang, "ln_q") + (lang === "zh" ? "\uFF1A" : ": "), text: tx(item.card.q, lang), width: inner, labelColor: "cyan" }),
-      flipped ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: " " }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Labeled, { label: t(lang, "ln_a") + (lang === "zh" ? "\uFF1A" : ": "), text: tx(item.card.a, lang), width: inner, labelColor: "green" })
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Labeled, { label: t(lang, "ln_q") + (lang === "zh" ? "\uFF1A" : ": "), text: tx(item.card.q, lang), width: inner, labelColor: "cyan" }),
+      flipped ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Labeled, { label: t(lang, "ln_a") + (lang === "zh" ? "\uFF1A" : ": "), text: tx(item.card.a, lang), width: inner, labelColor: "green" })
       ] }) : null
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "column", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "green", children: t(lang, "ln_done") }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Para, { text: t(lang, "ln_done_hint"), width: width - 1, color: "gray" })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "green", children: t(lang, "ln_done") }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: t(lang, "ln_done_hint"), width: width - 1, color: "gray" })
     ] }),
-    topic.value !== null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(InputLine, { prompt: t(lang, "ln_topic"), value: topic.value }) : msg ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Para, { text: msg, width: width - 1, color: "yellow" }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: " " }),
-    item && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", wrap: "truncate-end", children: flipped ? t(lang, "ln_rate") : t(lang, "ln_flip") }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "gray", wrap: "truncate-end", children: fit([t(lang, "ln_keys"), t(lang, "ln_keys_short")], width - 1) })
+    topic.value !== null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(InputLine, { prompt: t(lang, "ln_topic"), value: topic.value }) : msg ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: msg, width: width - 1, color: "yellow" }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " })
   ] });
 }
-var import_react31, import_jsx_runtime3;
+var import_react31, import_jsx_runtime4;
 var init_Learn = __esm({
   async "src/ui/Learn.tsx"() {
     "use strict";
@@ -24990,11 +26485,12 @@ var init_Learn = __esm({
     init_decks();
     init_srs();
     init_economy();
+    init_progress();
     init_llm();
     init_generate();
     init_i18n();
     await init_common();
-    import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
   }
 });
 
@@ -25021,9 +26517,10 @@ function say(run, msg) {
   run.log.push(msg);
   if (run.log.length > 5) run.log = run.log.slice(-5);
 }
-function newRun(seed, relics) {
+function newRun(seed, relics, overtime = false) {
   const maxHp = BASE_HP + (has(relics, "headphones") ? 8 : 0);
   const run = {
+    overtime: overtime || void 0,
     seed,
     rng: seed >>> 0,
     floor: 1,
@@ -25040,7 +26537,7 @@ function newRun(seed, relics) {
   return run;
 }
 function attackBonus(run, def) {
-  return def.boss ? 0 : run.floor - 1;
+  return (def.boss ? 0 : run.floor - 1) + (run.overtime ? 2 : 0);
 }
 function computeIntent(run, e) {
   const def = ENEMIES[e.id];
@@ -25068,7 +26565,7 @@ function computeIntent(run, e) {
 function startBattle(run, relics) {
   const id = pick(run, FLOOR_POOLS[Math.min(run.floor, FLOORS) - 1]);
   const def = ENEMIES[id];
-  const hp = def.boss ? def.hp : Math.round(def.hp * (1 + 0.15 * (run.floor - 1)));
+  const hp = Math.round((def.boss ? def.hp : def.hp * (1 + 0.15 * (run.floor - 1))) * (run.overtime ? 1.3 : 1));
   const enemy = { id, hp, maxHp: hp, block: 0, vuln: 0, weak: 0, depth: 0, turn: 1, intent: { kind: "mystery" } };
   enemy.intent = computeIntent(run, enemy);
   run.battle = {
@@ -25087,7 +26584,7 @@ function startBattle(run, relics) {
   };
   run.phase = "battle";
   run.reward = null;
-  say(run, l(`\u7B2C ${run.floor} \u5C42\uFF1A${def.name.zh} \u51FA\u73B0\u4E86\uFF01`, `Floor ${run.floor}: a wild ${def.name.en} appears!`));
+  say(run, l2(`\u7B2C ${run.floor} \u5C42\uFF1A${def.name.zh} \u51FA\u73B0\u4E86\uFF01`, `Floor ${run.floor}: a wild ${def.name.en} appears!`));
   startPlayerTurn(run, relics);
 }
 function drawCards(run, n) {
@@ -25121,7 +26618,7 @@ function hitEnemy(run, base, times) {
   for (let i = 0; i < times && e.hp > 0; i++) {
     if (e.id === "heisen" && !b.observed && !b.missed) {
       b.missed = true;
-      say(run, l("\u6D77\u68EE\u5821\u866B\u5728\u4F60\u6CA1\u76EF\u7740\u5B83\u65F6\u8EB2\u5F00\u4E86\uFF01", "The Heisenbug dodged \u2014 you were not observing it!"));
+      say(run, l2("\u6D77\u68EE\u5821\u866B\u5728\u4F60\u6CA1\u76EF\u7740\u5B83\u65F6\u8EB2\u5F00\u4E86\uFF01", "The Heisenbug dodged \u2014 you were not observing it!"));
       continue;
     }
     let dmg = base * mult;
@@ -25131,19 +26628,19 @@ function hitEnemy(run, base, times) {
     e.hp = Math.max(0, e.hp - (dmg - absorbed));
     dealt += dmg - absorbed;
   }
-  if (dealt > 0) say(run, l(`\u9020\u6210 ${dealt} \u4F24\u5BB3`, `Dealt ${dealt} damage`));
+  if (dealt > 0) say(run, l2(`\u9020\u6210 ${dealt} \u4F24\u5BB3`, `Dealt ${dealt} damage`));
 }
 function heal(run, n) {
   run.hp = Math.min(run.maxHp, run.hp + n);
 }
 function playCard(run, handIndex, relics) {
-  if (run.phase !== "battle" || !run.battle) return { ok: false, reason: l("\u73B0\u5728\u4E0D\u5728\u6218\u6597\u4E2D", "Not in a fight") };
+  if (run.phase !== "battle" || !run.battle) return { ok: false, reason: l2("\u73B0\u5728\u4E0D\u5728\u6218\u6597\u4E2D", "Not in a fight") };
   const b = run.battle;
   const id = b.hand[handIndex];
-  if (!id) return { ok: false, reason: l("\u6CA1\u6709\u8FD9\u5F20\u724C", "No such card") };
+  if (!id) return { ok: false, reason: l2("\u6CA1\u6709\u8FD9\u5F20\u724C", "No such card") };
   const c = CARDS[id];
-  if (c.unplayable) return { ok: false, reason: l("\u8FD9\u5F20\u724C\u65E0\u6CD5\u6253\u51FA", "This card cannot be played") };
-  if (c.cost > b.focus) return { ok: false, reason: l("\u4E13\u6CE8\u25C6\u4E0D\u591F\u4E86\uFF0C\u6309 e \u7ED3\u675F\u56DE\u5408", "Not enough focus \u25C6 \u2014 press e to end turn") };
+  if (c.unplayable) return { ok: false, reason: l2("\u8FD9\u5F20\u724C\u65E0\u6CD5\u6253\u51FA", "This card cannot be played") };
+  if (c.cost > b.focus) return { ok: false, reason: l2("\u4E13\u6CE8\u25C6\u4E0D\u591F\u4E86\uFF0C\u6309 e \u7ED3\u675F\u56DE\u5408", "Not enough focus \u25C6 \u2014 press e to end turn") };
   b.focus -= c.cost;
   b.hand.splice(handIndex, 1);
   const e = b.enemy;
@@ -25158,7 +26655,7 @@ function playCard(run, handIndex, relics) {
     case "duck":
       heal(run, 3);
       drawCards(run, 1);
-      say(run, l("\u4F60\u5BF9\u7740\u5C0F\u9EC4\u9E2D\u8BB2\u4E86\u4E00\u904D\uFF0C\u601D\u8DEF\u6E05\u6670\u4E86", "You explained it to the duck. Clarity!"));
+      say(run, l2("\u4F60\u5BF9\u7740\u5C0F\u9EC4\u9E2D\u8BB2\u4E86\u4E00\u904D\uFF0C\u601D\u8DEF\u6E05\u6670\u4E86", "You explained it to the duck. Clarity!"));
       break;
     case "unittest":
       hitEnemy(run, 3, 2);
@@ -25173,7 +26670,7 @@ function playCard(run, handIndex, relics) {
     case "review":
       e.vuln += 2;
       b.observed = true;
-      say(run, l("\u4EE3\u7801\u5BA1\u67E5\u53D1\u73B0\u4E86\u5F31\u70B9\uFF1A\u654C\u4EBA\u6613\u4F24", "Review found a weakness: enemy is Vulnerable"));
+      say(run, l2("\u4EE3\u7801\u5BA1\u67E5\u53D1\u73B0\u4E86\u5F31\u70B9\uFF1A\u654C\u4EBA\u6613\u4F24", "Review found a weakness: enemy is Vulnerable"));
       break;
     case "typecheck":
       b.block += 9;
@@ -25201,7 +26698,7 @@ function playCard(run, handIndex, relics) {
       break;
     case "pair":
       b.double = true;
-      say(run, l("\u7ED3\u5BF9\u4E2D\uFF1A\u4E0B\u4E00\u5F20\u653B\u51FB\u724C\u4F24\u5BB3\u7FFB\u500D", "Pairing: next attack deals double"));
+      say(run, l2("\u7ED3\u5BF9\u4E2D\uFF1A\u4E0B\u4E00\u5F20\u653B\u51FB\u724C\u4F24\u5BB3\u7FFB\u500D", "Pairing: next attack deals double"));
       break;
     case "bisect":
       hitEnemy(run, e.vuln > 0 ? 12 : 4, 1);
@@ -25209,7 +26706,7 @@ function playCard(run, handIndex, relics) {
     case "ship":
       hitEnemy(run, 14, 1);
       b.discard.push("incident");
-      say(run, l("\u4E0A\u7EBF\u6210\u529F\u2026\u2026\u987A\u4FBF\u5E26\u6765\u4E86\u4E00\u8D77\u7EBF\u4E0A\u4E8B\u6545", "Shipped! \u2026and caused an incident"));
+      say(run, l2("\u4E0A\u7EBF\u6210\u529F\u2026\u2026\u987A\u4FBF\u5E26\u6765\u4E86\u4E00\u8D77\u7EBF\u4E0A\u4E8B\u6545", "Shipped! \u2026and caused an incident"));
       break;
     case "revert":
       heal(run, 7);
@@ -25225,7 +26722,7 @@ function winBattle(run, relics) {
   run.kills++;
   if (has(relics, "espresso")) heal(run, 4);
   run.battle = null;
-  say(run, l(`\u51FB\u8D25\u4E86${def.name.zh}\uFF01`, `Squashed the ${def.name.en}!`));
+  say(run, l2(`\u51FB\u8D25\u4E86${def.name.zh}\uFF01`, `Squashed the ${def.name.en}!`));
   if (run.floor >= FLOORS) {
     run.phase = "victory";
     return;
@@ -25271,15 +26768,15 @@ function endTurn(run, relics) {
   if (intent.kind === "attack") {
     let lost = 0;
     for (let i = 0; i < intent.times && run.hp > 0; i++) lost += hitPlayer(run, intent.dmg);
-    say(run, l(`${name.zh} \u653B\u51FB\uFF0C\u4F60\u5931\u53BB ${lost} \u751F\u547D`, `${name.en} attacks: you lose ${lost} HP`));
+    say(run, l2(`${name.zh} \u653B\u51FB\uFF0C\u4F60\u5931\u53BB ${lost} \u751F\u547D`, `${name.en} attacks: you lose ${lost} HP`));
     if (e.id === "stackoverflow") e.depth += 1;
   } else if (intent.kind === "block") {
     e.block += intent.amt;
-    say(run, l(`${name.zh} \u83B7\u5F97 ${intent.amt} \u683C\u6321`, `${name.en} gains ${intent.amt} block`));
+    say(run, l2(`${name.zh} \u83B7\u5F97 ${intent.amt} \u683C\u6321`, `${name.en} gains ${intent.amt} block`));
   } else if (intent.kind === "recurse") {
     e.block += intent.block;
     e.depth += 2;
-    say(run, l("\u6808\u6EA2\u51FA\u53C8\u9012\u5F52\u4E86\u4E00\u5C42\uFF01", "Stack Overflow recurses deeper!"));
+    say(run, l2("\u6808\u6EA2\u51FA\u53C8\u9012\u5F52\u4E86\u4E00\u5C42\uFF01", "Stack Overflow recurses deeper!"));
   }
   if (e.id === "leak") {
     e.maxHp += 2;
@@ -25290,7 +26787,7 @@ function endTurn(run, relics) {
   if (run.hp <= 0) {
     run.phase = "dead";
     run.battle = null;
-    say(run, l("\u4F60\u88AB Bug \u51FB\u5012\u4E86\u2026\u2026", "The bugs got you\u2026"));
+    say(run, l2("\u4F60\u88AB Bug \u51FB\u5012\u4E86\u2026\u2026", "The bugs got you\u2026"));
     return;
   }
   e.turn++;
@@ -25305,11 +26802,11 @@ function incoming(run) {
   const per = b.enemy.weak > 0 ? Math.floor(it.dmg * 0.75) : it.dmg;
   return Math.max(0, per * it.times - b.block);
 }
-var l, FLOORS, BASE_HP, HAND, FOCUS, card, CARDS, STARTER_DECK, COMMON, RARE, ENEMIES, FLOOR_POOLS, RELICS, has, REST_HEAL;
+var l2, FLOORS, BASE_HP, HAND, FOCUS, card, CARDS, STARTER_DECK, COMMON, RARE, ENEMIES, FLOOR_POOLS, RELICS, has, REST_HEAL;
 var init_engine = __esm({
   "src/game/engine.ts"() {
     "use strict";
-    l = (zh, en) => ({ zh, en });
+    l2 = (zh, en) => ({ zh, en });
     FLOORS = 6;
     BASE_HP = 32;
     HAND = 4;
@@ -25324,25 +26821,25 @@ var init_engine = __esm({
     });
     CARDS = Object.fromEntries(
       [
-        card("log", 1, "starter", l("console.log", "console.log"), l("\u9020\u6210 5 \u4F24\u5BB3\uFF0C\u5E76\u89C2\u6D4B\u654C\u4EBA", "Deal 5. Observe the enemy"), { attack: true }),
-        card("bp", 1, "starter", l("\u6253\u65AD\u70B9", "Breakpoint"), l("\u83B7\u5F97 5 \u683C\u6321", "Gain 5 block")),
-        card("duck", 1, "starter", l("\u5C0F\u9EC4\u9E2D", "Rubber Duck"), l("\u56DE\u590D 3 \u751F\u547D\uFF0C\u62BD 1 \u5F20", "Heal 3, draw 1")),
-        card("unittest", 1, "starter", l("\u5355\u5143\u6D4B\u8BD5", "Unit Test"), l("\u9020\u6210 3 \u4F24\u5BB3 \xD72", "Deal 3 twice"), { attack: true }),
-        card("refactor", 2, "starter", l("\u91CD\u6784", "Refactor"), l("\u9020\u6210 8 \u4F24\u5BB3\uFF0C\u83B7\u5F97 5 \u683C\u6321", "Deal 8, gain 5 block"), { attack: true }),
-        card("hotfix", 0, "common", l("\u70ED\u4FEE\u590D", "Hotfix"), l("\u9020\u6210 6 \u4F24\u5BB3\u3002\u7528\u540E\u79FB\u9664", "Deal 6. Exhaust"), { attack: true, exhaust: true }),
-        card("review", 1, "common", l("\u4EE3\u7801\u5BA1\u67E5", "Code Review"), l("\u654C\u4EBA\u6613\u4F24 2 \u56DE\u5408\uFF08\u53D7\u4F24 +50%\uFF09\uFF0C\u89C2\u6D4B\u654C\u4EBA", "Vulnerable 2 (+50% damage taken). Observe"), {}),
-        card("typecheck", 1, "common", l("\u7C7B\u578B\u68C0\u67E5", "Type Check"), l("\u83B7\u5F97 9 \u683C\u6321", "Gain 9 block")),
-        card("docs", 1, "common", l("\u67E5\u6587\u6863", "Read the Docs"), l("\u62BD 3 \u5F20", "Draw 3")),
-        card("lint", 1, "common", l("\u9759\u6001\u68C0\u67E5", "Lint"), l("\u9020\u6210 3 \u4F24\u5BB3\uFF0C\u654C\u4EBA\u865A\u5F31 2 \u56DE\u5408\uFF08\u4F24\u5BB3 -25%\uFF09", "Deal 3. Weak 2 (enemy deals -25%)"), { attack: true }),
-        card("defensive", 1, "common", l("\u9632\u5FA1\u5F0F\u7F16\u7A0B", "Defensive Coding"), l("\u83B7\u5F97 5 \u683C\u6321\uFF0C\u4E0B\u56DE\u5408\u518D\u83B7\u5F97 5", "Gain 5 block now and 5 next turn")),
-        card("coffee", 0, "common", l("\u7EED\u676F\u5496\u5561", "Coffee Refill"), l("\u83B7\u5F97 2\u25C6\u3002\u7528\u540E\u79FB\u9664", "Gain 2\u25C6. Exhaust"), { exhaust: true }),
-        card("rmrf", 2, "rare", l("rm -rf", "rm -rf"), l("\u9020\u6210 20 \u4F24\u5BB3\uFF0C\u81EA\u5DF1\u5931\u53BB 4 \u751F\u547D", "Deal 20. Lose 4 HP"), { attack: true }),
-        card("parallel", 2, "rare", l("\u5E76\u884C\u5316", "Parallelize"), l("\u9020\u6210 4 \u4F24\u5BB3 \xD73", "Deal 4 three times"), { attack: true }),
-        card("pair", 1, "rare", l("\u7ED3\u5BF9\u7F16\u7A0B", "Pair Programming"), l("\u672C\u56DE\u5408\u4E0B\u4E00\u5F20\u653B\u51FB\u724C\u4F24\u5BB3\u7FFB\u500D", "Your next attack this turn deals double")),
-        card("bisect", 1, "rare", l("git bisect", "git bisect"), l("\u9020\u6210 4 \u4F24\u5BB3\uFF1B\u654C\u4EBA\u6613\u4F24\u65F6\u6539\u4E3A 12", "Deal 4, or 12 if the enemy is Vulnerable"), { attack: true }),
-        card("ship", 1, "rare", l("\u5468\u4E94\u4E0A\u7EBF", "Ship on Friday"), l("\u9020\u6210 14 \u4F24\u5BB3\uFF0C\u5F80\u5F03\u724C\u5806\u585E\u4E00\u5F20\u300C\u7EBF\u4E0A\u4E8B\u6545\u300D", "Deal 14. Add an Incident to your discard"), { attack: true }),
-        card("revert", 1, "rare", l("git revert", "git revert"), l("\u56DE\u590D 7 \u751F\u547D\u3002\u7528\u540E\u79FB\u9664", "Heal 7. Exhaust"), { exhaust: true }),
-        card("incident", 0, "junk", l("\u7EBF\u4E0A\u4E8B\u6545", "Incident"), l("\u65E0\u6CD5\u6253\u51FA\uFF0C\u53EA\u4F1A\u5835\u4F4F\u4F60\u7684\u624B\u724C", "Unplayable. Clogs your hand"), { unplayable: true })
+        card("log", 1, "starter", l2("console.log", "console.log"), l2("\u9020\u6210 5 \u4F24\u5BB3\uFF0C\u5E76\u89C2\u6D4B\u654C\u4EBA", "Deal 5. Observe the enemy"), { attack: true }),
+        card("bp", 1, "starter", l2("\u6253\u65AD\u70B9", "Breakpoint"), l2("\u83B7\u5F97 5 \u683C\u6321", "Gain 5 block")),
+        card("duck", 1, "starter", l2("\u5C0F\u9EC4\u9E2D", "Rubber Duck"), l2("\u56DE\u590D 3 \u751F\u547D\uFF0C\u62BD 1 \u5F20", "Heal 3, draw 1")),
+        card("unittest", 1, "starter", l2("\u5355\u5143\u6D4B\u8BD5", "Unit Test"), l2("\u9020\u6210 3 \u4F24\u5BB3 \xD72", "Deal 3 twice"), { attack: true }),
+        card("refactor", 2, "starter", l2("\u91CD\u6784", "Refactor"), l2("\u9020\u6210 8 \u4F24\u5BB3\uFF0C\u83B7\u5F97 5 \u683C\u6321", "Deal 8, gain 5 block"), { attack: true }),
+        card("hotfix", 0, "common", l2("\u70ED\u4FEE\u590D", "Hotfix"), l2("\u9020\u6210 6 \u4F24\u5BB3\u3002\u7528\u540E\u79FB\u9664", "Deal 6. Exhaust"), { attack: true, exhaust: true }),
+        card("review", 1, "common", l2("\u4EE3\u7801\u5BA1\u67E5", "Code Review"), l2("\u654C\u4EBA\u6613\u4F24 2 \u56DE\u5408\uFF08\u53D7\u4F24 +50%\uFF09\uFF0C\u89C2\u6D4B\u654C\u4EBA", "Vulnerable 2 (+50% damage taken). Observe"), {}),
+        card("typecheck", 1, "common", l2("\u7C7B\u578B\u68C0\u67E5", "Type Check"), l2("\u83B7\u5F97 9 \u683C\u6321", "Gain 9 block")),
+        card("docs", 1, "common", l2("\u67E5\u6587\u6863", "Read the Docs"), l2("\u62BD 3 \u5F20", "Draw 3")),
+        card("lint", 1, "common", l2("\u9759\u6001\u68C0\u67E5", "Lint"), l2("\u9020\u6210 3 \u4F24\u5BB3\uFF0C\u654C\u4EBA\u865A\u5F31 2 \u56DE\u5408\uFF08\u4F24\u5BB3 -25%\uFF09", "Deal 3. Weak 2 (enemy deals -25%)"), { attack: true }),
+        card("defensive", 1, "common", l2("\u9632\u5FA1\u5F0F\u7F16\u7A0B", "Defensive Coding"), l2("\u83B7\u5F97 5 \u683C\u6321\uFF0C\u4E0B\u56DE\u5408\u518D\u83B7\u5F97 5", "Gain 5 block now and 5 next turn")),
+        card("coffee", 0, "common", l2("\u7EED\u676F\u5496\u5561", "Coffee Refill"), l2("\u83B7\u5F97 2\u25C6\u3002\u7528\u540E\u79FB\u9664", "Gain 2\u25C6. Exhaust"), { exhaust: true }),
+        card("rmrf", 2, "rare", l2("rm -rf", "rm -rf"), l2("\u9020\u6210 20 \u4F24\u5BB3\uFF0C\u81EA\u5DF1\u5931\u53BB 4 \u751F\u547D", "Deal 20. Lose 4 HP"), { attack: true }),
+        card("parallel", 2, "rare", l2("\u5E76\u884C\u5316", "Parallelize"), l2("\u9020\u6210 4 \u4F24\u5BB3 \xD73", "Deal 4 three times"), { attack: true }),
+        card("pair", 1, "rare", l2("\u7ED3\u5BF9\u7F16\u7A0B", "Pair Programming"), l2("\u672C\u56DE\u5408\u4E0B\u4E00\u5F20\u653B\u51FB\u724C\u4F24\u5BB3\u7FFB\u500D", "Your next attack this turn deals double")),
+        card("bisect", 1, "rare", l2("git bisect", "git bisect"), l2("\u9020\u6210 4 \u4F24\u5BB3\uFF1B\u654C\u4EBA\u6613\u4F24\u65F6\u6539\u4E3A 12", "Deal 4, or 12 if the enemy is Vulnerable"), { attack: true }),
+        card("ship", 1, "rare", l2("\u5468\u4E94\u4E0A\u7EBF", "Ship on Friday"), l2("\u9020\u6210 14 \u4F24\u5BB3\uFF0C\u5F80\u5F03\u724C\u5806\u585E\u4E00\u5F20\u300C\u7EBF\u4E0A\u4E8B\u6545\u300D", "Deal 14. Add an Incident to your discard"), { attack: true }),
+        card("revert", 1, "rare", l2("git revert", "git revert"), l2("\u56DE\u590D 7 \u751F\u547D\u3002\u7528\u540E\u79FB\u9664", "Heal 7. Exhaust"), { exhaust: true }),
+        card("incident", 0, "junk", l2("\u7EBF\u4E0A\u4E8B\u6545", "Incident"), l2("\u65E0\u6CD5\u6253\u51FA\uFF0C\u53EA\u4F1A\u5835\u4F4F\u4F60\u7684\u624B\u724C", "Unplayable. Clogs your hand"), { unplayable: true })
       ].map((c) => [c.id, c])
     );
     STARTER_DECK = ["log", "log", "log", "bp", "bp", "bp", "unittest", "refactor", "duck"];
@@ -25350,13 +26847,13 @@ var init_engine = __esm({
     RARE = Object.values(CARDS).filter((c) => c.rarity === "rare").map((c) => c.id);
     ENEMIES = Object.fromEntries(
       [
-        { id: "nullptr", name: l("\u7A7A\u6307\u9488\u53F2\u83B1\u59C6", "NullPointer Slime"), hp: 14, trait: l("\u6BCF\u7B2C 3 \u56DE\u5408\u7F29\u8D77\u6765\u52A0\u683C\u6321", "Hardens every 3rd turn") },
-        { id: "offbyone", name: l("\u5DEE\u4E00\u5C0F\u9B3C", "Off-by-One Imp"), hp: 15, trait: l("\u603B\u662F\u591A\u6253\u4E00\u4E0B", "Always hits one extra time") },
-        { id: "heisen", name: l("\u6D77\u68EE\u5821\u866B", "Heisenbug"), hp: 17, trait: l("\u6CA1\u88AB\u89C2\u6D4B\u65F6\uFF0C\u6BCF\u56DE\u5408\u8EB2\u5F00\u4F60\u7684\u7B2C\u4E00\u4E0B", "Dodges your first hit each turn unless observed") },
-        { id: "leak", name: l("\u5185\u5B58\u6CC4\u6F0F\u56E2", "Memory Leak Blob"), hp: 20, trait: l("\u6BCF\u56DE\u5408\u53D8\u5927\u53D8\u5F3A", "Grows every turn") },
-        { id: "race", name: l("\u7ADE\u6001\u6761\u4EF6", "Race Condition"), hp: 18, trait: l("\u610F\u56FE\u4E0D\u53EF\u9884\u6D4B", "Intent is unpredictable") },
-        { id: "deadlock", name: l("\u6B7B\u9501\u5B88\u536B", "Deadlock Warden"), hp: 26, trait: l("\u4E00\u56DE\u5408\u9501\u6B7B\uFF0C\u4E00\u56DE\u5408\u91CD\u51FB", "Locks up, then strikes hard") },
-        { id: "stackoverflow", name: l("\u6808\u6EA2\u51FA", "Stack Overflow"), hp: 64, trait: l("\u9012\u5F52\u8D8A\u6DF1\u6253\u5F97\u8D8A\u75BC\uFF0C\u6BCF 3 \u56DE\u5408\u518D\u9012\u5F52\u4E00\u5C42", "Hits harder the deeper it recurses"), boss: true }
+        { id: "nullptr", name: l2("\u7A7A\u6307\u9488\u53F2\u83B1\u59C6", "NullPointer Slime"), hp: 14, trait: l2("\u6BCF\u7B2C 3 \u56DE\u5408\u7F29\u8D77\u6765\u52A0\u683C\u6321", "Hardens every 3rd turn") },
+        { id: "offbyone", name: l2("\u5DEE\u4E00\u5C0F\u9B3C", "Off-by-One Imp"), hp: 15, trait: l2("\u603B\u662F\u591A\u6253\u4E00\u4E0B", "Always hits one extra time") },
+        { id: "heisen", name: l2("\u6D77\u68EE\u5821\u866B", "Heisenbug"), hp: 17, trait: l2("\u6CA1\u88AB\u89C2\u6D4B\u65F6\uFF0C\u6BCF\u56DE\u5408\u8EB2\u5F00\u4F60\u7684\u7B2C\u4E00\u4E0B", "Dodges your first hit each turn unless observed") },
+        { id: "leak", name: l2("\u5185\u5B58\u6CC4\u6F0F\u56E2", "Memory Leak Blob"), hp: 20, trait: l2("\u6BCF\u56DE\u5408\u53D8\u5927\u53D8\u5F3A", "Grows every turn") },
+        { id: "race", name: l2("\u7ADE\u6001\u6761\u4EF6", "Race Condition"), hp: 18, trait: l2("\u610F\u56FE\u4E0D\u53EF\u9884\u6D4B", "Intent is unpredictable") },
+        { id: "deadlock", name: l2("\u6B7B\u9501\u5B88\u536B", "Deadlock Warden"), hp: 26, trait: l2("\u4E00\u56DE\u5408\u9501\u6B7B\uFF0C\u4E00\u56DE\u5408\u91CD\u51FB", "Locks up, then strikes hard") },
+        { id: "stackoverflow", name: l2("\u6808\u6EA2\u51FA", "Stack Overflow"), hp: 64, trait: l2("\u9012\u5F52\u8D8A\u6DF1\u6253\u5F97\u8D8A\u75BC\uFF0C\u6BCF 3 \u56DE\u5408\u518D\u9012\u5F52\u4E00\u5C42", "Hits harder the deeper it recurses"), boss: true }
       ].map((e) => [e.id, e])
     );
     FLOOR_POOLS = [
@@ -25368,38 +26865,396 @@ var init_engine = __esm({
       ["stackoverflow"]
     ];
     RELICS = [
-      { id: "chair", name: l("\u4EBA\u4F53\u5DE5\u5B66\u6905", "Ergonomic Chair"), desc: l("\u6BCF\u573A\u6218\u6597\u5F00\u5C40\u83B7\u5F97 6 \u683C\u6321", "Start every fight with 6 block"), price: 50 },
-      { id: "headphones", name: l("\u964D\u566A\u8033\u673A", "Noise-Cancelling Headphones"), desc: l("\u6700\u5927\u751F\u547D +8", "+8 max HP"), price: 60 },
-      { id: "espresso", name: l("\u610F\u5F0F\u5496\u5561\u673A", "Espresso Machine"), desc: l("\u6BCF\u8D62\u4E00\u573A\u56DE\u590D 4 \u751F\u547D", "Heal 4 after every win"), price: 80 },
-      { id: "monitor", name: l("\u53CC\u663E\u793A\u5668", "Second Monitor"), desc: l("\u6BCF\u573A\u6218\u6597\u7B2C\u4E00\u56DE\u5408 +1\u25C6", "+1\u25C6 on the first turn of each fight"), price: 90 },
-      { id: "keyboard", name: l("\u673A\u68B0\u952E\u76D8", "Mechanical Keyboard"), desc: l("\u6BCF\u56DE\u5408\u591A\u62BD 1 \u5F20", "Draw 1 extra card each turn"), price: 150 }
+      { id: "chair", name: l2("\u4EBA\u4F53\u5DE5\u5B66\u6905", "Ergonomic Chair"), desc: l2("\u6BCF\u573A\u6218\u6597\u5F00\u5C40\u83B7\u5F97 6 \u683C\u6321", "Start every fight with 6 block"), price: 50 },
+      { id: "headphones", name: l2("\u964D\u566A\u8033\u673A", "Noise-Cancelling Headphones"), desc: l2("\u6700\u5927\u751F\u547D +8", "+8 max HP"), price: 60 },
+      { id: "espresso", name: l2("\u610F\u5F0F\u5496\u5561\u673A", "Espresso Machine"), desc: l2("\u6BCF\u8D62\u4E00\u573A\u56DE\u590D 4 \u751F\u547D", "Heal 4 after every win"), price: 80 },
+      { id: "monitor", name: l2("\u53CC\u663E\u793A\u5668", "Second Monitor"), desc: l2("\u6BCF\u573A\u6218\u6597\u7B2C\u4E00\u56DE\u5408 +1\u25C6", "+1\u25C6 on the first turn of each fight"), price: 90 },
+      { id: "keyboard", name: l2("\u673A\u68B0\u952E\u76D8", "Mechanical Keyboard"), desc: l2("\u6BCF\u56DE\u5408\u591A\u62BD 1 \u5F20", "Draw 1 extra card each turn"), price: 150 }
     ];
     has = (relics, id) => relics.includes(id);
     REST_HEAL = 10;
   }
 });
 
+// src/game/stack.ts
+function pushOp(n) {
+  return { id: `push${n}`, kind: "push", n, label: `push ${n}`, name: l3(`\u538B\u5165 ${n}`, `Push ${n}`), desc: l3(`\u628A ${n} \u653E\u5230\u6808\u9876\uFF1Aa \u2192 a ${n}`, `Put ${n} on top: a \u2192 a ${n}`) };
+}
+function opById(id) {
+  const m = /^push([1-9])$/.exec(id);
+  if (m) return pushOp(Number(m[1]));
+  return Object.prototype.hasOwnProperty.call(OPS, id) ? OPS[id] : null;
+}
+function apply(stack, o) {
+  const n = stack.length;
+  if (n < NEED[o.kind]) return UNDERFLOW;
+  const s = stack.slice();
+  const a = s[n - 2];
+  const b = s[n - 1];
+  switch (o.kind) {
+    case "add":
+      s.pop();
+      s[n - 2] = a + b;
+      break;
+    case "sub":
+      s.pop();
+      s[n - 2] = a - b;
+      break;
+    case "mul":
+      s.pop();
+      s[n - 2] = norm(a * b);
+      break;
+    case "dup":
+      s.push(b);
+      break;
+    case "swap":
+      s[n - 2] = b;
+      s[n - 1] = a;
+      break;
+    case "over":
+      s.push(a);
+      break;
+    case "drop":
+      s.pop();
+      break;
+    case "inc":
+      s[n - 1] = b + 1;
+      break;
+    case "dec":
+      s[n - 1] = b - 1;
+      break;
+    case "neg":
+      s[n - 1] = norm(-b);
+      break;
+    case "push":
+      s.push(o.n ?? 0);
+      break;
+  }
+  if (s.length > MAX_DEPTH) return TOO_DEEP;
+  if (s.length && Math.abs(s[s.length - 1]) > MAX_VALUE) return OVERFLOW;
+  return s;
+}
+function reason(f2, o) {
+  if (f2 === UNDERFLOW) {
+    const need = NEED[o.kind];
+    return need === 1 ? l3("\u6808\u662F\u7A7A\u7684\uFF1A\u8FD9\u4E00\u6B65\u8981 1 \u4E2A\u6570", "Stack underflow: this needs a number") : l3(`\u6808\u91CC\u7684\u6570\u4E0D\u591F\uFF1A\u8FD9\u4E00\u6B65\u8981 ${need} \u4E2A`, `Stack underflow: this needs ${need} numbers`);
+  }
+  if (f2 === TOO_DEEP) return l3(`\u6808\u6EE1\u4E86\uFF1A\u6700\u591A ${MAX_DEPTH} \u4E2A\u6570`, `Stack too deep: at most ${MAX_DEPTH} numbers`);
+  return l3(`\u6570\u592A\u5927\u4E86\uFF1A\u53EA\u80FD\u5728 \xB1${MAX_VALUE} \u4E4B\u5185`, `Overflow: numbers must stay within \xB1${MAX_VALUE}`);
+}
+function step(stack, o) {
+  const r = apply(stack, o);
+  return typeof r === "number" ? { ok: false, reason: reason(r, o) } : { ok: true, stack: r };
+}
+function sameStack(a, b) {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+function solve(start, target, buttons, maxDepth = HINT_DEPTH, budget = HINT_BUDGET) {
+  if (sameStack(start, target)) return [];
+  const goal = key(target);
+  const parent = /* @__PURE__ */ new Map([[key(start), ["", -1]]]);
+  let frontier = [[start, key(start)]];
+  for (let d = 1; d <= maxDepth && frontier.length; d++) {
+    const next = [];
+    const left = maxDepth - d;
+    for (const [s, sk] of frontier) {
+      for (let i = 0; i < buttons.length; i++) {
+        const r = apply(s, buttons[i]);
+        if (typeof r === "number") continue;
+        const k = key(r);
+        if (parent.has(k)) continue;
+        parent.set(k, [sk, i]);
+        if (k === goal) {
+          const path14 = [];
+          for (let at = parent.get(k); at[1] !== -1; at = parent.get(at[0])) path14.push(at[1]);
+          return path14.reverse();
+        }
+        if (left > 0 && Math.abs(r.length - target.length) <= left) next.push([r, k]);
+      }
+      if (parent.size > budget) return null;
+    }
+    frontier = next;
+  }
+  return null;
+}
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = s + 1831565813 >>> 0;
+    let t2 = s;
+    t2 = Math.imul(t2 ^ t2 >>> 15, t2 | 1);
+    t2 ^= t2 + Math.imul(t2 ^ t2 >>> 7, t2 | 61);
+    return ((t2 ^ t2 >>> 14) >>> 0) / 4294967296;
+  };
+}
+function fmix32(h) {
+  h ^= h >>> 16;
+  h = Math.imul(h, 2246822507);
+  h ^= h >>> 13;
+  h = Math.imul(h, 3266489909);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+function pickButtons(rnd, count) {
+  const pushes = Math.min(Math.floor(rnd() * 3), count - 2);
+  const kinds = /* @__PURE__ */ new Set([pick2(rnd, BINARY), pick2(rnd, SHUFFLE)]);
+  const rest = Object.keys(OPS).filter((k) => !kinds.has(k));
+  while (kinds.size < count - pushes) kinds.add(rest.splice(Math.floor(rnd() * rest.length), 1)[0]);
+  const ns = /* @__PURE__ */ new Set();
+  while (ns.size < pushes) ns.add(1 + Math.floor(rnd() * 9));
+  return [...[...kinds].map((k) => OPS[k]), ...[...ns].map(pushOp)].sort(
+    (x, y) => KIND_ORDER.indexOf(x.kind) - KIND_ORDER.indexOf(y.kind) || (x.n ?? 0) - (y.n ?? 0)
+  );
+}
+function pickStart(rnd, buttons) {
+  let len = 1 + Math.floor(rnd() * 3);
+  if (len === 1 && !buttons.some((b) => b.kind === "dup" || b.kind === "push")) len = 2;
+  return Array.from({ length: len }, () => 1 + Math.floor(rnd() * 9));
+}
+function explore(start, buttons, lo, hi) {
+  const seen = /* @__PURE__ */ new Set([key(start)]);
+  const out = [];
+  let frontier = [start];
+  for (let d = 1; d <= hi && frontier.length; d++) {
+    const next = [];
+    const last2 = d === hi;
+    for (const s of frontier) {
+      for (const b of buttons) {
+        const r = apply(s, b);
+        if (typeof r === "number") continue;
+        if (last2 && r.length > 2) continue;
+        const k = key(r);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        if (d >= lo && r.length >= 1 && r.length <= 2) out.push({ stack: r, d });
+        if (!last2 && r.length - 2 <= hi - d) next.push(r);
+      }
+    }
+    frontier = next;
+  }
+  return out;
+}
+function oneButtonOnly(start, target, d, buttons) {
+  return buttons.some((b) => {
+    let s = start;
+    for (let i = 0; i < d && typeof s !== "number"; i++) s = apply(s, b);
+    return typeof s !== "number" && sameStack(s, target);
+  });
+}
+function tryGenerate(seed, difficulty) {
+  const rnd = rng(seed);
+  const spec = DIFFICULTY[difficulty];
+  const buttons = pickButtons(rnd, spec.buttons);
+  const start = pickStart(rnd, buttons);
+  const [lo, hi] = spec.par;
+  const known = /* @__PURE__ */ new Set([...start, ...buttons.filter((b) => b.kind === "push").map((b) => b.n)]);
+  const tiers = [[], [], []];
+  for (const c of explore(start, buttons, lo, hi)) {
+    if (c.stack.some((v) => Math.abs(v) > TARGET_MAX)) continue;
+    if (oneButtonOnly(start, c.stack, c.d, buttons)) continue;
+    const fresh = c.stack.filter((v) => !known.has(v)).length;
+    tiers[fresh === c.stack.length ? 0 : fresh > 0 ? 1 : 2].push(c);
+  }
+  const tier = tiers.find((t2) => t2.length);
+  if (!tier) return null;
+  const pars = [...new Set(tier.map((c) => c.d))].sort((a, b) => a - b);
+  const par = pick2(rnd, pars);
+  const target = pick2(rnd, tier.filter((c) => c.d === par)).stack;
+  return { start, target, buttons, par };
+}
+function generatePuzzle(seed, difficulty) {
+  seed >>>= 0;
+  let body = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS && !body; attempt++) {
+    body = tryGenerate(attempt === 0 ? seed : fmix32(seed ^ Math.imul(attempt, 2654435769)), difficulty);
+  }
+  const b = body ?? FALLBACK[difficulty];
+  return { id: `p${difficulty}-${seed}`, seed, difficulty, start: [...b.start], target: [...b.target], buttons: [...b.buttons], par: b.par };
+}
+function newPuzzleRun(puzzle, mode, now, day) {
+  const run = { puzzle, prog: [], stack: [...puzzle.start], mode, solved: false, startedAt: now, presses: 0, hints: 0 };
+  if (day !== void 0) run.day = day;
+  return run;
+}
+function press(run, i) {
+  if (run.solved) return false;
+  const o = run.puzzle.buttons[i];
+  if (!o) {
+    run.error = l3("\u6CA1\u6709\u8FD9\u4E2A\u6309\u94AE", "No such button");
+    return false;
+  }
+  const r = step(run.stack, o);
+  if (!r.ok) {
+    run.error = r.reason;
+    return false;
+  }
+  run.stack = r.stack;
+  run.prog.push(i);
+  run.presses++;
+  delete run.error;
+  if (sameStack(run.stack, run.puzzle.target)) run.solved = true;
+  return true;
+}
+function replay(run) {
+  let s = [...run.puzzle.start];
+  for (let k = 0; k < run.prog.length; k++) {
+    const o = run.puzzle.buttons[run.prog[k]];
+    const r = o ? apply(s, o) : UNDERFLOW;
+    if (typeof r === "number") {
+      run.prog.length = k;
+      break;
+    }
+    s = r;
+  }
+  run.stack = s;
+}
+function undo(run) {
+  if (run.solved || !run.prog.length) return false;
+  run.prog.pop();
+  replay(run);
+  delete run.error;
+  return true;
+}
+function reset(run) {
+  if (run.solved) return false;
+  run.prog = [];
+  run.stack = [...run.puzzle.start];
+  delete run.error;
+  return true;
+}
+function hint(run) {
+  if (run.solved) return null;
+  const path14 = solve(run.stack, run.puzzle.target, run.puzzle.buttons, HINT_DEPTH);
+  if (!path14 || !path14.length) return null;
+  run.hints++;
+  return path14[0];
+}
+function stars(puzzle, len, hints) {
+  if (len <= puzzle.par && hints === 0) return 3;
+  if (len <= puzzle.par + 2) return 2;
+  return 1;
+}
+function dayUtc(day) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN;
+}
+function dailySeed(day) {
+  let h = 2166136261;
+  const s = `cowait-stack/${day}`;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return fmix32(h);
+}
+function dailyDifficulty(day) {
+  const wd = new Date(dayUtc(day)).getUTCDay();
+  if (wd === 1 || wd === 2) return 1;
+  if (wd === 3 || wd === 4) return 2;
+  return 3;
+}
+function puzzleNumber(day) {
+  return Math.round((dayUtc(day) - EPOCH) / DAY_MS) + 1;
+}
+function dailyPuzzle(day) {
+  return { ...generatePuzzle(dailySeed(day), dailyDifficulty(day)), id: `daily-${day}` };
+}
+function shareText(run, lang) {
+  const par = run.puzzle.par;
+  const daily = run.mode === "daily" && run.day !== void 0;
+  const num2 = daily ? ` #${puzzleNumber(run.day)}` : "";
+  const len = run.prog.length;
+  const n = run.solved ? stars(run.puzzle, len, run.hints) : 0;
+  const starText2 = "\u2605".repeat(n) + "\u2606".repeat(3 - n);
+  if (lang === "zh") {
+    const head2 = `Cowait \u6808\u673A\u8C1C\u9898${num2}${daily ? " " : "\uFF08\u7EC3\u4E60\uFF09"}`;
+    if (!run.solved) return `${head2}\u8FD8\u6CA1\u89E3\u51FA\uFF08\u6807\u51C6 ${par}\uFF09`;
+    return `${head2}${starText2} ${len} \u6B65\uFF08\u6807\u51C6 ${par}${run.hints ? `\uFF0C\u63D0\u793A ${run.hints} \u6B21` : ""}\uFF09`;
+  }
+  const head = `Cowait Stack Puzzle${num2}${daily ? "" : " (practice)"}`;
+  if (!run.solved) return `${head} not solved yet (par ${par})`;
+  const hints = run.hints ? `, ${run.hints} hint${run.hints > 1 ? "s" : ""}` : "";
+  return `${head} ${starText2} in ${len} (par ${par}${hints})`;
+}
+var l3, MAX_DEPTH, MAX_VALUE, HINT_DEPTH, HINT_BUDGET, TARGET_MAX, op, OPS, KIND_ORDER, BINARY, SHUFFLE, NEED, UNDERFLOW, TOO_DEEP, OVERFLOW, norm, key, DIFFICULTY, pick2, MAX_ATTEMPTS, fixed, FALLBACK, EPOCH, DAY_MS;
+var init_stack = __esm({
+  "src/game/stack.ts"() {
+    "use strict";
+    l3 = (zh, en) => ({ zh, en });
+    MAX_DEPTH = 6;
+    MAX_VALUE = 9999;
+    HINT_DEPTH = 10;
+    HINT_BUDGET = 1e5;
+    TARGET_MAX = 99;
+    op = (kind, label, name, desc) => ({ id: kind, kind, label, name, desc });
+    OPS = {
+      add: op("add", "+", l3("\u52A0", "Add"), l3("\u9876\u4E0A\u4E24\u6570\u76F8\u52A0\uFF1Aa b \u2192 a+b", "Add the top two: a b \u2192 a+b")),
+      sub: op("sub", "-", l3("\u51CF", "Subtract"), l3("\u4E0B\u9762\u7684\u51CF\u4E0A\u9762\u7684\uFF1Aa b \u2192 a-b", "Second minus top: a b \u2192 a-b")),
+      mul: op("mul", "*", l3("\u4E58", "Multiply"), l3("\u9876\u4E0A\u4E24\u6570\u76F8\u4E58\uFF1Aa b \u2192 a\xD7b", "Multiply the top two: a b \u2192 a\xD7b")),
+      dup: op("dup", "dup", l3("\u590D\u5236", "Duplicate"), l3("\u590D\u5236\u6808\u9876\uFF1Aa \u2192 a a", "Copy the top: a \u2192 a a")),
+      swap: op("swap", "swap", l3("\u4EA4\u6362", "Swap"), l3("\u4EA4\u6362\u9876\u4E0A\u4E24\u4E2A\uFF1Aa b \u2192 b a", "Swap the top two: a b \u2192 b a")),
+      over: op("over", "over", l3("\u590D\u5236\u4E0B\u5C42", "Over"), l3("\u628A\u7B2C\u4E8C\u4E2A\u590D\u5236\u5230\u9876\u4E0A\uFF1Aa b \u2192 a b a", "Copy the second to the top: a b \u2192 a b a")),
+      drop: op("drop", "drop", l3("\u4E22\u5F03", "Drop"), l3("\u6254\u6389\u6808\u9876\uFF1Aa b \u2192 a", "Throw away the top: a b \u2192 a")),
+      inc: op("inc", "+1", l3("\u52A0\u4E00", "Increment"), l3("\u6808\u9876\u52A0 1\uFF1Aa \u2192 a+1", "Add 1 to the top: a \u2192 a+1")),
+      dec: op("dec", "-1", l3("\u51CF\u4E00", "Decrement"), l3("\u6808\u9876\u51CF 1\uFF1Aa \u2192 a-1", "Subtract 1 from the top: a \u2192 a-1")),
+      neg: op("neg", "neg", l3("\u53D6\u53CD", "Negate"), l3("\u6808\u9876\u53D8\u53F7\uFF1Aa \u2192 -a", "Flip the sign of the top: a \u2192 -a"))
+    };
+    KIND_ORDER = ["add", "sub", "mul", "inc", "dec", "neg", "dup", "swap", "over", "drop", "push"];
+    BINARY = ["add", "sub", "mul"];
+    SHUFFLE = ["dup", "swap", "over", "drop"];
+    NEED = { add: 2, sub: 2, mul: 2, swap: 2, over: 2, dup: 1, drop: 1, inc: 1, dec: 1, neg: 1, push: 0 };
+    UNDERFLOW = 1;
+    TOO_DEEP = 2;
+    OVERFLOW = 3;
+    norm = (x) => x === 0 ? 0 : x;
+    key = (s) => s.join(",");
+    DIFFICULTY = {
+      1: { buttons: 4, par: [3, 4] },
+      2: { buttons: 5, par: [4, 5] },
+      3: { buttons: 6, par: [5, 7] }
+    };
+    pick2 = (rnd, xs) => xs[Math.floor(rnd() * xs.length)];
+    MAX_ATTEMPTS = 200;
+    fixed = (start, target, ids, par) => ({ start, target, buttons: ids.map((id) => opById(id)), par });
+    FALLBACK = {
+      1: fixed([5, 2], [14], ["add", "swap", "push1", "push7"], 3),
+      2: fixed([2, 3], [9], ["add", "sub", "swap", "push5", "push7"], 5),
+      3: fixed([9, 3], [74], ["add", "mul", "dup", "drop", "push6", "push7"], 7)
+    };
+    EPOCH = Date.UTC(2026, 10, 1);
+    DAY_MS = 864e5;
+  }
+});
+
 // src/game/meta.ts
-function settleRun(s, before) {
+function snapshot(s) {
+  return s.game ? { phase: s.game.phase, floor: s.game.floor } : null;
+}
+function settleRun(s, before, now = Date.now()) {
   const g = s.game;
   if (!g) return null;
   s.totals.bestFloor = Math.max(s.totals.bestFloor, g.floor);
-  if (g.phase === "victory" && before !== "victory") {
+  if (before?.phase === "battle" && (g.phase === "reward" || g.phase === "victory")) track(s, "floor", now);
+  if (g.phase === "victory" && before?.phase !== "victory") {
     s.totals.wins++;
-    s.energy += ECON.winEnergy;
+    s.energy += ECON.winEnergy * (g.overtime ? 2 : 1);
+    track(s, "win", now);
+    if (s.relics.length === 0) unlock(s, "dungeon_bare", now);
+    if (g.overtime) unlock(s, "dungeon_overtime", now);
     return "won";
   }
-  if (g.phase === "dead" && before !== "dead") return "lost";
+  if (g.phase === "dead" && before?.phase !== "dead") return "lost";
   return null;
 }
 var init_meta = __esm({
   "src/game/meta.ts"() {
     "use strict";
     init_economy();
+    init_progress();
   }
 });
 
-// src/ui/Game.tsx
+// src/ui/Dungeon.tsx
 function intentText(it, lang) {
   switch (it.kind) {
     case "attack":
@@ -25412,23 +27267,27 @@ function intentText(it, lang) {
       return t(lang, "gm_myst");
   }
 }
-function Game({ st, update, cfg, lang, active, blocked, width, height }) {
+function Dungeon({ st, update, cfg, lang, active, blocked, width, height, setHint, plan, onExit }) {
   const [screen, setScreen] = (0, import_react32.useState)("main");
   const [msg, setMsg] = (0, import_react32.useState)("");
   const run = st.game;
   const act = (fn) => update((s) => {
-    const before = s.game?.phase ?? null;
+    const before = snapshot(s);
     fn(s);
     settleRun(s, before);
   });
-  const startRun = () => {
+  const startRun = (overtime = false) => {
+    if (overtime && !proUnlocked(plan)) {
+      setMsg(t(lang, "pro_only"));
+      return;
+    }
     if (st.energy < cfg.runCost) {
       setMsg(t(lang, "gm_poor"));
       return;
     }
     act((s) => {
       s.energy -= cfg.runCost;
-      s.game = newRun((Date.now() ^ Math.imul(s.totals.runs + 1, 2654435761)) >>> 0, s.relics);
+      s.game = newRun((Date.now() ^ Math.imul(s.totals.runs + 1, 2654435761)) >>> 0, s.relics, overtime);
       s.totals.runs++;
     });
     setMsg("");
@@ -25445,10 +27304,11 @@ function Game({ st, update, cfg, lang, active, blocked, width, height }) {
     setMsg(t(lang, "gm_bought", { n: r.name[lang] }));
   };
   use_input_default(
-    (input, key) => {
+    (input, key2) => {
       if (blocked()) return;
+      if (key2.escape && screen !== "shop") return onExit();
       if (screen === "shop") {
-        if (input === "b" || key.escape) {
+        if (input === "b" || key2.escape) {
           setScreen("main");
           setMsg("");
         } else if (/^[1-9]$/.test(input)) buy(Number(input) - 1);
@@ -25473,6 +27333,7 @@ function Game({ st, update, cfg, lang, active, blocked, width, height }) {
         return;
       }
       if (input === "n") startRun();
+      else if (input === "o") startRun(true);
       else if (input === "s") {
         setScreen("shop");
         setMsg("");
@@ -25480,43 +27341,48 @@ function Game({ st, update, cfg, lang, active, blocked, width, height }) {
     },
     { isActive: active }
   );
-  const title = /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { wrap: "truncate-end", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, color: "magenta", children: t(lang, "gm_title") }),
-    run && (run.phase === "battle" || run.phase === "reward") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
+  const hint2 = screen === "shop" ? t(lang, "gm_back") : run?.phase === "battle" ? t(lang, "gm_keys") : run?.phase === "reward" ? t(lang, "gm_back_hub") : t(lang, "gm_menu_keys");
+  useHint(setHint, hint2, active);
+  const title = /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { wrap: "truncate-end", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, color: "magenta", children: t(lang, "gm_title") }),
+    run && (run.phase === "battle" || run.phase === "reward") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
       " \xB7 ",
       t(lang, "gm_floor", { f: run.floor, n: FLOORS })
+    ] }) : null,
+    run?.overtime && (run.phase === "battle" || run.phase === "reward") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "magenta", children: [
+      " \xB7 ",
+      t(lang, "gm_overtime_tag")
     ] }) : null
   ] });
-  const msgLine = msg ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: msg, width: width - 1, color: "yellow" }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " });
+  const msgLine = msg ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: msg, width: width - 1, color: "yellow" }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { children: " " });
   if (screen === "shop") {
     const nameW = lang === "zh" ? 14 : width >= 90 ? 30 : 22;
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { wrap: "truncate-end", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: t(lang, "gm_shop_title") }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { wrap: "truncate-end", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, children: t(lang, "gm_shop_title") }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
           " \u{1F4B0}",
           st.coins
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { children: " " }),
       RELICS.map((r, i) => {
         const owned2 = st.relics.includes(r.id);
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: 4, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: i + 1 }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: nameW, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: !owned2, dimColor: owned2, wrap: "truncate-end", children: r.name[lang] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: 8, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: st.coins >= r.price ? "yellow" : "gray", children: [
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: 4, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "cyan", children: i + 1 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: nameW, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: !owned2, dimColor: owned2, wrap: "truncate-end", children: r.name[lang] }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: 8, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: st.coins >= r.price ? "yellow" : "gray", children: [
             r.price,
             "\u{1F4B0}"
           ] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: owned2, wrap: "truncate-end", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { dimColor: owned2, wrap: "truncate-end", children: [
             r.desc[lang],
             owned2 ? `  [${t(lang, "gm_have")}]` : ""
           ] })
         ] }, r.id);
       }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: t(lang, "gm_shop_hint"), width: width - 1, color: "gray" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", children: t(lang, "gm_back") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: t(lang, "gm_shop_hint"), width: width - 1, color: "gray" }),
       msgLine
     ] });
   }
@@ -25527,113 +27393,112 @@ function Game({ st, update, cfg, lang, active, blocked, width, height }) {
     const inc = incoming(run);
     const logRoom = Math.max(1, height - 13 - b.hand.length);
     const boxW = Math.min(width - 2, 72);
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", children: [
       title,
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", borderStyle: "round", borderColor: def.boss ? "magenta" : "red", paddingX: 1, width: boxW, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { wrap: "truncate-end", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, color: def.boss ? "magenta" : "red", children: def.name[lang] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", borderStyle: "round", borderColor: def.boss ? "magenta" : "red", paddingX: 1, width: boxW, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { wrap: "truncate-end", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, color: def.boss ? "magenta" : "red", children: def.name[lang] }),
           "  ",
           "HP ",
           e.hp,
           "/",
           e.maxHp,
           " ",
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Bar, { value: e.hp, max: e.maxHp, width: 12, color: "red" }),
-          e.block ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "blue", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Bar, { value: e.hp, max: e.maxHp, width: 12, color: "red" }),
+          e.block ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "blue", children: [
             " ",
             t(lang, "gm_block"),
             " ",
             e.block
           ] }) : null,
-          e.vuln ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "yellow", children: [
+          e.vuln ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "yellow", children: [
             " ",
             t(lang, "gm_vuln", { n: e.vuln })
           ] }) : null,
-          e.weak ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "yellow", children: [
+          e.weak ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "yellow", children: [
             " ",
             t(lang, "gm_weak", { n: e.weak })
           ] }) : null
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { wrap: "truncate-end", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { wrap: "truncate-end", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
             t(lang, "gm_intent"),
             ": "
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: intentText(e.intent, lang) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, children: intentText(e.intent, lang) }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
             "   ",
             def.trait[lang]
           ] })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { wrap: "truncate-end", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: t(lang, "gm_you") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { wrap: "truncate-end", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, children: t(lang, "gm_you") }),
         " HP ",
         run.hp,
         "/",
         run.maxHp,
         " ",
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Bar, { value: run.hp, max: run.maxHp, width: 12, color: "green" }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "blue", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Bar, { value: run.hp, max: run.maxHp, width: 12, color: "green" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "blue", children: [
           " ",
           t(lang, "gm_block"),
           " ",
           b.block
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "cyan", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "cyan", children: [
           " ",
           "\u25C6".repeat(b.focus)
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", children: "\u25C7".repeat(Math.max(0, 3 - b.focus)) }),
-        b.double ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "yellow", children: " \xD72" }) : null,
-        b.observed ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: "\u25C7".repeat(Math.max(0, 3 - b.focus)) }),
+        b.double ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "yellow", children: " \xD72" }) : null,
+        b.observed ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
           " [",
           t(lang, "gm_observed"),
           "]"
         ] }) : null,
         "  ",
-        inc === null ? null : inc > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: t(lang, "gm_incoming", { n: inc }) }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "green", children: t(lang, "gm_safe") })
+        inc === null ? null : inc > 0 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "red", children: t(lang, "gm_incoming", { n: inc }) }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "green", children: t(lang, "gm_safe") })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", children: t(lang, "gm_hand") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: t(lang, "gm_hand") }),
       b.hand.map((id, i) => {
         const c = CARDS[id];
         const can = !c.unplayable && c.cost <= b.focus;
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: 4, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: can ? "cyan" : "gray", children: i + 1 }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: lang === "zh" ? 14 : 20, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: can, dimColor: !can, children: c.name[lang] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: 5, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: can ? "cyan" : "gray", children: c.unplayable ? "-" : `${c.cost}\u25C6` }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: !can, wrap: "truncate-end", children: c.desc[lang] })
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: 4, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: can ? "cyan" : "gray", children: i + 1 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: lang === "zh" ? 14 : 20, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: can, dimColor: !can, children: c.name[lang] }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: 5, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: can ? "cyan" : "gray", children: c.unplayable ? "-" : `${c.cost}\u25C6` }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { dimColor: !can, wrap: "truncate-end", children: c.desc[lang] })
         ] }, i);
       }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: run.log.slice(-logRoom).map((m, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: run.log.slice(-logRoom).map((m, i) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
         "\xB7 ",
         m[lang]
       ] }, i)) }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", children: t(lang, "gm_keys") }),
       msgLine
     ] });
   }
   if (run?.phase === "reward" && run.reward) {
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", children: [
       title,
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "green", children: run.log[run.log.length - 1]?.[lang] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: t(lang, "gm_reward") }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "green", children: run.log[run.log.length - 1]?.[lang] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, children: t(lang, "gm_reward") }),
       run.reward.map((id, i) => {
         const c = CARDS[id];
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: 4, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: i + 1 }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: lang === "zh" ? 14 : 20, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, color: c.rarity === "rare" ? "yellow" : void 0, children: c.name[lang] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { width: 5, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "cyan", children: [
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: 4, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "cyan", children: i + 1 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: lang === "zh" ? 14 : 20, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, color: c.rarity === "rare" ? "yellow" : void 0, children: c.name[lang] }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: 5, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "cyan", children: [
             c.cost,
             "\u25C6"
           ] }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { wrap: "truncate-end", children: c.desc[lang] })
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { wrap: "truncate-end", children: c.desc[lang] })
         ] }, id);
       }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: t(lang, "gm_rest", { k: String(run.reward.length + 1).padEnd(3), n: REST_HEAL }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "gray", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "cyan", children: t(lang, "gm_rest", { k: String(run.reward.length + 1).padEnd(3), n: REST_HEAL }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
           "   ",
           "\u2764 ",
           run.hp,
@@ -25645,30 +27510,31 @@ function Game({ st, update, cfg, lang, active, blocked, width, height }) {
     ] });
   }
   const owned = st.relics.map((id) => RELICS.find((r) => r.id === id)?.name[lang]).filter(Boolean);
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", children: [
     title,
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
-    run?.phase === "dead" ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: t(lang, "gm_dead", { f: run.floor }) }) : null,
-    run?.phase === "victory" ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "green", children: t(lang, "gm_victory", { e: ECON.winEnergy }) }) : null,
-    !run ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: t(lang, "gm_intro"), width: width - 1 }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: t(lang, "gm_intro2"), width: width - 1, color: "gray" })
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { children: " " }),
+    run?.phase === "dead" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "red", children: t(lang, "gm_dead", { f: run.floor }) }) : null,
+    run?.phase === "victory" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "green", children: t(lang, "gm_victory", { e: ECON.winEnergy }) }) : null,
+    !run ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: t(lang, "gm_intro"), width: width - 1 }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: t(lang, "gm_intro2"), width: width - 1, color: "gray" })
     ] }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Para, { text: owned.length ? t(lang, "gm_owned", { list: owned.join(lang === "zh" ? "\u3001" : ", ") }) : t(lang, "gm_owned_none"), width: width - 1, color: "gray" }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", children: t(lang, "gm_record", { w: st.totals.wins, f: st.totals.bestFloor, r: st.totals.runs }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: " " }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: st.energy >= cfg.runCost ? "cyan" : "gray", bold: true, children: t(lang, "gm_new", { c: cfg.runCost }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "gray", children: "   " }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: t(lang, "gm_shop") })
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { children: " " }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: owned.length ? t(lang, "gm_owned", { list: owned.join(lang === "zh" ? "\u3001" : ", ") }) : t(lang, "gm_owned_none"), width: width - 1, color: "gray" }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: t(lang, "gm_record", { w: st.totals.wins, f: st.totals.bestFloor, r: st.totals.runs }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { children: " " }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: st.energy >= cfg.runCost ? "cyan" : "gray", bold: true, children: t(lang, "gm_new", { c: cfg.runCost }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: "   " }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "cyan", children: t(lang, "gm_shop") })
     ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: t(lang, "gm_overtime", { c: cfg.runCost }), width: width - 1, color: proUnlocked(plan) ? "magenta" : "gray" }),
     msgLine
   ] });
 }
-var import_react32, import_jsx_runtime4;
-var init_Game = __esm({
-  async "src/ui/Game.tsx"() {
+var import_react32, import_jsx_runtime5;
+var init_Dungeon = __esm({
+  async "src/ui/Dungeon.tsx"() {
     "use strict";
     import_react32 = __toESM(require_react(), 1);
     await init_build2();
@@ -25676,8 +27542,830 @@ var init_Game = __esm({
     init_meta();
     init_economy();
     init_i18n();
+    init_plan();
     await init_common();
-    import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
+  }
+});
+
+// src/ui/Puzzle.tsx
+function Puzzle({ st, update, lang, active, blocked, width, now, setHint, plan, onExit }) {
+  const [msg, setMsg] = (0, import_react33.useState)(null);
+  const today = localDay(now);
+  const run = st.puzzle;
+  const day = st.days[today];
+  const dailyStars = day?.puzzle ?? 0;
+  const practiceLeft = proUnlocked(plan) ? Infinity : Math.max(0, ECON.freePractice - (day?.practice ?? 0));
+  const live = run && !run.solved && (run.mode === "practice" || run.day === today) ? run : null;
+  const justSolved = run?.solved && (run.mode === "practice" || run.day === today) ? run : null;
+  const act = (fn) => update((s) => {
+    const r = s.puzzle;
+    if (!r) return;
+    const was = r.solved;
+    fn(r, s);
+    if (!was && r.solved) {
+      const n = stars(r.puzzle, r.prog.length, r.hints);
+      s.totals.puzzles++;
+      if (r.mode === "daily" && r.day === localDay(Date.now())) track(s, "puzzle", Date.now(), n);
+      else track(s, "practice");
+      if (n === 3) unlock(s, "puzzle_perfect");
+    }
+  });
+  const startDaily = () => {
+    if (dailyStars) return setMsg({ text: t(lang, "pz_daily_done", { stars: starText(dailyStars) }), color: "green" });
+    update((s) => {
+      const r = s.puzzle;
+      if (!(r && r.mode === "daily" && r.day === today && !r.solved)) s.puzzle = newPuzzleRun(dailyPuzzle(today), "daily", Date.now(), today);
+    });
+    setMsg(null);
+  };
+  const startPractice = () => {
+    if (practiceLeft <= 0) return setMsg({ text: t(lang, "pz_practice_out"), color: "yellow" });
+    if (st.energy < ECON.practiceCost) return setMsg({ text: t(lang, "gm_poor_any"), color: "yellow" });
+    const d = Math.min(3, 1 + Math.floor(st.totals.puzzles / 4)) || 1;
+    update((s) => {
+      s.energy -= ECON.practiceCost;
+      s.puzzle = newPuzzleRun(generatePuzzle((Date.now() ^ Math.imul(s.totals.puzzles + 7, 2654435761)) >>> 0, d), "practice", Date.now());
+    });
+    setMsg(null);
+  };
+  use_input_default(
+    (input, key2) => {
+      if (blocked()) return;
+      if (key2.escape) return onExit();
+      if (live) {
+        if (/^[1-9]$/.test(input)) {
+          const i = Number(input) - 1;
+          if (i >= live.puzzle.buttons.length) return;
+          act((r) => void press(r, i));
+          setMsg(null);
+        } else if (key2.backspace || key2.delete) {
+          act((r) => void undo(r));
+          setMsg(null);
+        } else if (input === "r") {
+          act((r) => void reset(r));
+          setMsg(null);
+        } else if (input === "h") {
+          let b = null;
+          act((r) => {
+            b = hint(r);
+          });
+          setMsg(
+            b === null ? { text: t(lang, "pz_no_hint"), color: "yellow" } : { text: t(lang, "pz_hint", { b: `${b + 1} (${live.puzzle.buttons[b].label})` }), color: "cyan" }
+          );
+        }
+        return;
+      }
+      if (key2.return) startDaily();
+      else if (input === "p") startPractice();
+    },
+    { isActive: active }
+  );
+  const hintText = live ? t(lang, "pz_keys") : justSolved ? t(lang, "pz_done_keys") : `${t(lang, "pz_menu_daily")} \xB7 ${t(lang, "gm_back_hub")}`;
+  useHint(setHint, hintText, active);
+  const w = width - 1;
+  const title = (r) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Box_default, { width: w, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Box_default, { flexGrow: 1, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Text, { wrap: "truncate-end", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { bold: true, color: "magenta", children: t(lang, "pz_title") }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Text, { color: "gray", children: [
+        " \xB7 ",
+        r?.mode === "practice" ? t(lang, "pz_practice") : t(lang, "pz_daily", { n: puzzleNumber(today) })
+      ] })
+    ] }) }),
+    r ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { color: "gray", children: t(lang, "pz_level", { n: r.puzzle.difficulty }) }) : null
+  ] });
+  const msgLine = msg ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Para, { text: msg.text, width: w, color: msg.color }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " });
+  if (live) {
+    const p = live.puzzle;
+    const labelW = lang === "zh" ? 6 : 8;
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Box_default, { flexDirection: "column", children: [
+      title(live),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Text, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { color: "gray", children: padTo(t(lang, "pz_goal"), labelW) }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { bold: true, color: "green", children: stackText(p.target) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Text, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { color: "gray", children: padTo(t(lang, "pz_stack"), labelW) }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { bold: true, color: "cyan", children: stackText(live.stack) }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Text, { color: "gray", children: [
+          " ",
+          t(lang, "pz_top")
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
+        padTo("", labelW),
+        live.prog.map((i) => p.buttons[i]?.label).join("  ") || " "
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Text, { color: "gray", children: [
+        padTo("", labelW),
+        t(lang, "pz_steps", { n: live.prog.length, p: p.par })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " }),
+      p.buttons.map((b, i) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Text, { wrap: "truncate-end", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { color: "cyan", children: ` ${i + 1}  ` }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { bold: true, children: padTo(b.label, 8) }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { color: "gray", children: b.desc[lang] })
+      ] }, b.id)),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " }),
+      live.error ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Para, { text: live.error[lang], width: w, color: "red" }) : msgLine
+    ] });
+  }
+  if (justSolved) {
+    const n = stars(justSolved.puzzle, justSolved.prog.length, justSolved.hints);
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Box_default, { flexDirection: "column", children: [
+      title(justSolved),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { bold: true, color: "green", children: t(lang, "pz_solved", { stars: starText(n), n: justSolved.prog.length }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { color: "gray", children: stackText(justSolved.puzzle.start) + "  \u2192  " + stackText(justSolved.puzzle.target) }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Para, { text: t(lang, "pz_share", { s: shareText(justSolved, lang) }), width: w, color: "cyan" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Para, { text: practiceLeft === Infinity ? t(lang, "pz_menu_practice", { c: `${ECON.practiceCost}\u26A1` }) : practiceLeft > 0 ? t(lang, "pz_practice_left", { n: practiceLeft }) : t(lang, "pz_practice_out"), width: w, color: "gray" }),
+      msgLine
+    ] });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(Box_default, { flexDirection: "column", children: [
+    title(null),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Para, { text: t(lang, "pz_intro"), width: w }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " }),
+    dailyStars ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Para, { text: t(lang, "pz_daily_done", { stars: starText(dailyStars) }), width: w, color: "green" }) : /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { bold: true, color: "cyan", children: t(lang, "pz_menu_daily") }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { color: practiceLeft > 0 ? "cyan" : "gray", children: t(lang, "pz_menu_practice", { c: `${ECON.practiceCost}\u26A1` }) }),
+    practiceLeft !== Infinity ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { color: "gray", children: practiceLeft > 0 ? t(lang, "pz_practice_left", { n: practiceLeft }) : t(lang, "pz_practice_out") }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Text, { children: " " }),
+    msgLine
+  ] });
+}
+var import_react33, import_jsx_runtime6, starText, stackText;
+var init_Puzzle = __esm({
+  async "src/ui/Puzzle.tsx"() {
+    "use strict";
+    import_react33 = __toESM(require_react(), 1);
+    await init_build2();
+    init_economy();
+    init_progress();
+    init_state();
+    init_stack();
+    init_i18n();
+    init_plan();
+    await init_common();
+    import_jsx_runtime6 = __toESM(require_jsx_runtime(), 1);
+    starText = (n) => "\u2605".repeat(n) + "\u2606".repeat(3 - n);
+    stackText = (xs) => xs.length ? `[ ${xs.join("  ")} ]` : "[ ]";
+  }
+});
+
+// src/game/sprint.ts
+function usable(line) {
+  return line.length >= CHANGE_MIN && line.length <= CHANGE_MAX && PRINTABLE.test(line) && (line.match(/[A-Za-z]/g)?.length ?? 0) >= 4 && !COMMENT.test(line);
+}
+function textLines(text) {
+  const lines = text.split("\n");
+  if (lines.length > 1 && lines[lines.length - 1] === "\u2026") lines.splice(-2, 2);
+  return lines;
+}
+function addedLines(edit) {
+  if (edit.patch?.length) {
+    return edit.patch.flatMap((h) => (h.lines ?? []).filter((l4) => l4.startsWith("+")).map((l4) => l4.slice(1)));
+  }
+  return (edit.hunks ?? []).flatMap((h) => {
+    const before = new Set(textLines(h.old ?? "").map((l4) => l4.trim()));
+    return textLines(h.new ?? "").filter((l4) => !before.has(l4.trim()));
+  });
+}
+function linesFromChanges(cards, max = 20) {
+  if (max <= 0) return [];
+  const all = [];
+  for (const card2 of cards) {
+    for (const edit of [card2, ...card2.more ?? []]) {
+      for (const raw of addedLines(edit)) {
+        const line = raw.replace(/\t/g, "  ").trim();
+        if (usable(line)) all.push(line);
+      }
+    }
+  }
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (let k = all.length - 1; k >= 0 && out.length < max; k--) {
+    if (seen.has(all[k])) continue;
+    seen.add(all[k]);
+    out.push(all[k]);
+  }
+  return out.reverse();
+}
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = a + 1831565813 >>> 0;
+    let t2 = a;
+    t2 = Math.imul(t2 ^ t2 >>> 15, t2 | 1);
+    t2 ^= t2 + Math.imul(t2 ^ t2 >>> 7, t2 | 61);
+    return ((t2 ^ t2 >>> 14) >>> 0) / 4294967296;
+  };
+}
+function sample2(xs, n, rand2) {
+  const a = xs.slice();
+  const k = Math.min(n, a.length);
+  for (let j = 0; j < k; j++) {
+    const r = j + Math.floor(rand2() * (a.length - j));
+    [a[j], a[r]] = [a[r], a[j]];
+  }
+  return a.slice(0, k);
+}
+function newSprint(seed, pool, n = 5, source = "builtin") {
+  const rand2 = mulberry32(seed);
+  const want = Math.max(1, Math.floor(n));
+  const clean = [...new Set(pool.map((l4) => l4.trim()).filter((l4) => PRINTABLE.test(l4)))];
+  const lines = sample2(clean, want, rand2);
+  if (lines.length < want) {
+    const have = new Set(lines);
+    lines.push(...sample2(SNIPPETS.filter((l4) => !have.has(l4)), want - lines.length, rand2));
+  }
+  return { lines, i: 0, typed: "", keys: 0, errors: 0, activeMs: 0, perLine: [], lineMs: 0, lineErrors: 0, done: false, source };
+}
+function currentLine(sp) {
+  return sp.lines[sp.i] ?? "";
+}
+function tick(sp, now) {
+  if (sp.lastKeyAt !== void 0) {
+    const dt = Math.min(Math.max(0, now - sp.lastKeyAt), PAUSE_CAP_MS);
+    sp.activeMs += dt;
+    sp.lineMs += dt;
+  }
+  sp.lastKeyAt = now;
+}
+function finishLine(sp) {
+  sp.perLine.push({ ms: sp.lineMs, errors: sp.lineErrors, chars: currentLine(sp).length });
+  sp.i++;
+  sp.typed = "";
+  sp.lineMs = 0;
+  sp.lineErrors = 0;
+  sp.lastKeyAt = void 0;
+  if (sp.i >= sp.lines.length) sp.done = true;
+}
+function typeChar(sp, ch, now) {
+  for (const c of ch) {
+    if (sp.done) return;
+    if (!PRINTABLE.test(c)) continue;
+    const line = currentLine(sp);
+    tick(sp, now);
+    sp.keys++;
+    if (sp.typed.length < line.length + OVERFLOW2) sp.typed += c;
+    if (!line.startsWith(sp.typed)) {
+      sp.errors++;
+      sp.lineErrors++;
+    } else if (sp.typed === line) {
+      finishLine(sp);
+    }
+  }
+}
+function backspace(sp, now) {
+  if (sp.done || !sp.typed) return;
+  tick(sp, now);
+  sp.keys++;
+  sp.typed = sp.typed.slice(0, -1);
+}
+function wpm(sp) {
+  let chars = 0;
+  let ms = 0;
+  for (const l4 of sp.perLine) {
+    chars += l4.chars;
+    ms += l4.ms;
+  }
+  return ms > 0 ? Math.round(chars / 5 / (ms / 6e4)) : 0;
+}
+function accuracy(sp) {
+  return sp.keys > 0 ? (sp.keys - sp.errors) / sp.keys : 1;
+}
+function progress(sp) {
+  return { line: Math.min(sp.i + 1, sp.lines.length), of: sp.lines.length };
+}
+function charStates(sp) {
+  const line = currentLine(sp);
+  const len = Math.max(line.length, sp.typed.length);
+  const out = [];
+  for (let k = 0; k < len; k++) {
+    if (k >= sp.typed.length) out.push("todo");
+    else out.push(sp.typed[k] === line[k] ? "ok" : "bad");
+  }
+  return out;
+}
+function result(sp) {
+  return { wpm: wpm(sp), accuracy: accuracy(sp), ms: sp.activeMs, lines: sp.perLine.length };
+}
+function isPersonalBest(prevBestWpm, sp) {
+  if (!sp.done || accuracy(sp) < PB_MIN_ACCURACY) return false;
+  const w = wpm(sp);
+  return w > prevBestWpm && w <= PB_MAX_WPM;
+}
+var PAUSE_CAP_MS, OVERFLOW2, PB_MIN_ACCURACY, PB_MAX_WPM, CHANGE_MIN, CHANGE_MAX, SNIPPETS, PRINTABLE, COMMENT;
+var init_sprint = __esm({
+  "src/game/sprint.ts"() {
+    "use strict";
+    PAUSE_CAP_MS = 3e3;
+    OVERFLOW2 = 8;
+    PB_MIN_ACCURACY = 0.9;
+    PB_MAX_WPM = 250;
+    CHANGE_MIN = 16;
+    CHANGE_MAX = 64;
+    SNIPPETS = [
+      // TypeScript / JavaScript
+      "const total = items.reduce((sum, x) => sum + x.price, 0);",
+      "export function clamp(n: number, lo: number, hi: number) {",
+      "if (!user) throw new Error('user not found');",
+      "import { readFile } from 'node:fs/promises';",
+      "const res = await fetch(url, { method: 'POST', body });",
+      "return todos.filter((t) => t.done).length;",
+      "setTimeout(() => controller.abort(), 5000);",
+      "const [count, setCount] = useState(0);",
+      "for (const [key, value] of Object.entries(env)) {",
+      "export type Status = 'idle' | 'busy' | 'failed';",
+      "const id = crypto.randomUUID().slice(0, 8);",
+      "app.get('/health', (req, res) => res.send('ok'));",
+      "const names = users.map((u) => u.name).sort();",
+      "if (retries > 3) return { ok: false, reason: 'timeout' };",
+      "console.error(`failed after ${ms} ms`, err);",
+      "const query = new URLSearchParams({ page: '2', q });",
+      "await Promise.all(jobs.map((job) => job.run()));",
+      "localStorage.setItem('theme', JSON.stringify(mode));",
+      "const debounced = debounce(save, 300);",
+      "throw new TypeError(`expected string, got ${typeof v}`);",
+      "export default defineConfig({ plugins: [react()] });",
+      "const isEmpty = (s: string) => s.trim().length === 0;",
+      "while (queue.length > 0) visit(queue.shift()!);",
+      "expect(parse('3 + 4')).toEqual({ op: '+', a: 3, b: 4 });",
+      "router.delete('/items/:id', requireAuth, removeItem);",
+      "const { rows } = await pool.query(sql, [userId]);",
+      "if (Number.isNaN(n)) return fallback;",
+      "process.exitCode = failed > 0 ? 1 : 0;",
+      "const key = `${user.id}:${day.toISOString()}`;",
+      "const sleep = (ms) => new Promise((r) => setTimeout(r, ms));",
+      "document.querySelector('#save')?.focus();",
+      "export const MAX_RETRIES = Number(process.env.RETRIES ?? 3);",
+      // Python
+      "def area(width: float, height: float) -> float:",
+      'with open(path, encoding="utf-8") as fh:',
+      "squares = [n * n for n in range(10) if n % 2 == 0]",
+      "from dataclasses import dataclass, field",
+      'if __name__ == "__main__":',
+      'raise ValueError(f"bad port: {port!r}")',
+      "counts = Counter(word.lower() for word in words)",
+      'return sorted(rows, key=lambda r: r["created_at"])',
+      'logger.info("loaded %d records in %.2fs", n, dt)',
+      "async def fetch_page(session, url: str) -> str:",
+      'df = df.dropna(subset=["price"]).reset_index(drop=True)',
+      'parser.add_argument("--limit", type=int, default=50)',
+      "self.cache: dict[str, bytes] = {}",
+      "total = sum(len(chunk) for chunk in chunks)",
+      // Go
+      "func (s *Server) Close() error { return s.ln.Close() }",
+      'if err != nil { return nil, fmt.Errorf("open: %w", err) }',
+      "ctx, cancel := context.WithTimeout(ctx, 2*time.Second)",
+      "defer rows.Close()",
+      "for i, v := range values { total += v * i }",
+      "type Point struct { X, Y float64 }",
+      "results := make(chan string, 16)",
+      'http.HandleFunc("/ping", pingHandler)',
+      // Rust
+      "let mut buf = String::with_capacity(64);",
+      "fn parse_port(s: &str) -> Result<u16, ParseIntError> {",
+      "let names: Vec<&str> = line.split(',').collect();",
+      "match cmd { Cmd::Quit => break, _ => continue }",
+      "#[derive(Debug, Clone, PartialEq)]",
+      "if let Some(hit) = cache.get(&key) { return hit.clone(); }",
+      "let total: u64 = sizes.iter().sum();",
+      // SQL
+      "SELECT id, email FROM users WHERE active = true;",
+      "UPDATE orders SET status = 'shipped' WHERE id = $1;",
+      "CREATE INDEX idx_orders_user ON orders (user_id);",
+      "DELETE FROM sessions WHERE expires_at < now();",
+      "SELECT kind, COUNT(*) FROM events GROUP BY kind;",
+      "INSERT INTO tags (name) VALUES ('urgent') RETURNING id;",
+      "ALTER TABLE users ADD COLUMN last_login timestamptz;",
+      // Shell / git
+      "git rebase -i HEAD~3",
+      "git log --oneline --graph -n 20",
+      'git commit -am "fix off-by-one in pager"',
+      "npm run build && npm test",
+      'grep -rn "TODO" src/ | wc -l',
+      'find . -name "*.log" -mtime +7 -delete',
+      "docker compose up -d --build api",
+      "curl -s localhost:8080/health | jq .status",
+      'tar -czf backup.tgz data/ --exclude="*.tmp"',
+      'export PATH="$HOME/.local/bin:$PATH"',
+      "git switch -c feature/search-filters",
+      "chmod +x scripts/deploy.sh && ./scripts/deploy.sh",
+      "kubectl rollout restart deployment/web",
+      // CSS
+      ".card { display: grid; gap: 12px; padding: 16px; }",
+      "@media (max-width: 600px) { .nav { display: none; } }",
+      "button:hover { background: var(--accent); }",
+      "transition: transform 150ms ease-out;",
+      "grid-template-columns: repeat(3, 1fr);",
+      ":root { --radius: 6px; --gap: 0.75rem; }"
+    ];
+    PRINTABLE = /^[\x20-\x7e]+$/;
+    COMMENT = /^(\/\/|#|\/\*|\*|--|<!--)/;
+  }
+});
+
+// src/ui/Sprint.tsx
+function Sprint({ st, update, lang, active, blocked, width, setTyping, setHint, onExit }) {
+  const resume = st.sprint && !st.sprint.done ? st.sprint : null;
+  const ref = (0, import_react34.useRef)(resume);
+  const [, render2] = (0, import_react34.useState)(0);
+  const [done, setDone] = (0, import_react34.useState)(null);
+  const [msg, setMsg] = (0, import_react34.useState)("");
+  const sp = ref.current;
+  (0, import_react34.useEffect)(() => {
+    setTyping(!!sp && !sp.done);
+  }, [!!sp && !sp.done]);
+  const save = () => {
+    const cur = ref.current;
+    update((s) => {
+      s.sprint = cur && !cur.done ? cur : null;
+    });
+  };
+  (0, import_react34.useEffect)(
+    () => () => {
+      setTyping(false);
+    },
+    []
+  );
+  const start = () => {
+    if (st.energy < ECON.sprintCost) return setMsg(t(lang, "gm_poor_any"));
+    const fresh = linesFromChanges(st.review, 20);
+    const fromChanges = fresh.length >= 3;
+    const seed = (Date.now() ^ Math.imul(st.totals.sprints + 11, 2654435761)) >>> 0;
+    ref.current = newSprint(seed, fromChanges ? fresh : SNIPPETS, 5, fromChanges ? "changes" : "builtin");
+    update((s) => {
+      s.energy -= ECON.sprintCost;
+      s.sprint = ref.current;
+    });
+    setDone(null);
+    setMsg("");
+    render2((x) => x + 1);
+  };
+  const finish = (run) => {
+    const r = result(run);
+    const prev = st.best.wpm;
+    const best = isPersonalBest(prev, run);
+    update((s) => {
+      s.sprint = null;
+      s.totals.sprints++;
+      track(s, "sprint");
+      if (best) s.best.wpm = r.wpm;
+    });
+    ref.current = null;
+    setDone({ wpm: r.wpm, acc: r.accuracy, best, prevBest: prev, source: run.source });
+    setTyping(false);
+  };
+  use_input_default(
+    (input, key2) => {
+      if (blocked()) return;
+      const run = ref.current;
+      if (run && !run.done) {
+        if (key2.escape) {
+          save();
+          setTyping(false);
+          return onExit();
+        }
+        const now = Date.now();
+        if (key2.backspace || key2.delete) backspace(run, now);
+        else if (input && !key2.ctrl && !key2.meta) typeChar(run, input, now);
+        if (run.done) finish(run);
+        render2((x) => x + 1);
+        return;
+      }
+      if (key2.escape) return onExit();
+      if (key2.return) start();
+    },
+    { isActive: active }
+  );
+  const hint2 = sp && !sp.done ? t(lang, "sp_keys") : t(lang, "gm_back_hub");
+  useHint(setHint, hint2, active);
+  const w = width - 1;
+  const title = /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Text, { wrap: "truncate-end", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { bold: true, color: "magenta", children: t(lang, "sp_title") }),
+    sp && !sp.done ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Text, { color: "gray", children: [
+      " \xB7 ",
+      t(lang, "sp_line", { i: progress(sp).line, n: progress(sp).of })
+    ] }) : null
+  ] });
+  if (sp && !sp.done) {
+    const line = currentLine(sp);
+    const states = charStates(sp);
+    const cells = states.map((s, i) => ({ ch: i < line.length ? line[i] : sp.typed[i] ?? " ", s }));
+    const cursor = sp.typed.length;
+    const rowW = Math.max(20, w - 2);
+    const rows = [];
+    for (let i = 0; i <= Math.max(cells.length, cursor); i += rowW) rows.push([]);
+    const all = [...cells, ...cursor >= cells.length ? [{ ch: " ", s: "todo" }] : []];
+    all.forEach((c, i) => rows[Math.floor(i / rowW)]?.push({ ...c, i }));
+    const next = sp.lines[sp.i + 1];
+    const typedRows = [];
+    Array.from(sp.typed).forEach((ch, i) => {
+      (typedRows[Math.floor(i / rowW)] ??= []).push({ ch, ok: states[i] === "ok" });
+    });
+    const live = wpm(sp);
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Box_default, { flexDirection: "column", children: [
+      title,
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: "gray", children: t(lang, sp.source === "changes" ? "sp_from_changes" : "sp_from_builtin") }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { children: " " }),
+      rows.map((row, r) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Text, { children: [
+        "  ",
+        row.map(({ ch, s, i }) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          Text,
+          {
+            color: s === "ok" ? "green" : s === "bad" ? "white" : void 0,
+            backgroundColor: s === "bad" ? "red" : void 0,
+            bold: s === "todo",
+            underline: i === cursor,
+            children: ch
+          },
+          i
+        ))
+      ] }, r)),
+      (typedRows.length ? typedRows : [[]]).map((row, r) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Text, { children: [
+        "  ",
+        row.map(({ ch, ok: ok2 }, i) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: ok2 ? "gray" : "red", children: ch }, i)),
+        r === typedRows.length - 1 || !typedRows.length ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: "cyan", children: "\u258F" }) : null
+      ] }, `t${r}`)),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { children: " " }),
+      next ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Text, { color: "gray", dimColor: true, wrap: "truncate-end", children: [
+        "  ",
+        next
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { children: " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: "gray", children: live ? t(lang, "sp_result", { wpm: live, acc: `${Math.round(accuracy(sp) * 100)}%` }) : t(lang, "sp_acc", { acc: `${Math.round(accuracy(sp) * 100)}%` }) })
+    ] });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(Box_default, { flexDirection: "column", children: [
+    title,
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { children: " " }),
+    done ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { bold: true, color: "green", children: t(lang, "sp_result", { wpm: done.wpm, acc: `${Math.round(done.acc * 100)}%` }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: done.best ? "yellow" : "gray", children: done.best ? t(lang, "sp_best") : t(lang, "sp_best_was", { n: done.prevBest }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: "gray", children: t(lang, done.source === "changes" ? "sp_from_changes" : "sp_from_builtin") })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Para, { text: t(lang, "sp_intro"), width: w }),
+      st.best.wpm ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { color: "gray", children: t(lang, "sp_best_was", { n: st.best.wpm }) }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { children: " " }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { bold: true, color: st.energy >= ECON.sprintCost ? "cyan" : "gray", children: t(lang, done ? "sp_start_again" : "sp_start", { c: ECON.sprintCost }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Text, { children: " " }),
+    msg ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Para, { text: msg, width: w, color: "yellow" }) : null
+  ] });
+}
+var import_react34, import_jsx_runtime7;
+var init_Sprint = __esm({
+  async "src/ui/Sprint.tsx"() {
+    "use strict";
+    import_react34 = __toESM(require_react(), 1);
+    await init_build2();
+    init_economy();
+    init_progress();
+    init_sprint();
+    init_i18n();
+    await init_common();
+    import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
+  }
+});
+
+// src/ui/Game.tsx
+function Game(props) {
+  const { st, update, cfg, lang, active, blocked, width, now, setHint } = props;
+  const [cursor, setCursor] = (0, import_react35.useState)(() => Math.max(0, GAMES.findIndex((g) => g.id === st.arcade)));
+  const arcade = st.arcade;
+  const openGame = (id) => update((s) => {
+    s.arcade = id;
+  });
+  use_input_default(
+    (input, key2) => {
+      if (blocked() || arcade) return;
+      if (/^[1-3]$/.test(input)) return openGame(GAMES[Number(input) - 1].id);
+      if (key2.upArrow || input === "k") setCursor((c) => (c + GAMES.length - 1) % GAMES.length);
+      else if (key2.downArrow || input === "j") setCursor((c) => (c + 1) % GAMES.length);
+      else if (key2.return) openGame(GAMES[cursor].id);
+    },
+    { isActive: active && !arcade }
+  );
+  useHint(setHint, t(lang, "gm_hub_keys"), active && !arcade);
+  const exit = () => openGame(null);
+  if (arcade === "dungeon") return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Dungeon, { ...props, onExit: exit });
+  if (arcade === "puzzle") return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Puzzle, { ...props, onExit: exit });
+  if (arcade === "sprint") return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Sprint, { ...props, onExit: exit });
+  const today = localDay(now);
+  const status = (id) => {
+    if (id === "dungeon") {
+      const g = st.game;
+      if (g && (g.phase === "battle" || g.phase === "reward")) return [t(lang, "gm_floor", { f: g.floor, n: FLOORS }), "yellow"];
+      return [t(lang, "gm_cost", { n: cfg.runCost }), st.energy >= cfg.runCost ? "cyan" : "gray"];
+    }
+    if (id === "puzzle") {
+      const stars2 = st.days[today]?.puzzle ?? 0;
+      const no = `#${puzzleNumber(today)}`;
+      return stars2 ? [`${no} ${"\u2605".repeat(stars2)}${"\u2606".repeat(3 - stars2)}`, "green"] : [`${no} ${t(lang, "gm_free_daily")}`, "yellow"];
+    }
+    return [st.best.wpm ? `${st.best.wpm} WPM` : t(lang, "gm_cost", { n: ECON.sprintCost }), st.best.wpm ? "gray" : "cyan"];
+  };
+  const w = width - 1;
+  const puzzleDays = Object.values(st.days).filter((d) => d.puzzle > 0).length;
+  const records = [
+    st.totals.wins ? t(lang, "gm_rec_wins", { n: st.totals.wins }) : "",
+    puzzleDays ? t(lang, "gm_rec_puzzle", { n: puzzleDays }) : "",
+    st.best.wpm ? t(lang, "gm_rec_wpm", { n: st.best.wpm }) : ""
+  ].filter(Boolean);
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { bold: true, children: t(lang, "gm_hub") }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { children: " " }),
+    GAMES.map((g, i) => {
+      const on = i === cursor;
+      const [right, color] = status(g.id);
+      return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Box_default, { flexDirection: "column", marginBottom: 1, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Box_default, { width: w, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Box_default, { flexGrow: 1, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Text, { wrap: "truncate-end", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { color: "cyan", children: on ? "\u25B8 " : "  " }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Text, { color: "cyan", children: [
+              i + 1,
+              " "
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { bold: on, children: t(lang, g.name) })
+          ] }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { color, children: right })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
+          "    ",
+          t(lang, g.desc)
+        ] })
+      ] }, g.id);
+    }),
+    records.length ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Text, { color: "gray", wrap: "truncate-end", children: records.join(" \xB7 ") }) : null
+  ] });
+}
+var import_react35, import_jsx_runtime8, GAMES;
+var init_Game = __esm({
+  async "src/ui/Game.tsx"() {
+    "use strict";
+    import_react35 = __toESM(require_react(), 1);
+    await init_build2();
+    init_state();
+    init_economy();
+    init_engine();
+    init_stack();
+    init_i18n();
+    await init_common();
+    await init_Dungeon();
+    await init_Puzzle();
+    await init_Sprint();
+    import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+    GAMES = [
+      { id: "dungeon", name: "gd_name", desc: "gd_desc" },
+      { id: "puzzle", name: "gp_name", desc: "gp_desc" },
+      { id: "sprint", name: "gs_name", desc: "gs_desc" }
+    ];
+  }
+});
+
+// src/ui/Me.tsx
+function Me(props) {
+  const { st, cfg, lang, active, blocked, width, height, now, setHint, setCfg, plan, toast } = props;
+  const [screen, setScreen, screenRef] = useRefState("main");
+  const [cursor, setCursor] = (0, import_react36.useState)(0);
+  const [scroll, setScroll] = (0, import_react36.useState)(0);
+  const onOff = (v) => t(lang, v ? "on" : "off");
+  const toggles = [
+    { key: "lang", label: "set_lang", value: () => t(lang, "set_lang_v"), next: (c) => ({ ...c, lang: lang === "zh" ? "en" : "zh" }) },
+    { key: "bell", label: "set_bell", value: (c) => onOff(c.bell), next: (c) => ({ ...c, bell: !c.bell }) },
+    { key: "autoMode", label: "set_auto", value: (c) => onOff(c.autoMode), next: (c) => ({ ...c, autoMode: !c.autoMode }) },
+    { key: "feedback", label: "set_feedback", value: (c) => onOff(c.feedback), next: (c) => ({ ...c, feedback: !c.feedback }) },
+    { key: "promptTitles", label: "set_titles", value: (c) => onOff(c.promptTitles), next: (c) => ({ ...c, promptTitles: !c.promptTitles }) },
+    { key: "updateCheck", label: "set_update", value: (c) => onOff(c.updateCheck), next: (c) => ({ ...c, updateCheck: !c.updateCheck }) }
+  ];
+  const open = (s) => {
+    setScreen(s);
+    setCursor(0);
+    setScroll(0);
+  };
+  const achRows = Math.max(3, height - 2);
+  const unlocked = ACHIEVEMENTS.filter((a) => st.achievements[a.id]);
+  use_input_default(
+    (input, key2) => {
+      if (blocked()) return;
+      const sc = screenRef.current;
+      if (sc !== "main" && (key2.escape || input === "b")) return open("main");
+      if (sc === "main") {
+        if (input === "c") open("achievements");
+        else if (input === "s") open("settings");
+        else if (input === "u") open("pro");
+      } else if (sc === "settings") {
+        if (key2.upArrow || input === "k") setCursor((c) => (c + toggles.length - 1) % toggles.length);
+        else if (key2.downArrow || input === "j") setCursor((c) => (c + 1) % toggles.length);
+        else if (key2.return || input === " ") setCfg(toggles[cursor].next(cfg));
+      } else if (sc === "achievements") {
+        const max = Math.max(0, ACHIEVEMENTS.length - Math.floor(achRows / 2));
+        if (key2.downArrow || input === "j") setScroll((x) => Math.min(max, x + 1));
+        else if (key2.upArrow || input === "k") setScroll((x) => Math.max(0, x - 1));
+      } else if (sc === "pro") {
+        if (key2.return && plan === "free" && CHECKOUT.pro) {
+          toast(openUrl(CHECKOUT.pro) ? t(lang, "pro_opened") : CHECKOUT.pro, "cyan");
+        }
+      }
+    },
+    { isActive: active }
+  );
+  const hint2 = screen === "main" ? t(lang, "me_keys") : screen === "settings" ? t(lang, "set_keys") : screen === "achievements" ? t(lang, "ach_keys") : plan === "free" && CHECKOUT.pro ? `${t(lang, "pro_buy")} \xB7 ${t(lang, "me_back")}` : t(lang, "me_back");
+  useHint(setHint, hint2, active);
+  const w = width - 1;
+  if (screen === "settings") {
+    const labelW = Math.min(30, Math.max(16, w - 14));
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Box_default, { flexDirection: "column", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { bold: true, children: t(lang, "set_title") }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { children: " " }),
+      toggles.map((x, i) => {
+        const on = i === cursor;
+        return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Text, { wrap: "truncate-end", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: "cyan", children: on ? "\u25B8 " : "  " }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { bold: on, children: padTo(t(lang, x.label), labelW) }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: on ? "cyan" : "gray", children: x.value(cfg) })
+        ] }, x.key);
+      })
+    ] });
+  }
+  if (screen === "achievements") {
+    const shown = ACHIEVEMENTS.slice(scroll, scroll + Math.floor(achRows / 2));
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Box_default, { flexDirection: "column", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { bold: true, children: t(lang, "ach_title", { n: unlocked.length, m: ACHIEVEMENTS.length }) }),
+      shown.map((a) => {
+        const got = !!st.achievements[a.id];
+        return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Box_default, { flexDirection: "column", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Text, { wrap: "truncate-end", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: got ? "yellow" : "gray", children: got ? "\u{1F3C6} " : "\xB7  " }),
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { bold: got, color: got ? void 0 : "gray", children: a.name[lang] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
+            "   ",
+            a.desc[lang],
+            got ? `  ${localDay(st.achievements[a.id])}` : ""
+          ] })
+        ] }, a.id);
+      })
+    ] });
+  }
+  if (screen === "pro") {
+    const planName2 = t(lang, plan === "team" ? "me_plan_team" : plan === "pro" ? "me_plan_pro" : "me_plan_free");
+    const lic = plan !== "free" ? loadLicense() : null;
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Box_default, { flexDirection: "column", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { bold: true, color: "magenta", children: t(lang, "pro_title") }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: "gray", children: t(lang, "pro_current", { plan: planName2 }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { children: " " }),
+      plan === "free" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Para, { text: t(lang, "pro_pitch"), width: w }),
+        ["pro_f1", "pro_f2", "pro_f3", "pro_f4"].map((k) => /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Para, { text: `  \u2726 ${t(lang, k)}`, width: w, color: "gray" }, k)),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { children: " " }),
+        licensingConfigured() ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: "cyan", children: t(lang, "pro_price", { c: PRICES.currency, m: PRICES.pro.monthly, y: PRICES.pro.yearly }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Para, { text: t(lang, "pro_activate"), width: w, color: "gray" })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Para, { text: t(lang, "pro_soon"), width: w, color: "green" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: "green", children: t(lang, "pro_thanks") }),
+        lic ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: "gray", children: t(lang, "pro_key", { k: maskKey(lic.key) }) }) : null
+      ] })
+    ] });
+  }
+  const r = weekStats(st, weekKey(now));
+  const latest = [...unlocked].sort((a, b) => st.achievements[b.id] - st.achievements[a.id])[0];
+  const planName = t(lang, plan === "team" ? "me_plan_team" : plan === "pro" ? "me_plan_pro" : "me_plan_free");
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Box_default, { flexDirection: "column", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Today, { st, lang, width: w, now }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { children: " " }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: "gray", wrap: "truncate-end", children: r.files > 0 ? t(lang, "me_week", { t: r.turns, p: pct(r.coverage) }) : t(lang, "me_week_none") }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Text, { wrap: "truncate-end", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { children: t(lang, "me_ach", { n: unlocked.length, m: ACHIEVEMENTS.length }) }),
+      latest ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(Text, { color: "gray", children: [
+        " \xB7 ",
+        t(lang, "me_ach_recent", { name: latest.name[lang] })
+      ] }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { wrap: "truncate-end", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Text, { color: plan === "free" ? "gray" : "magenta", children: t(lang, "me_plan_line", { plan: planName }) }) })
+  ] });
+}
+var import_react36, import_jsx_runtime9;
+var init_Me = __esm({
+  async "src/ui/Me.tsx"() {
+    "use strict";
+    import_react36 = __toESM(require_react(), 1);
+    await init_build2();
+    init_progress();
+    init_state();
+    init_product();
+    init_license();
+    init_open();
+    init_i18n();
+    await init_common();
+    await init_Today();
+    import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
   }
 });
 
@@ -25686,11 +28374,11 @@ var App_exports = {};
 __export(App_exports, {
   App: () => App2
 });
-import path8 from "node:path";
+import path11 from "node:path";
 function useSize() {
   const { stdout } = use_stdout_default();
-  const [size, setSize] = (0, import_react33.useState)({ cols: stdout.columns || 100, rows: stdout.rows || 30 });
-  (0, import_react33.useEffect)(() => {
+  const [size, setSize] = (0, import_react37.useState)({ cols: stdout.columns || 100, rows: stdout.rows || 30 });
+  (0, import_react37.useEffect)(() => {
     const on = () => setSize({ cols: stdout.columns || 100, rows: stdout.rows || 30 });
     stdout.on("resize", on);
     return () => {
@@ -25702,52 +28390,141 @@ function useSize() {
 function noteTarget(s) {
   const all = Object.entries(s.sessions);
   if (!all.length) return {};
-  const [sid, pick2] = [...all].sort(([, a], [, b]) => Number(b.status !== "idle") - Number(a.status !== "idle") || b.lastAt - a.lastAt)[0];
+  const [sid, pick3] = [...all].sort(([, a], [, b]) => Number(b.status !== "idle") - Number(a.status !== "idle") || b.lastAt - a.lastAt)[0];
   const many = new Set(all.map(([, x]) => normPath(x.cwd))).size > 1;
-  return { sid, cwd: pick2.cwd || void 0, dir: many && pick2.cwd ? path8.basename(pick2.cwd) : void 0 };
+  return { sid, cwd: pick3.cwd || void 0, dir: many && pick3.cwd ? path11.basename(pick3.cwd) : void 0 };
 }
 function Help({ lang, width }) {
   const h = helpContent(lang);
   const keyW = lang === "zh" ? 9 : 11;
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", width, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: h.intro, width }),
-    h.sections.map((sec) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, children: sec.title }),
-      sec.rows.map(([k, d]) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { width: keyW, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "cyan", children: k }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Para, { text: d, width: width - keyW })
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { flexDirection: "column", width, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: h.intro, width }),
+    h.sections.map((sec) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { flexDirection: "column", marginTop: 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, children: sec.title }),
+      sec.rows.map(([k, d]) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { width: keyW, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: "cyan", children: k }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: d, width: width - keyW })
       ] }, k))
     ] }, sec.title))
   ] });
 }
-function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint = false }) {
+function Welcome({ lang, width, hooked, cwd: cwd2 }) {
+  const rows = [
+    [t(lang, "mode_review"), t(lang, "wl_review")],
+    [t(lang, "mode_game"), t(lang, "wl_game")],
+    [t(lang, "mode_learn"), t(lang, "wl_learn")]
+  ];
+  const keyW = lang === "zh" ? 6 : 8;
+  const opt2 = (k, text, color) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { width: 8, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: "cyan", bold: true, children: k }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text, width: width - 8, color })
+  ] });
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { flexDirection: "column", width, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, color: "cyan", children: t(lang, "wl_title") }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { children: " " }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: t(lang, "wl_intro"), width }),
+    rows.map(([k, d]) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { marginTop: 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { width: keyW, flexShrink: 0, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, children: k }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: d, width: width - keyW, color: "gray" })
+    ] }, k)),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { children: " " }),
+    hooked ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: t(lang, "wl_ready"), width, color: "green" }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { children: " " }),
+      opt2("Enter", t(lang, "wl_start"))
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, color: "yellow", children: t(lang, "wl_connect") }),
+      opt2("Enter", `${t(lang, "wl_here")}  ${cwd2}`),
+      opt2("g", t(lang, "wl_global"), "gray"),
+      opt2("Esc", t(lang, "wl_later"), "gray")
+    ] }),
+    opt2("L", t(lang, "wl_lang"), "gray")
+  ] });
+}
+function RecapView({ r, lang, width }) {
+  const md = (d) => d.slice(5).replace("-", "/");
+  const end = new Date(Number(r.week.slice(0, 4)), Number(r.week.slice(5, 7)) - 1, Number(r.week.slice(8, 10)) + 6);
+  const to = `${String(end.getMonth() + 1).padStart(2, "0")}/${String(end.getDate()).padStart(2, "0")}`;
+  const verdict = r.files === 0 ? "rc_none" : (r.coverage ?? 0) >= 0.8 ? "rc_hi" : (r.coverage ?? 0) >= 0.5 ? "rc_mid" : "rc_lo";
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { flexDirection: "column", width, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, color: "cyan", children: t(lang, "rc_title", { from: md(r.week), to }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { children: " " }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: t(lang, "rc_turns", { n: r.turns, f: r.files }), width }),
+    r.files > 0 ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: t(lang, "rc_read", { r: r.read, p: pct(r.coverage) }), width, color: (r.coverage ?? 0) >= 0.5 ? "green" : "yellow" }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: t(lang, "rc_notes", { f: r.flagged, n: r.notes, l: r.learned }), width }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: t(lang, "rc_days", { n: r.activeDays, xp: r.xp }), width }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { children: " " }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Para, { text: t(lang, verdict), width, color: "magenta" })
+  ] });
+}
+function App2({ cfg: initialCfg, lang: autoLang, initial, daily, pollMs = 400, setupHint = false, plan = "free", cwd: cwd2 = process.cwd(), checkUpdate }) {
   const { exit } = use_app_default();
   const { cols, rows } = useSize();
-  const [cfg, setCfg] = (0, import_react33.useState)(initialCfg);
-  const [st, setSt] = (0, import_react33.useState)(initial);
-  const ref = (0, import_react33.useRef)(initial);
-  const [now, setNow] = (0, import_react33.useState)(Date.now());
-  const [mode, setMode] = (0, import_react33.useState)(() => chooseMode(initial, initialCfg, predictWait(initial.history)));
-  const [auto, setAuto] = (0, import_react33.useState)(initialCfg.autoMode);
-  const autoRef = (0, import_react33.useRef)(auto);
-  autoRef.current = auto;
-  const [alert, setAlert] = (0, import_react33.useState)(null);
-  const [toast, setToast] = (0, import_react33.useState)(null);
-  const toastTimer = (0, import_react33.useRef)(void 0);
-  const [help2, setHelp] = (0, import_react33.useState)(false);
-  const [typing, setTyping] = (0, import_react33.useState)(false);
-  const typingRef = (0, import_react33.useRef)(false);
+  const [cfg, setCfgState] = (0, import_react37.useState)(initialCfg);
+  const lang = cfg.lang === "zh" || cfg.lang === "en" ? cfg.lang : autoLang;
+  const [st, setSt] = (0, import_react37.useState)(initial);
+  const ref = (0, import_react37.useRef)(initial);
+  const [now, setNow] = (0, import_react37.useState)(Date.now());
+  const [mode, setMode] = (0, import_react37.useState)(() => chooseMode(initial, initialCfg, predictWait(initial.history)));
+  const autoRef = (0, import_react37.useRef)(initialCfg.autoMode);
+  autoRef.current = cfg.autoMode;
+  const [alert, setAlert] = (0, import_react37.useState)(null);
+  const [toast, setToastState] = (0, import_react37.useState)(null);
+  const toastRef = (0, import_react37.useRef)(null);
+  const setToast = (x) => {
+    toastRef.current = x;
+    setToastState(x);
+  };
+  const toastQueue = (0, import_react37.useRef)([]);
+  const toastTimer = (0, import_react37.useRef)(void 0);
+  const [recap] = (0, import_react37.useState)(() => initial.onboarded ? recapDue(initial) : null);
+  const [overlay, setOverlay] = (0, import_react37.useState)(() => !initial.onboarded ? "welcome" : recap ? "recap" : null);
+  const [hooked, setHooked] = (0, import_react37.useState)(!setupHint);
+  const [typing, setTyping] = (0, import_react37.useState)(false);
+  const typingRef = (0, import_react37.useRef)(false);
   typingRef.current = typing;
   const setTypingNow = (v) => {
     typingRef.current = v;
     setTyping(v);
   };
+  const [hint2, setHint] = (0, import_react37.useState)("");
+  const [focusTurn, setFocusTurn] = (0, import_react37.useState)(null);
   const note = useLine();
-  const lastSweep = (0, import_react33.useRef)(0);
-  const modeRef = (0, import_react33.useRef)(mode);
+  const lastSweep = (0, import_react37.useRef)(0);
+  const modeRef = (0, import_react37.useRef)(mode);
   modeRef.current = mode;
-  const dirty = (0, import_react33.useRef)(false);
-  const lastSave = (0, import_react33.useRef)(0);
+  const pump = () => {
+    if (toastTimer.current) return;
+    const next = toastQueue.current.shift();
+    setToast(next ?? null);
+    if (!next) return;
+    toastTimer.current = setTimeout(
+      () => {
+        toastTimer.current = void 0;
+        pump();
+      },
+      next.kind === "reward" ? REWARD_MS : FEEDBACK_MS
+    );
+  };
+  const pushToast = (x) => {
+    if (x.kind === "feedback") {
+      toastQueue.current = [x, ...toastQueue.current.filter((q) => q.kind !== "feedback")];
+      if (toastTimer.current && toastRef.current?.kind !== "reward") {
+        clearTimeout(toastTimer.current);
+        toastTimer.current = void 0;
+      }
+    } else toastQueue.current.push(x);
+    pump();
+  };
+  const showToast = (text, color = "green") => pushToast({ text, color, kind: "feedback" });
+  const celebrate = (evs) => {
+    for (const e of evs) {
+      const text = e.type === "quest" ? t(lang, "quest_done", { q: e.label[lang], e: QUEST_ENERGY }) : e.type === "quests_all" ? t(lang, "quests_all") : e.type === "achievement" ? t(lang, "achievement", { n: e.name[lang], e: ACHIEVEMENT_ENERGY }) : t(lang, "level_up", { l: e.level, t: e.title[lang] });
+      pushToast({ text, color: e.type === "level" ? "magenta" : "yellow", kind: "reward" });
+    }
+  };
+  const dirty = (0, import_react37.useRef)(false);
+  const lastSave = (0, import_react37.useRef)(0);
   const persist = (s) => {
     saveState(s);
     dirty.current = false;
@@ -25762,12 +28539,14 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint =
   const update = (fn) => {
     const s = structuredClone(ref.current);
     fn(s);
+    const evs = settleProgress(s);
     commit(s);
+    if (evs.length) setTimeout(() => celebrate(evs), 0);
   };
-  const showToast = (text, color = "green") => {
-    setToast({ text, color });
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), TOAST_MS);
+  const setCfg = (c) => {
+    autoRef.current = c.autoMode;
+    setCfgState(c);
+    saveConfig(c);
   };
   const ring = () => {
     if (cfg.bell) process.stdout.write("\x07");
@@ -25785,35 +28564,48 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint =
         setAlert(null);
         if (autoRef.current && !typingRef.current && !inFight(m, s)) go(chooseMode(s, cfg, predictWait(s.history, sig.cwd)));
       } else if (sig.type === "new_card") {
-        if (autoRef.current && !typingRef.current && m !== "review" && !inFight(m, s)) go("review");
+        if (autoRef.current && !typingRef.current && m !== "review" && m !== "me" && !inFight(m, s)) go("review");
       } else if (sig.type === "turn_done") {
-        const dir = sig.cwd ? path8.basename(sig.cwd) : "";
+        const dir = sig.cwd ? path11.basename(sig.cwd) : "";
         const multi = Object.keys(s.sessions).length > 1;
-        const waiting = pendingCards(s).length;
+        const files = turnByKey(s, sig.turn)?.files ?? 0;
+        const waiting = pendingCards(s).filter((c) => c.turn === sig.turn).length;
         const sub = [sig.coins > 0 ? t(lang, "done_coins", { n: sig.coins }) : t(lang, "done_none")];
         if (sig.pass) sub.push(t(lang, "done_pass"));
         else if (sig.fail) sub.push(t(lang, "done_fail"));
         if (waiting) sub.push(t(lang, "done_pending", { n: waiting }));
         setAlert({
           kind: "done",
-          text: t(lang, "done", { t: fmtDur(sig.ms) }) + (sig.edits ? t(lang, sig.edits === 1 ? "done_edit1" : "done_edits", { n: sig.edits }) : "") + (multi && dir ? t(lang, "done_cwd", { dir }) : ""),
-          sub: sub.join(" \xB7 ")
+          text: t(lang, "done", { t: fmtDur(sig.ms) }) + (files ? t(lang, files === 1 ? "done_edit1" : "done_edits", { n: files }) : "") + (multi && dir ? t(lang, "done_cwd", { dir }) : ""),
+          sub: sub.join(" \xB7 "),
+          turn: waiting ? sig.turn : void 0
         });
         ring();
       } else if (sig.type === "attention") {
         setAlert({ kind: "attention", text: t(lang, "attention", { msg: sig.msg }) });
         ring();
       } else if (sig.type === "delivered") {
-        showToast(sig.count > 1 ? t(lang, "delivered_n", { n: sig.count }) : t(lang, "delivered_one"));
+        showToast(sig.count > 1 ? t(lang, "delivered_n", { n: sig.count }) : t(lang, "delivered_one"), "cyan");
       }
     }
   };
-  (0, import_react33.useEffect)(() => {
-    if (daily > 0) showToast(t(lang, "daily", { n: daily }), "cyan");
+  (0, import_react37.useEffect)(() => {
+    if (daily > 0) {
+      const sk2 = streak(ref.current).days;
+      showToast(sk2 > 0 ? t(lang, "daily_streak", { n: daily, d: sk2 }) : t(lang, "daily", { n: daily }), "cyan");
+    }
+    const s = structuredClone(ref.current);
+    celebrate(settleProgress(s));
+    commit(s);
+    if (cfg.updateCheck && checkUpdate) {
+      checkUpdate().then((u) => {
+        if (u) pushToast({ text: t(lang, "update_avail", { v: u.version, cmd: u.command }), color: "magenta", kind: "reward" });
+      }).catch(() => void 0);
+    }
     return () => clearTimeout(toastTimer.current);
   }, []);
-  (0, import_react33.useEffect)(() => {
-    const tick = () => {
+  (0, import_react37.useEffect)(() => {
+    const tick2 = () => {
       const t0 = Date.now();
       const cur = ref.current;
       let s = null;
@@ -25835,29 +28627,36 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint =
           s.offset = 0;
         }
       }
+      let archived = 0;
       if (t0 - lastSweep.current > 3e4) {
         lastSweep.current = t0;
         const target2 = s ?? structuredClone(cur);
+        const before = target2.totals.expired;
         if (sweep(target2, t0)) s = target2;
+        archived = target2.totals.expired - before;
       }
-      if (s) commit(s, !rotated);
+      let evs = [];
+      if (s) evs = settleProgress(s);
+      if (s) commit(s, !rotated && !archived);
       if (dirty.current && t0 - lastSave.current >= SAVE_EVERY_MS) persist(ref.current);
       if (sigs.length) onSignals(sigs, s ?? cur);
+      if (archived) showToast(t(lang, "expired", { n: archived }), "gray");
+      if (evs.length) celebrate(evs);
       setNow(Math.floor(t0 / 1e3) * 1e3);
     };
-    tick();
-    const id = setInterval(tick, pollMs);
+    tick2();
+    const id = setInterval(tick2, pollMs);
     return () => {
       clearInterval(id);
       if (dirty.current) persist(ref.current);
     };
   }, []);
   const pending = pendingCards(st).length;
-  const prevPending = (0, import_react33.useRef)(pending);
-  (0, import_react33.useEffect)(() => {
+  const prevPending = (0, import_react37.useRef)(pending);
+  (0, import_react37.useEffect)(() => {
     const was = prevPending.current;
     prevPending.current = pending;
-    if (auto && mode === "review" && was > 0 && pending === 0 && !typing) {
+    if (cfg.autoMode && mode === "review" && was > 0 && pending === 0 && !typing) {
       const id = setTimeout(() => {
         if (modeRef.current !== "review" || typingRef.current) return;
         const next = chooseMode(ref.current, cfg, predictWait(ref.current.history));
@@ -25872,31 +28671,72 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint =
     const text = raw.trim();
     if (!text) return;
     const s = ref.current;
-    const { sid, cwd: cwd2 } = noteTarget(s);
+    const { sid, cwd: noteCwd } = noteTarget(s);
     const id = newNoteId();
     const at = Date.now();
-    addNote({ id, t: at, text, cwd: cwd2, sid });
-    update((x) => recordNote(x, { id, t: at, text, cwd: cwd2 }));
-    showToast(t(lang, busySessions(s).length ? "note_sent_busy" : "note_sent_idle"), "yellow");
+    addNote({ id, t: at, text, cwd: noteCwd, sid });
+    update((x) => {
+      recordNote(x, { id, t: at, text, cwd: noteCwd });
+      track(x, "note");
+    });
+    showToast(t(lang, busySessions(s).length ? "note_sent_busy" : "note_sent_idle"), "cyan");
   };
-  use_input_default((input, key) => {
+  const hookUp = (scope) => {
+    try {
+      install({ scope, cwd: cwd2 });
+      setHooked(true);
+      showToast(t(lang, "installed_ok"), "green");
+    } catch (e) {
+      showToast(t(lang, "install_failed", { e: String(e?.message ?? e).slice(0, 120) }), "red");
+    }
+  };
+  const finishWelcome = () => {
+    update((s) => {
+      s.onboarded = true;
+    });
+    setOverlay(recap ? "recap" : null);
+  };
+  const closeRecap = () => {
+    update((s) => {
+      s.lastRecap = weekKey(Date.now());
+    });
+    setOverlay(null);
+  };
+  use_input_default((input, key2) => {
     if (note.isOpen()) {
-      note.handle(input, key, sendNote, () => setTypingNow(false));
+      note.handle(input, key2, sendNote, () => setTypingNow(false));
       return;
     }
     if (typingRef.current) return;
+    if (overlay === "welcome") {
+      if (input === "L") setCfg({ ...cfg, lang: lang === "zh" ? "en" : "zh" });
+      else if (key2.return) {
+        if (!hooked) hookUp("project");
+        finishWelcome();
+      } else if (input === "g" && !hooked) {
+        hookUp("user");
+        finishWelcome();
+      } else if (key2.escape) finishWelcome();
+      return;
+    }
+    if (overlay === "recap") return closeRecap();
     if (alert) {
+      if (key2.return && alert.turn) {
+        setFocusTurn(alert.turn);
+        modeRef.current = "review";
+        setMode("review");
+      }
       setAlert(null);
       return;
     }
-    if (help2) {
-      setHelp(false);
+    if (overlay === "help") {
+      setOverlay(null);
       return;
     }
-    if (key.tab) {
-      const step = key.shift ? MODES.length - 1 : 1;
+    if (key2.tab) {
+      const step2 = key2.shift ? MODES.length - 1 : 1;
       setMode((m) => {
-        const next = MODES[(MODES.indexOf(m) + step) % MODES.length];
+        const next = MODES[(MODES.indexOf(m) + step2) % MODES.length];
         modeRef.current = next;
         return next;
       });
@@ -25907,13 +28747,10 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint =
         setTypingNow(true);
       }
     } else if (input === "a") {
-      const next = !autoRef.current;
-      autoRef.current = next;
-      setAuto(next);
-      const c = { ...cfg, autoMode: next };
-      setCfg(c);
-      saveConfig(c);
-    } else if (input === "?") setHelp(true);
+      setCfg({ ...cfg, autoMode: !cfg.autoMode });
+      showToast(t(lang, cfg.autoMode ? "auto_off" : "auto_on"), "gray");
+    } else if (input === "i" && !hooked) hookUp("project");
+    else if (input === "?") setOverlay("help");
     else if (input === "q") exit();
   });
   const busy = busySessions(st);
@@ -25921,7 +28758,7 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint =
   const working = busy.filter(([, x]) => x.status === "busy").sort((a, b) => (b[1].turnStart ?? 0) - (a[1].turnStart ?? 0));
   let statusEl;
   if (attention) {
-    statusEl = /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "yellow", children: [
+    statusEl = /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "yellow", children: [
       "\u26A0 ",
       t(lang, "st_attention")
     ] });
@@ -25930,132 +28767,156 @@ function App2({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint =
     const elapsed = now - (w.turnStart ?? now);
     const eta = predictWait(st.history, w.cwd, elapsed);
     const usual = eta ?? predictWait(st.history, w.cwd);
-    statusEl = /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "green", children: [
+    statusEl = /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "green", children: [
         "\u25CF ",
         t(lang, "st_busy")
       ] }),
       " ",
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, children: fmtDur(elapsed) }),
-      eta ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, children: fmtDur(elapsed) }),
+      eta ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "gray", children: [
         " / ",
         t(lang, "eta", { t: fmtDur(eta) })
-      ] }) : usual ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
+      ] }) : usual ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "gray", children: [
         " / ",
         t(lang, "st_longer")
       ] }) : null,
-      working.length > 1 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: t(lang, "st_more", { n: working.length }) }) : null
+      working.length > 1 ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: "gray", children: t(lang, "st_more", { n: working.length }) }) : null
     ] });
   } else if (Object.keys(st.sessions).length) {
-    statusEl = /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
+    statusEl = /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "gray", children: [
       "\u25CB ",
       t(lang, "st_idle")
     ] });
   } else {
-    statusEl = /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", children: [
+    statusEl = /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "gray", children: [
       "\u25CB ",
       t(lang, "st_none")
     ] });
   }
   const notesWaiting = waitingNotes(st).length;
+  const sk = streak(st, now);
   const tabs = MODES.map((m) => {
-    const label = t(lang, m === "review" ? "mode_review" : m === "game" ? "mode_game" : "mode_learn");
+    const label = t(lang, m === "review" ? "mode_review" : m === "game" ? "mode_game" : m === "learn" ? "mode_learn" : "mode_me");
     const badge = m === "review" && pending ? ` ${pending}` : "";
-    const on = m === mode;
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { inverse: on, bold: on, color: on ? "cyan" : "gray", children: ` ${label}${badge} ` }, m);
+    const on = m === mode && overlay !== "help";
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { inverse: on, bold: on, color: on ? "cyan" : m === "review" && pending ? "yellow" : "gray", children: ` ${label}${badge} ` }, m);
   });
   const width = Math.max(40, cols);
   const noteOpen = note.value !== null;
   const alertLines = alert ? 4 : 0;
   const footerLines = noteOpen ? 2 : 1;
   const bodyH = Math.max(6, rows - 4 - footerLines - alertLines);
+  const showSetup = !hooked && st.offset === 0 && Object.keys(st.sessions).length === 0;
   const modeProps = {
     st,
     update,
     cfg,
     lang,
-    active: !help2 && !noteOpen && (!alert || typing),
+    active: overlay === null && !noteOpen && (!alert || typing),
     blocked: note.isOpen,
     width,
     height: bodyH,
     now,
     busy: working.length > 0 || !!attention,
     setTyping: setTypingNow,
-    setupHint: setupHint && st.offset === 0 && Object.keys(st.sessions).length === 0
+    setupHint: showSetup,
+    toast: showToast,
+    setHint,
+    setCfg,
+    plan,
+    focusTurn,
+    clearFocus: () => setFocusTurn(null)
   };
   const target = noteOpen ? noteTarget(st) : {};
-  const onOff = t(lang, auto ? "on" : "off");
   const rule = "\u2500".repeat(Math.max(10, width - 1));
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", width, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { width: width - 1, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexGrow: 1, flexShrink: 1, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { wrap: "truncate-end", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, color: "cyan", children: t(lang, "brand") }),
+  const helpKey = t(lang, "help_key");
+  const footer = overlay === "help" ? t(lang, "help_close") : overlay === "recap" ? t(lang, "anykey") : overlay === "welcome" ? "" : typing ? hint2 : hint2 ? fit([`${hint2} \xB7 ${helpKey}`, hint2], width - 1) : helpKey;
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { flexDirection: "column", width, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { width: width - 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { flexGrow: 1, flexShrink: 1, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { wrap: "truncate-end", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, color: "cyan", children: t(lang, "brand") }),
         "  ",
         statusEl
       ] }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexShrink: 0, marginLeft: 1, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { children: [
-        notesWaiting ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "yellow", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { flexShrink: 0, marginLeft: 1, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { children: [
+        notesWaiting ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "yellow", children: [
           "\u270E",
           notesWaiting,
           " "
         ] }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "yellow", children: [
+        sk.days > 0 ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: sk.today ? "yellow" : "gray", children: [
+          "\u{1F525}",
+          sk.days,
+          " "
+        ] }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "yellow", children: [
           "\u26A1",
           st.energy
         ] }),
         " ",
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "yellow", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "yellow", children: [
           "\u{1F4B0}",
           st.coins
         ] })
       ] }) })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { justifyContent: "space-between", width: width - 1, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { children: tabs }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: auto ? "green" : "gray", children: [
-        t(lang, "auto"),
-        " ",
-        auto ? "\u2713" : "\u2717"
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { justifyContent: "space-between", width: width - 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { children: tabs }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "gray", children: [
+        cfg.autoMode ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Text, { color: "green", children: [
+          t(lang, "auto"),
+          " "
+        ] }) : null,
+        "Tab \u21C4"
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: rule }),
-    alert ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { borderStyle: "round", borderColor: alert.kind === "done" ? "green" : "yellow", paddingX: 1, width: Math.min(width - 1, 80), flexDirection: "column", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, color: alert.kind === "done" ? "green" : "yellow", wrap: "truncate-end", children: alert.text }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { color: "gray", wrap: "truncate-end", children: [
-        alert.sub ? `${alert.sub} \xB7 ` : "",
-        t(lang, "anykey")
-      ] })
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: "gray", children: rule }),
+    alert ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(Box_default, { borderStyle: "round", borderColor: alert.kind === "done" ? "green" : "yellow", paddingX: 1, width: Math.min(width - 1, 80), flexDirection: "column", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { bold: true, color: alert.kind === "done" ? "green" : "yellow", wrap: "truncate-end", children: alert.text }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: "gray", wrap: "truncate-end", children: fit(
+        [
+          [alert.sub, t(lang, alert.turn ? "alert_review" : "anykey")],
+          [alert.sub, alert.turn ? t(lang, "alert_review_short") : ""],
+          [alert.sub]
+        ].map((xs) => xs.filter(Boolean).join(" \xB7 ")),
+        Math.min(width - 1, 80) - 4
+      ) })
     ] }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", height: bodyH, overflow: "hidden", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", flexShrink: 0, children: help2 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Help, { lang, width: width - 1 }) : mode === "review" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Review, { ...modeProps }) : mode === "game" ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Game, { ...modeProps }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Learn, { ...modeProps }) }) }),
-    noteOpen ? /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(InputLine, { prompt: target.dir ? t(lang, "note_prompt_to", { dir: target.dir }) : t(lang, "note_prompt"), value: note.value ?? "" }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", children: t(lang, "note_hint") })
-    ] }) : toast ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: toast.color, wrap: "truncate-end", children: toast.text }) : help2 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", wrap: "truncate-end", children: t(lang, "help_close") }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "gray", wrap: "truncate-end", children: fit([t(lang, "footer", { on: onOff }), t(lang, "footer_short", { on: onOff })], width - 1) })
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { flexDirection: "column", height: bodyH, overflow: "hidden", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Box_default, { flexDirection: "column", flexShrink: 0, children: overlay === "welcome" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Welcome, { lang, width: width - 1, hooked, cwd: cwd2 }) : overlay === "recap" && recap ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(RecapView, { r: recap, lang, width: width - 1 }) : overlay === "help" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Help, { lang, width: width - 1 }) : mode === "review" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Review, { ...modeProps }) : mode === "game" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Game, { ...modeProps }) : mode === "learn" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Learn, { ...modeProps }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Me, { ...modeProps }) }) }),
+    noteOpen ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(InputLine, { prompt: target.dir ? t(lang, "note_prompt_to", { dir: target.dir }) : t(lang, "note_prompt"), value: note.value ?? "" }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: "gray", children: t(lang, "note_hint") })
+    ] }) : toast ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: toast.color, wrap: "truncate-end", children: toast.text }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Text, { color: "gray", wrap: "truncate-end", children: footer || " " })
   ] });
 }
-var import_react33, import_jsx_runtime5, SAVE_EVERY_MS, TOAST_MS, STALE_MS, inFight;
+var import_react37, import_jsx_runtime10, SAVE_EVERY_MS, FEEDBACK_MS, REWARD_MS, STALE_MS, inFight;
 var init_App2 = __esm({
   async "src/ui/App.tsx"() {
     "use strict";
-    import_react33 = __toESM(require_react(), 1);
+    import_react37 = __toESM(require_react(), 1);
     await init_build2();
     init_config();
     init_reducer();
     init_state();
     init_store();
     init_predict();
+    init_progress();
     init_feedback();
+    init_install();
     init_paths();
     init_i18n();
     await init_Review();
     await init_Learn();
     await init_Game();
+    await init_Me();
     await init_common();
-    import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
+    import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
     SAVE_EVERY_MS = 3e3;
-    TOAST_MS = 4e3;
+    FEEDBACK_MS = 2500;
+    REWARD_MS = 3500;
     STALE_MS = 15e3;
-    inFight = (m, s) => m === "game" && (s.game?.phase === "battle" || s.game?.phase === "reward");
+    inFight = (m, s) => m === "game" && s.arcade === "dungeon" && (s.game?.phase === "battle" || s.game?.phase === "reward");
   }
 });
 
@@ -26064,9 +28925,10 @@ var demo_exports = {};
 __export(demo_exports, {
   CWD: () => CWD,
   EDITS: () => EDITS,
+  TITLES: () => TITLES2,
   startDemo: () => startDemo
 });
-function startDemo(speed = 1) {
+function startDemo(speed = 1, lang = resolveLang(loadConfig())) {
   const sid = "demo";
   let turn = 0;
   let timer;
@@ -26078,7 +28940,7 @@ function startDemo(speed = 1) {
     const edits = TURNS[n % TURNS.length];
     const pass = n % 4 !== 2;
     return [
-      [0, (t2) => ({ t: t2, k: "prompt", sid, cwd: CWD })],
+      [0, (t2) => ({ t: t2, k: "prompt", sid, cwd: CWD, p: TITLES2[lang][n % TITLES2[lang].length] })],
       [2500, (t2) => tool(t2, "Read")],
       ...edits.flatMap((e, i2) => [
         [i2 === 0 ? 3e3 : 2500, (t2) => tool(t2, e.kind === "write" ? "Write" : "Edit", { edit: e })],
@@ -26118,13 +28980,19 @@ function startDemo(speed = 1) {
     if (timer) clearTimeout(timer);
   };
 }
-var CWD, f, EDITS;
+var TITLES2, CWD, f, EDITS;
 var init_demo = __esm({
   "src/demo.ts"() {
     "use strict";
     init_fsutil();
     init_paths();
     init_feedback();
+    init_config();
+    init_i18n();
+    TITLES2 = {
+      zh: ["\u7ED9\u4E0B\u5355\u63A5\u53E3\u52A0\u4E0A\u53C2\u6570\u6821\u9A8C\uFF0C\u652F\u4ED8\u91CD\u8BD5\u522B\u91CD\u590D\u6263\u6B3E", "\u8865\u4E0A\u8BA2\u5355\u63A5\u53E3\u7684\u6D4B\u8BD5\uFF0C\u987A\u4FBF\u5904\u7406\u7F13\u5B58\u96EA\u5D29", "\u6570\u636E\u5E93\u8FDE\u63A5\u6C60\u8C03\u5C0F\u4E00\u70B9\uFF0C\u91CD\u8BD5\u52A0\u4E0A\u9000\u907F"],
+      en: ["Validate the order input and make payment retries safe", "Add tests for the orders API and fix the cache avalanche", "Shrink the DB pool and add backoff to retries"]
+    };
     CWD = process.platform === "win32" ? "G:\\code\\shop-api" : "/home/dev/shop-api";
     f = (p) => process.platform === "win32" ? `${CWD}\\${p.replace(/\//g, "\\")}` : `${CWD}/${p}`;
     EDITS = [
@@ -26204,6 +29072,192 @@ var init_demo = __esm({
   }
 });
 
+// src/report.ts
+var report_exports = {};
+__export(report_exports, {
+  buildReport: () => buildReport,
+  reportHtml: () => reportHtml,
+  reportMarkdown: () => reportMarkdown
+});
+import path12 from "node:path";
+function buildReport(s, days, now = Date.now()) {
+  const list = [];
+  const end = new Date(now);
+  for (let i = days - 1; i >= 0; i--) {
+    const day = localDay(new Date(end.getFullYear(), end.getMonth(), end.getDate() - i, 12).getTime());
+    list.push({ ...emptyDay(), ...s.days[day] ?? {}, day });
+  }
+  const sum = (f2) => list.reduce((n, d) => n + f2(d), 0);
+  const from = list[0].day;
+  const fromTs = (/* @__PURE__ */ new Date(`${from}T00:00:00`)).getTime();
+  const byDir = /* @__PURE__ */ new Map();
+  const row = (dir) => {
+    let r = byDir.get(dir);
+    if (!r) {
+      r = { name: path12.basename(dir.replace(/\\/g, "/")) || dir, dir, turns: 0, files: 0, read: 0, flagged: 0, unread: 0, pending: 0 };
+      byDir.set(dir, r);
+    }
+    return r;
+  };
+  for (const m of s.turns) if (m.start >= fromTs && m.files > 0) row(m.cwd).turns++;
+  for (const c of s.review) {
+    if (c.t < fromTs) continue;
+    const r = row(c.cwd);
+    r.files++;
+    if (c.status === "ok" && !c.quick) r.read++;
+    else if (c.status === "flag") {
+      r.read++;
+      r.flagged++;
+    } else if (c.status === "new") r.pending++;
+    else r.unread++;
+  }
+  const files = sum((d) => d.files);
+  const read2 = sum((d) => d.reviewed + d.flagged);
+  return {
+    from,
+    to: list[list.length - 1].day,
+    days: list,
+    turns: sum((d) => d.turns),
+    files,
+    read: read2,
+    flagged: sum((d) => d.flagged),
+    notes: sum((d) => d.notes),
+    learned: sum((d) => d.learned),
+    activeDays: list.filter((d) => d.reviewed + d.flagged >= 1 || d.learned >= 5 || d.puzzle > 0).length,
+    coverage: files > 0 ? Math.min(1, read2 / files) : null,
+    projects: [...byDir.values()].filter((p) => p.files > 0).sort((a, b) => b.files - a.files),
+    level: levelInfo(s.xp).level,
+    bestStreak: s.bestStreak
+  };
+}
+function reportMarkdown(r, lang, version2, now = Date.now()) {
+  const x = T[lang];
+  const lines = [
+    `# ${x.title}`,
+    "",
+    x.sub(r.from, r.to, r.days.length),
+    "",
+    `| | |`,
+    `|---|---|`,
+    `| ${x.turns} | ${r.turns} |`,
+    `| ${x.files} | ${r.files} |`,
+    `| ${x.read} | ${r.read} |`,
+    `| ${x.cov} | ${pct2(r.coverage)} |`,
+    `| ${x.flagged} | ${r.flagged} |`,
+    `| ${x.notes} | ${r.notes} |`,
+    ""
+  ];
+  if (r.projects.length) {
+    lines.push(`| ${x.project} | ${x.files} | ${x.read} | ${x.flagged} | ${x.unread} | ${x.pending} |`, "|---|---:|---:|---:|---:|---:|");
+    for (const p of r.projects) lines.push(`| ${p.name} | ${p.files} | ${p.read} | ${p.flagged} | ${p.unread} | ${p.pending} |`);
+    lines.push("");
+  }
+  lines.push(`| ${x.day} | ${x.turns} | ${x.files} | ${x.read} | ${x.learned} |`, "|---|---:|---:|---:|---:|");
+  for (const d of r.days) lines.push(`| ${d.day} | ${d.turns} | ${d.files} | ${d.reviewed + d.flagged} | ${d.learned} |`);
+  lines.push("", `_${x.note}_`, "", `_${x.gen(version2, localDay(now))}_`, "");
+  return lines.join("\n");
+}
+function reportHtml(r, lang, version2, now = Date.now()) {
+  const x = T[lang];
+  const max = Math.max(1, ...r.days.map((d) => d.files));
+  const bars = r.days.map((d) => {
+    const readN = d.reviewed + d.flagged;
+    const h = (n) => Math.round(n / max * 100);
+    const label = d.day.slice(5).replace("-", "/");
+    return `<div class="col" title="${esc(d.day)}: ${d.files} / ${readN}"><div class="stack"><div class="bar files" style="height:${h(d.files)}%"></div><div class="bar read" style="height:${h(Math.min(readN, d.files))}%"></div></div><span>${label}</span></div>`;
+  }).join("");
+  const kpi = (label, value, strong = false) => `<div class="kpi${strong ? " strong" : ""}"><div class="v">${esc(value)}</div><div class="l">${esc(label)}</div></div>`;
+  const projects = r.projects.length ? `<table><thead><tr><th>${x.project}</th><th>${x.files}</th><th>${x.read}</th><th>${x.flagged}</th><th>${x.unread}</th><th>${x.pending}</th></tr></thead><tbody>${r.projects.map(
+    (p) => `<tr><td title="${esc(p.dir)}">${esc(p.name)}</td><td>${p.files}</td><td>${p.read} <small>${pct2(p.files ? p.read / p.files : null)}</small></td><td>${p.flagged}</td><td>${p.unread}</td><td>${p.pending}</td></tr>`
+  ).join("")}</tbody></table>` : "";
+  return `<!doctype html>
+<html lang="${lang === "zh" ? "zh-CN" : "en"}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(x.title)} ${esc(r.from)} \u2013 ${esc(r.to)}</title>
+<style>
+:root{--bg:#f7f7f4;--card:#fff;--ink:#1d1f23;--muted:#6b7078;--line:#e4e4de;--accent:#2f6fde;--read:#2e9e6b;--files:#d9dde4}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+main{max-width:860px;margin:0 auto;padding:40px 20px 56px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:16px;margin:32px 0 12px}.sub{color:var(--muted);margin:0 0 24px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}.kpi .v{font-size:26px;font-weight:650}.kpi .l{color:var(--muted);font-size:13px}
+.kpi.strong .v{color:var(--read)}
+.chart{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;gap:6px;align-items:flex-end;height:200px;overflow-x:auto}
+.col{flex:1;min-width:18px;display:flex;flex-direction:column;align-items:center;height:100%}.col span{font-size:11px;color:var(--muted);margin-top:4px}
+.stack{position:relative;flex:1;width:100%}.bar{position:absolute;bottom:0;left:15%;width:70%;border-radius:4px 4px 0 0}.bar.files{background:var(--files)}.bar.read{background:var(--read)}
+.legend{color:var(--muted);font-size:13px;margin-top:8px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 12px;vertical-align:-1px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line)}th:first-child,td:first-child{text-align:left}th{font-size:13px;color:var(--muted);font-weight:600}tr:last-child td{border-bottom:0}small{color:var(--muted)}
+.note{color:var(--muted);font-size:13px;margin-top:28px}
+</style>
+</head>
+<body><main>
+<h1>${esc(x.title)}</h1>
+<p class="sub">${esc(x.sub(r.from, r.to, r.days.length))}</p>
+<div class="kpis">
+${kpi(x.cov, pct2(r.coverage), true)}${kpi(x.turns, String(r.turns))}${kpi(x.files, String(r.files))}${kpi(x.read, String(r.read))}${kpi(x.flagged, String(r.flagged))}${kpi(x.notes, String(r.notes))}
+</div>
+<h2>${esc(x.daily)}</h2>
+<div class="chart">${bars}</div>
+<div class="legend"><i style="background:var(--files)"></i>${esc(x.files)}<i style="background:var(--read)"></i>${esc(x.read)}</div>
+${projects ? `<h2>${esc(x.project)}</h2>${projects}` : ""}
+<p class="note">${esc(x.note)}<br>${esc(x.gen(version2, localDay(now)))}</p>
+</main></body></html>
+`;
+}
+var pct2, T, esc;
+var init_report = __esm({
+  "src/report.ts"() {
+    "use strict";
+    init_state();
+    init_progress();
+    pct2 = (x) => x === null ? "\u2014" : `${Math.round(x * 100)}%`;
+    T = {
+      zh: {
+        title: "Cowait \u5BA1\u9605\u62A5\u544A",
+        sub: (a, b, n) => `${a} \u2013 ${b} \xB7 ${n} \u5929`,
+        turns: "Claude \u5E72\u6D3B\u7684\u8F6E\u6B21",
+        files: "Claude \u6539\u52A8\u7684\u6587\u4EF6",
+        read: "\u4F60\u8BA4\u771F\u770B\u8FC7",
+        cov: "AI \u4EE3\u7801\u4EBA\u5DE5\u5BA1\u9605\u8986\u76D6\u7387",
+        flagged: "\u6807\u51FA\u7684\u95EE\u9898",
+        notes: "\u7ED9 Claude \u7684\u7559\u8A00",
+        daily: "\u6BCF\u5929",
+        day: "\u65E5\u671F",
+        project: "\u9879\u76EE",
+        unread: "\u6CA1\u770B\u5C31\u8FC7 / \u8DF3\u8FC7",
+        pending: "\u5F85\u5BA1",
+        learned: "\u5237\u5361",
+        active: "\u6709\u6548\u5929\u6570",
+        note: "\u201C\u8BA4\u771F\u770B\u8FC7\u201D\u53EA\u7B97\u5728\u5C4F\u5E55\u4E0A\u505C\u7559\u591F\u4E45\u7684\u6539\u52A8\uFF1B\u626B\u4E00\u773C\u5C31\u901A\u8FC7\u3001\u8DF3\u8FC7\u548C\u8FC7\u671F\u5F52\u6863\u7684\u90FD\u4E0D\u7B97\u3002\u6570\u636E\u53EA\u6765\u81EA\u672C\u673A\u3002",
+        gen: (v, at) => `\u7531 Cowait v${v} \u751F\u6210\u4E8E ${at}`
+      },
+      en: {
+        title: "Cowait review report",
+        sub: (a, b, n) => `${a} \u2013 ${b} \xB7 ${n} days`,
+        turns: "Claude turns",
+        files: "Files Claude changed",
+        read: "Read by you",
+        cov: "Human review coverage of AI code",
+        flagged: "Problems flagged",
+        notes: "Notes to Claude",
+        daily: "Day by day",
+        day: "Day",
+        project: "Project",
+        unread: "Approved unread / skipped",
+        pending: "Pending",
+        learned: "Flashcards",
+        active: "Active days",
+        note: '"Read" only counts changes that stayed on screen long enough; quick approvals, skips and archived changes do not. All data comes from this machine.',
+        gen: (v, at) => `Generated by Cowait v${v} on ${at}`
+      }
+    };
+    esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  }
+});
+
 // src/cli.ts
 init_config();
 init_i18n();
@@ -26212,174 +29266,353 @@ init_fsutil();
 init_store();
 init_state();
 init_economy();
-import fs8 from "node:fs";
-import os6 from "node:os";
-import path9 from "node:path";
-import { spawn as spawn2, spawnSync as spawnSync2 } from "node:child_process";
+init_install();
+import fs10 from "node:fs";
+import os7 from "node:os";
+import path13 from "node:path";
+import { spawn as spawn3, spawnSync as spawnSync2 } from "node:child_process";
 import { createInterface } from "node:readline/promises";
-
-// src/install.ts
-init_paths();
-init_fsutil();
-import fs3 from "node:fs";
-import os2 from "node:os";
-import path3 from "node:path";
-var HOOK_MARK = "--cowait-hook";
-var STATUS_MARK = "--cowait-statusline";
-var HOOK_EVENTS = [
-  ["UserPromptSubmit", false],
-  ["PostToolUse", true],
-  ["Stop", false],
-  ["Notification", false],
-  ["SessionEnd", false]
-];
-function claudeSettingsPath(scope, cwd2 = process.cwd()) {
-  if (scope === "project") return path3.join(cwd2, ".claude", "settings.local.json");
-  const dir = process.env.CLAUDE_CONFIG_DIR || path3.join(os2.homedir(), ".claude");
-  return path3.join(dir, "settings.json");
-}
-var fwd = (p) => p.replace(/\\/g, "/");
-function hookCommand() {
-  return `"${fwd(process.execPath)}" "${fwd(path3.join(packageRoot(), "dist", "hook.js"))}" ${HOOK_MARK}`;
-}
-function statuslineCommand() {
-  return `"${fwd(process.execPath)}" "${fwd(path3.join(packageRoot(), "dist", "cli.js"))}" statusline ${STATUS_MARK}`;
-}
-var ours = (cmd, mark) => typeof cmd === "string" && cmd.includes(mark);
-function removeHooks(settings) {
-  const s = structuredClone(settings);
-  if (!s.hooks || typeof s.hooks !== "object") return s;
-  for (const ev of Object.keys(s.hooks)) {
-    const arr = s.hooks[ev];
-    if (!Array.isArray(arr)) continue;
-    const kept = arr.map((entry) => ({ ...entry, hooks: (entry?.hooks ?? []).filter((h) => !ours(h?.command, HOOK_MARK)) })).filter((entry) => entry.hooks.length > 0);
-    if (kept.length) s.hooks[ev] = kept;
-    else delete s.hooks[ev];
-  }
-  if (Object.keys(s.hooks).length === 0) delete s.hooks;
-  return s;
-}
-function addHooks(settings, command) {
-  const s = removeHooks(settings);
-  s.hooks ??= {};
-  for (const [ev, matcher] of HOOK_EVENTS) {
-    const entry = { hooks: [{ type: "command", command, timeout: 10 }] };
-    if (matcher) entry.matcher = "*";
-    s.hooks[ev] = [...Array.isArray(s.hooks[ev]) ? s.hooks[ev] : [], entry];
-  }
-  return s;
-}
-function hookStatus(settings) {
-  const installed = [];
-  const missing = [];
-  for (const [ev] of HOOK_EVENTS) {
-    const arr = settings?.hooks?.[ev];
-    const found = Array.isArray(arr) && arr.some((e) => (e?.hooks ?? []).some((h) => ours(h?.command, HOOK_MARK)));
-    (found ? installed : missing).push(ev);
-  }
-  return { installed, missing };
-}
-function ourHookCommand(settings) {
-  for (const arr of Object.values(settings?.hooks ?? {})) {
-    if (!Array.isArray(arr)) continue;
-    for (const e of arr) for (const h of e?.hooks ?? []) if (ours(h?.command, HOOK_MARK)) return h.command;
-  }
-  return null;
-}
-function readSettings(file) {
-  if (!fs3.existsSync(file)) return { settings: {}, existed: false };
-  const raw = fs3.readFileSync(file, "utf8");
-  if (!raw.trim()) return { settings: {}, existed: true };
-  try {
-    return { settings: parseJson(raw), existed: true };
-  } catch {
-    throw new Error(`Cannot parse ${file} \u2014 please fix the JSON first.`);
-  }
-}
-function writeSettings(file, s) {
-  ensureDir(path3.dirname(file));
-  fs3.writeFileSync(file, JSON.stringify(s, null, 2) + "\n");
-}
-function stamp() {
-  return (/* @__PURE__ */ new Date()).toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
-}
-var prevStatusFile = () => path3.join(dataDir(), "statusline.prev.json");
-function install(opts) {
-  const file = claudeSettingsPath(opts.scope, opts.cwd);
-  const { settings, existed } = readSettings(file);
-  let backup;
-  if (existed) {
-    backup = `${file}.cowait-backup-${stamp()}`;
-    fs3.copyFileSync(file, backup);
-  }
-  let next = addHooks(settings, hookCommand());
-  let status = "not-requested";
-  if (opts.statusline) {
-    const cur = next.statusLine;
-    if (cur && !ours(cur.command, STATUS_MARK) && !opts.force) {
-      status = "kept-existing";
-    } else {
-      if (cur && !ours(cur.command, STATUS_MARK)) writeJsonAtomic(prevStatusFile(), cur, true);
-      next = { ...next, statusLine: { type: "command", command: statuslineCommand(), padding: 0 } };
-      status = "set";
-    }
-  }
-  writeSettings(file, next);
-  return { file, backup, statusline: status };
-}
-function uninstall(opts) {
-  const file = claudeSettingsPath(opts.scope, opts.cwd);
-  const { settings, existed } = readSettings(file);
-  if (!existed) return { file, changed: false };
-  let next = removeHooks(settings);
-  if (next.statusLine && ours(next.statusLine.command, STATUS_MARK)) {
-    const prev = readJson(prevStatusFile(), null);
-    if (prev) next = { ...next, statusLine: prev };
-    else {
-      next = { ...next };
-      delete next.statusLine;
-    }
-  }
-  const changed = JSON.stringify(next) !== JSON.stringify(settings);
-  if (changed) {
-    fs3.copyFileSync(file, `${file}.cowait-backup-${stamp()}`);
-    writeSettings(file, next);
-  }
-  return { file, changed };
-}
-function readClaudeSettings(scope, cwd2) {
-  try {
-    return readSettings(claudeSettingsPath(scope, cwd2)).settings;
-  } catch {
-    return {};
-  }
-}
 
 // src/statusline.ts
 init_state();
-import path4 from "node:path";
+init_progress();
+import path5 from "node:path";
 function statusLine(input, s, lang) {
-  const parts = [];
+  const parts2 = [];
   const model = input?.model?.display_name;
   const dir = input?.workspace?.current_dir || input?.cwd;
-  if (model) parts.push(String(model));
-  if (dir) parts.push(path4.basename(String(dir)));
-  let mine = `\u26A1${s.energy} \u{1F4B0}${s.coins}`;
+  if (model) parts2.push(String(model));
+  if (dir) parts2.push(path5.basename(String(dir)));
+  const sk = streak(s).days;
+  let mine = `${sk ? `\u{1F525}${sk} ` : ""}\u26A1${s.energy} \u{1F4B0}${s.coins}`;
   const pending = pendingCards(s).length;
-  if (pending) mine += lang === "zh" ? ` \xB7 \u{1F4DD}${pending} \u5F20\u5F85\u5BA1` : ` \xB7 \u{1F4DD}${pending} to review`;
-  parts.push(mine);
-  return parts.join(" \xB7 ");
+  if (pending) mine += lang === "zh" ? ` \xB7 \u{1F4DD}${pending} \u4E2A\u5F85\u5BA1` : ` \xB7 \u{1F4DD}${pending} to review`;
+  parts2.push(mine);
+  return parts2.join(" \xB7 ");
 }
 
 // src/cli.ts
 init_llm();
-function version() {
-  try {
-    return JSON.parse(fs8.readFileSync(path9.join(packageRoot(), "package.json"), "utf8")).version;
-  } catch {
-    return "0.0.0";
+
+// src/hook.ts
+init_paths();
+init_fsutil();
+import { pathToFileURL } from "node:url";
+
+// src/testdetect.ts
+var RUNNERS = /* @__PURE__ */ new Set(["jest", "vitest", "mocha", "ava", "pytest", "py.test", "tox", "nox", "rspec", "phpunit", "ctest", "unittest"]);
+var WRAPPERS = /* @__PURE__ */ new Set(["npx", "bunx", "uvx", "time", "sudo", "exec", "env", "command"]);
+var RUN_WRAPPERS = /* @__PURE__ */ new Set(["uv", "poetry", "pipenv", "pdm", "hatch", "rye"]);
+function segmentIsTest(segment) {
+  const w = segment.trim().split(/\s+/).filter(Boolean);
+  for (let guard = 0; guard < 6 && w.length; guard++) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w[0]) || WRAPPERS.has(w[0])) w.shift();
+    else if (RUN_WRAPPERS.has(w[0]) && w[1] === "run") w.splice(0, 2);
+    else if ((w[0] === "pnpm" || w[0] === "yarn") && (w[1] === "exec" || w[1] === "dlx")) w.splice(0, 2);
+    else if (/^python(\d+(\.\d+)?)?(\.exe)?$/.test(w[0]) && w[1] === "-m") w.splice(0, 2);
+    else break;
+  }
+  if (!w.length) return false;
+  const cmd = w[0].split(/[\\/]/).pop().replace(/\.(cmd|exe|bat)$/i, "");
+  const args = w.slice(1).filter((a) => !a.startsWith("-"));
+  if (RUNNERS.has(cmd)) return true;
+  if (cmd === "playwright") return args[0] === "test";
+  if (["npm", "pnpm", "yarn", "bun"].includes(cmd)) {
+    if (args[0] === "test" || args[0] === "t" || args[0]?.startsWith("test:")) return true;
+    return args[0] === "run" && /^test(\b|:)/.test(args[1] ?? "");
+  }
+  if (cmd === "go" || cmd === "dotnet" || cmd === "deno") return args[0] === "test";
+  if (cmd === "cargo") return args[0] === "test" || args[0] === "nextest";
+  if (cmd === "make") return args.includes("test") || args.includes("check");
+  if (/^mvnw?$/.test(cmd)) return args.includes("test") || args.includes("verify");
+  if (/^gradlew?$/.test(cmd)) return args.some((a) => a === "test" || a === "check" || a.endsWith(":test"));
+  return false;
+}
+function isTestCommand(command) {
+  return command.split(/&&|\|\||;|\||\n/).some(segmentIsTest);
+}
+var FAIL_PATTERNS = [
+  /\b[1-9]\d*\s+(failed|failing|failures?)\b/i,
+  /\b[1-9]\d*\s+errors?\b(?!\s*=\s*0)/i,
+  /^\s*FAIL\b/m,
+  /^--- FAIL/m,
+  /test result: FAILED/,
+  /\bFAILED\s*\((failures|errors)=/,
+  /^FAILED\b/m,
+  /Tests?:\s+[^\n]*\b[1-9]\d* failed/i,
+  /BUILD FAILURE/
+];
+var PASS_PATTERNS = [
+  /\b\d+\s+(passed|passing)\b/i,
+  /test result: ok\b/,
+  /^ok\s+\S+/m,
+  /^\s*PASS\b/m,
+  /^OK(\s*\(|\s*$)/m,
+  /\ball tests passed\b/i,
+  /BUILD SUCCESS/,
+  /Tests?:\s+\d+ passed/i
+];
+function testOutcome(output) {
+  if (!output) return "unknown";
+  if (FAIL_PATTERNS.some((r) => r.test(output))) return "fail";
+  if (PASS_PATTERNS.some((r) => r.test(output))) return "pass";
+  return "unknown";
+}
+
+// src/events.ts
+var MAX_TEXT = 4e3;
+var MAX_PATCH_LINES = 240;
+function clip(s, max = MAX_TEXT) {
+  const str3 = typeof s === "string" ? s : "";
+  return str3.length > max ? str3.slice(0, max) + "\n\u2026" : str3;
+}
+function str(v) {
+  return typeof v === "string" ? v : "";
+}
+var TITLE_MAX = 60;
+function promptTitle(prompt) {
+  const line = str(prompt).split(/\r?\n/).map((x) => x.replace(/\s+/g, " ").trim()).find(Boolean);
+  if (!line) return void 0;
+  const chars = Array.from(line);
+  return chars.length > TITLE_MAX ? chars.slice(0, TITLE_MAX - 1).join("") + "\u2026" : line;
+}
+function readPatch(resp) {
+  const sp = resp?.structuredPatch;
+  if (!Array.isArray(sp) || sp.length === 0) return void 0;
+  const out = [];
+  let budget = MAX_PATCH_LINES;
+  for (const h of sp) {
+    if (!h || !Array.isArray(h.lines) || budget <= 0) continue;
+    const lines = h.lines.filter((l4) => typeof l4 === "string").slice(0, budget);
+    budget -= lines.length;
+    out.push({ oldStart: Number(h.oldStart) || 1, newStart: Number(h.newStart) || 1, lines: lines.map((l4) => clip(l4, 400)) });
+  }
+  return out.length ? out : void 0;
+}
+function editInfo(tool, input, resp) {
+  const file = str(input?.file_path) || str(input?.notebook_path) || str(resp?.filePath);
+  if (!file) return void 0;
+  const patch = readPatch(resp);
+  switch (tool) {
+    case "Edit":
+      return { file, kind: "edit", patch, hunks: patch ? void 0 : [{ old: clip(input?.old_string), new: clip(input?.new_string) }] };
+    case "MultiEdit": {
+      const edits = Array.isArray(input?.edits) ? input.edits : [];
+      return {
+        file,
+        kind: "multiedit",
+        patch,
+        hunks: patch ? void 0 : edits.slice(0, 12).map((e) => ({ old: clip(e?.old_string, 1500), new: clip(e?.new_string, 1500) }))
+      };
+    }
+    case "Write": {
+      const created = resp?.type === "create";
+      if (patch && !created) return { file, kind: "write", patch };
+      return { file, kind: "write", created, hunks: [{ old: "", new: clip(input?.content) }] };
+    }
+    case "NotebookEdit":
+      return { file, kind: "notebook", hunks: [{ old: "", new: clip(input?.new_source) }] };
+    default:
+      return void 0;
   }
 }
+function bashInfo(input, resp) {
+  const cmd = str(input?.command);
+  if (!cmd) return void 0;
+  const test = isTestCommand(cmd);
+  let result2 = "unknown";
+  if (test && !resp?.interrupted) {
+    const out = typeof resp === "string" ? resp : `${str(resp?.stdout)}
+${str(resp?.stderr)}
+${str(resp?.output)}`;
+    result2 = testOutcome(out);
+  }
+  return { cmd: clip(cmd, 300), test, result: result2 };
+}
+function toEvent(p, now, opts = {}) {
+  if (!p || typeof p !== "object") return null;
+  const sid = str(p.session_id) || "unknown";
+  const cwd2 = str(p.cwd);
+  switch (p.hook_event_name) {
+    case "UserPromptSubmit": {
+      const ev = { t: now, k: "prompt", sid, cwd: cwd2 };
+      const title = opts.titles === false ? void 0 : promptTitle(p.prompt);
+      if (title) ev.p = title;
+      return ev;
+    }
+    case "PostToolUse": {
+      const tool = str(p.tool_name) || "tool";
+      const ev = { t: now, k: "tool", sid, cwd: cwd2, tool };
+      const edit = editInfo(tool, p.tool_input, p.tool_response);
+      if (edit) ev.edit = edit;
+      if (tool === "Bash") {
+        const bash = bashInfo(p.tool_input, p.tool_response);
+        if (bash) ev.bash = bash;
+      }
+      return ev;
+    }
+    case "Stop":
+      return { t: now, k: "stop", sid, cwd: cwd2 };
+    case "Notification":
+      return { t: now, k: "notify", sid, cwd: cwd2, msg: clip(p.message, 200) };
+    case "SessionEnd":
+      return { t: now, k: "end", sid };
+    default:
+      return null;
+  }
+}
+
+// src/hook.ts
+init_feedback();
+function log(ev) {
+  appendLine(paths.events(), JSON.stringify(ev));
+}
+function hookConfig() {
+  const c = readJson(paths.config(), {});
+  return { relay: c.feedback !== false, titles: c.promptTitles !== false };
+}
+function handleHook(raw, now = Date.now()) {
+  let p;
+  try {
+    p = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const name = p?.hook_event_name ?? "";
+  const sid = typeof p?.session_id === "string" ? p.session_id : "unknown";
+  const cwd2 = typeof p?.cwd === "string" && p.cwd ? p.cwd : void 0;
+  const { relay, titles } = hookConfig();
+  const ev = toEvent(p, now, { titles });
+  if (name === "Stop") {
+    if (relay && !p.stop_hook_active) {
+      const notes = claimNotes(cwd2, sid);
+      if (notes.length) {
+        log({ t: now, k: "delivered", sid, ids: notes.map((n) => n.id) });
+        return JSON.stringify({ decision: "block", reason: formatNotes(notes) });
+      }
+    }
+    if (ev) log(ev);
+    return null;
+  }
+  if (ev) log(ev);
+  if (relay && (name === "PostToolUse" || name === "UserPromptSubmit")) {
+    const notes = claimNotes(cwd2, sid);
+    if (notes.length) {
+      log({ t: now, k: "delivered", sid, ids: notes.map((n) => n.id) });
+      return JSON.stringify({ hookSpecificOutput: { hookEventName: name, additionalContext: formatNotes(notes) } });
+    }
+  }
+  return null;
+}
+function readStdin(timeoutMs) {
+  return new Promise((resolve) => {
+    let data = "";
+    const done = () => resolve(data);
+    const timer = setTimeout(done, timeoutMs);
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (c) => data += c);
+    process.stdin.on("end", () => {
+      clearTimeout(timer);
+      done();
+    });
+    process.stdin.on("error", () => {
+      clearTimeout(timer);
+      done();
+    });
+  });
+}
+async function main() {
+  if (process.env.COWAIT_INTERNAL) return;
+  const raw = await readStdin(2e3);
+  const out = handleHook(raw);
+  if (out) await new Promise((resolve) => process.stdout.write(out, () => resolve()));
+}
+function runHookProcess() {
+  const guard = setTimeout(() => process.exit(0), 4e3);
+  main().catch(() => void 0).finally(() => {
+    clearTimeout(guard);
+    process.exit(0);
+  });
+}
+var entryBundle = false;
+var isEntry = entryBundle && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isEntry) runHookProcess();
+
+// src/cli.ts
+init_runtime();
+
+// src/update.ts
+init_runtime();
+var REGISTRY_LATEST = "https://registry.npmjs.org/cowait/latest";
+var RELEASES = "https://github.com/JaspinXu/Cowait/releases/latest/download";
+function installKind(root = packageRoot(), compiled = isCompiled()) {
+  if (compiled) return "binary";
+  return root.split(/[\\/]/).includes("node_modules") ? "npm" : "clone";
+}
+async function latestVersion(opts = {}) {
+  const f2 = opts.fetch ?? globalThis.fetch;
+  if (typeof f2 !== "function") return null;
+  const ctrl = new AbortController();
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      ctrl.abort();
+      resolve(null);
+    }, opts.timeoutMs ?? 3e3);
+  });
+  const lookup = (async () => {
+    const res = await f2(opts.url ?? REGISTRY_LATEST, { signal: ctrl.signal, headers: { accept: "application/json" } });
+    if (!res.ok) return null;
+    const v = (await res.json())?.version;
+    return typeof v === "string" && parseSemver(v) ? v : null;
+  })().catch(() => null);
+  try {
+    return await Promise.race([lookup, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function parseSemver(v) {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(v.trim());
+  if (!m) return null;
+  return { core: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ? m[4].split(".") : [] };
+}
+function compare(a, b) {
+  for (let i = 0; i < 3; i++) if (a.core[i] !== b.core[i]) return a.core[i] - b.core[i];
+  if (!a.pre.length || !b.pre.length) return (a.pre.length ? -1 : 0) + (b.pre.length ? 1 : 0);
+  for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
+    const x = a.pre[i];
+    const y = b.pre[i];
+    if (x === void 0) return -1;
+    if (y === void 0) return 1;
+    const xn = /^\d+$/.test(x);
+    const yn = /^\d+$/.test(y);
+    if (xn && yn) {
+      if (Number(x) !== Number(y)) return Number(x) - Number(y);
+    } else if (xn !== yn) return xn ? -1 : 1;
+    else if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
+}
+function isNewer(a, b) {
+  const x = parseSemver(a);
+  const y = parseSemver(b);
+  return !!x && !!y && compare(x, y) > 0;
+}
+function updateCommand(kind, _lang = "en", opts = {}) {
+  const platform2 = opts.platform ?? process.platform;
+  if (kind === "npm") return "npm i -g cowait@latest";
+  if (kind === "clone") return `git -C "${opts.root ?? packageRoot()}" pull --ff-only`;
+  return platform2 === "win32" ? `irm ${RELEASES}/install.ps1 | iex` : `curl -fsSL ${RELEASES}/install.sh | sh`;
+}
+
+// src/cli.ts
+init_plan();
+init_license();
+init_product();
+init_open();
+init_progress();
+var version = appVersion;
 function flag(args, name) {
   return args.includes(name);
 }
@@ -26392,8 +29625,8 @@ var bad = (s) => console.log(`  \x1B[31m\u2717\x1B[0m ${s}`);
 var info = (s) => console.log(`  \x1B[90m\u2022\x1B[0m ${s}`);
 async function runPanel(opts = {}) {
   if (opts.demo) {
-    const demoHome = path9.join(dataDir(), "demo");
-    fs8.rmSync(demoHome, { recursive: true, force: true });
+    const demoHome = path13.join(dataDir(), "demo");
+    fs10.rmSync(demoHome, { recursive: true, force: true });
     ensureDir(demoHome);
     process.env.COWAIT_HOME = demoHome;
   }
@@ -26405,12 +29638,13 @@ async function runPanel(opts = {}) {
     process.exit(1);
   }
   const state = loadState();
+  if (opts.demo) state.onboarded = true;
   const daily = grantDaily(state, Date.now());
   saveState(state);
   const hooked = ["user", "project"].some((sc) => hookStatus(readClaudeSettings(sc)).installed.length > 0);
-  const everConnected = state.totals.turns > 0 || state.totals.cards > 0 || fs8.existsSync(paths.events());
+  const everConnected = state.totals.turns > 0 || state.totals.cards > 0 || fs10.existsSync(paths.events());
   const setupHint = !opts.demo && !hooked && !everConnected;
-  const [{ render: render2 }, React16, { App: App3 }] = await Promise.all([init_build2().then(() => build_exports), Promise.resolve().then(() => __toESM(require_react(), 1)), init_App2().then(() => App_exports)]);
+  const [{ render: render2 }, React20, { App: App3 }] = await Promise.all([init_build2().then(() => build_exports), Promise.resolve().then(() => __toESM(require_react(), 1)), init_App2().then(() => App_exports)]);
   let stopDemo;
   if (opts.demo) stopDemo = (await Promise.resolve().then(() => (init_demo(), demo_exports))).startDemo(opts.fast ? 0.35 : 1);
   const alt = process.stdout.isTTY;
@@ -26420,12 +29654,139 @@ async function runPanel(opts = {}) {
     releaseLock();
   };
   process.on("exit", restore);
-  const app = render2(React16.createElement(App3, { cfg, lang, initial: state, daily, setupHint }), { exitOnCtrlC: true });
+  void refreshLicense();
+  const app = render2(
+    React20.createElement(App3, {
+      cfg,
+      lang,
+      initial: state,
+      daily,
+      setupHint,
+      plan: activePlan(),
+      cwd: process.cwd(),
+      checkUpdate: opts.demo ? void 0 : () => checkUpdateCached(lang)
+    }),
+    { exitOnCtrlC: true }
+  );
   await app.waitUntilExit();
   stopDemo?.();
   restore();
   process.removeListener("exit", restore);
   process.exit(0);
+}
+async function checkUpdateCached(lang) {
+  const file = path13.join(dataDir(), "update.json");
+  const cache3 = readJson(file, {});
+  let latest = cache3.latest ?? null;
+  if (!cache3.at || Date.now() - cache3.at > 24 * 60 * 60 * 1e3) {
+    latest = await latestVersion();
+    try {
+      writeJsonAtomic(file, { at: Date.now(), latest });
+    } catch {
+    }
+  }
+  return latest && isNewer(latest, version()) ? { version: latest, command: updateCommand(installKind(), lang) } : null;
+}
+var failText = (reason2, detail, zh) => ({
+  not_configured: zh ? "\u4ED8\u8D39\u6E20\u9053\u8FD8\u6CA1\u5F00\u653E\uFF0C\u73B0\u5728\u6240\u6709\u529F\u80FD\u90FD\u53EF\u4EE5\u514D\u8D39\u7528" : "Paid plans are not open yet; everything is free to use for now",
+  invalid: zh ? "\u8FD9\u4E2A\u5BC6\u94A5\u65E0\u6548\uFF08\u68C0\u67E5\u4E00\u4E0B\u6709\u6CA1\u6709\u590D\u5236\u5B8C\u6574\uFF09" : "That key is not valid (check it was copied in full)",
+  limit: zh ? "\u8FD9\u4E2A\u5BC6\u94A5\u6FC0\u6D3B\u7684\u8BBE\u5907\u6570\u5DF2\u7ECF\u6EE1\u4E86\uFF1A\u5148\u5728\u65E7\u8BBE\u5907\u4E0A\u8FD0\u884C cowait deactivate" : "This key is active on as many machines as it allows: run cowait deactivate on an old one first",
+  revoked: detail === "expired" ? zh ? "\u8FD9\u4E2A\u5BC6\u94A5\u5DF2\u8FC7\u671F" : "This key has expired" : zh ? "\u8FD9\u4E2A\u5BC6\u94A5\u5DF2\u505C\u7528\uFF08\u8BA2\u9605\u7ED3\u675F\u6216\u9000\u6B3E\uFF09" : "This key is no longer active (subscription ended or refunded)",
+  network: zh ? `\u8FDE\u4E0D\u4E0A\u6388\u6743\u670D\u52A1\u5668${detail ? `\uFF08${detail}\uFF09` : ""}\uFF0C\u7A0D\u540E\u518D\u8BD5` : `Could not reach the license server${detail ? ` (${detail})` : ""}; try again later`,
+  server: zh ? `\u6388\u6743\u670D\u52A1\u5668\u51FA\u9519${detail ? `\uFF08${detail}\uFF09` : ""}\uFF0C\u7A0D\u540E\u518D\u8BD5` : `The license server had a problem${detail ? ` (${detail})` : ""}; try again later`
+})[reason2] ?? reason2;
+async function cmdActivate(args, lang) {
+  const zh = lang === "zh";
+  const key2 = args.find((a) => !a.startsWith("-"));
+  if (!key2) {
+    console.log(zh ? "\u7528\u6CD5\uFF1Acowait activate <\u5BC6\u94A5>" : "Usage: cowait activate <key>");
+    process.exitCode = 1;
+    return;
+  }
+  const r = await activateLicense(key2);
+  if (!r.ok) {
+    (r.reason === "not_configured" ? info : bad)(failText(r.reason, r.detail, zh));
+    process.exitCode = r.reason === "not_configured" ? 0 : 1;
+    return;
+  }
+  const plan = r.license.plan === "team" ? "Team" : "Pro";
+  ok(zh ? `Cowait ${plan} \u5DF2\u6FC0\u6D3B \u2713\uFF08${r.license.label}\uFF09\u8C22\u8C22\u652F\u6301\uFF01` : `Cowait ${plan} is active \u2713 (${r.license.label}). Thank you!`);
+  info(zh ? "\u91CD\u65B0\u6253\u5F00\u9762\u677F\u5C31\u80FD\u7528\u4E0A Pro \u529F\u80FD" : "Reopen the panel to use the Pro features");
+}
+async function cmdLicense(args, lang) {
+  const zh = lang === "zh";
+  let lic = loadLicense();
+  if (lic && flag(args, "--check")) {
+    const r = await validateLicense(lic);
+    if (!r.ok) bad(failText(r.reason, r.detail, zh));
+    lic = loadLicense();
+  }
+  const plan = activePlan();
+  console.log(zh ? `
+\u5F53\u524D\u65B9\u6848\uFF1A${plan === "free" ? "Free" : plan === "team" ? "Team" : "Pro"}` : `
+Plan: ${plan === "free" ? "Free" : plan === "team" ? "Team" : "Pro"}`);
+  if (lic) {
+    info(`${zh ? "\u5BC6\u94A5" : "key"}: ${maskKey(lic.key)} \xB7 ${lic.status} \xB7 ${lic.label}`);
+    info(`${zh ? "\u4E0A\u6B21\u6838\u9A8C" : "last checked"}: ${new Date(lic.checkedAt).toLocaleString()}`);
+  } else if (!licensingConfigured()) {
+    info(zh ? "\u4ED8\u8D39\u6E20\u9053\u5373\u5C06\u5F00\u653E\uFF1B\u5728\u90A3\u4E4B\u524D Pro \u529F\u80FD\u5BF9\u6240\u6709\u4EBA\u5F00\u653E" : "Paid plans open soon; until then the Pro features are open to everyone");
+  } else {
+    info(zh ? "\u5347\u7EA7\uFF1Acowait upgrade \xB7 \u6FC0\u6D3B\uFF1Acowait activate <\u5BC6\u94A5>" : "Upgrade: cowait upgrade \xB7 Activate: cowait activate <key>");
+  }
+  console.log("");
+}
+async function cmdDeactivate(lang) {
+  const zh = lang === "zh";
+  const lic = loadLicense();
+  if (!lic) {
+    info(zh ? "\u8FD9\u53F0\u7535\u8111\u4E0A\u6CA1\u6709\u6FC0\u6D3B\u7684\u5BC6\u94A5" : "No license is active on this machine");
+    return;
+  }
+  const r = await deactivateLicense(lic);
+  if (r.ok) ok(zh ? "\u5DF2\u5728\u8FD9\u53F0\u7535\u8111\u4E0A\u505C\u7528\uFF0C\u5BC6\u94A5\u53EF\u4EE5\u62FF\u53BB\u522B\u7684\u7535\u8111\u6FC0\u6D3B" : "Deactivated here; the key can now be activated on another machine");
+  else {
+    bad(zh ? `\u505C\u7528\u5931\u8D25\uFF1A${r.detail ?? ""}` : `Could not deactivate: ${r.detail ?? ""}`);
+    process.exitCode = 1;
+  }
+}
+function cmdUpgrade(lang) {
+  const zh = lang === "zh";
+  const url = CHECKOUT.pro || SITE;
+  console.log(
+    zh ? `
+Cowait Pro\uFF1A${PRICES.currency}${PRICES.pro.monthly}/\u6708 \u6216 ${PRICES.currency}${PRICES.pro.yearly}/\u5E74` : `
+Cowait Pro: ${PRICES.currency}${PRICES.pro.monthly}/month or ${PRICES.currency}${PRICES.pro.yearly}/year`
+  );
+  if (!licensingConfigured()) info(zh ? "\u4ED8\u8D39\u6E20\u9053\u5373\u5C06\u5F00\u653E\uFF1B\u5728\u90A3\u4E4B\u524D Pro \u529F\u80FD\u5BF9\u6240\u6709\u4EBA\u5F00\u653E" : "Paid plans open soon; until then the Pro features are open to everyone");
+  if (openUrl(url)) ok(zh ? `\u5DF2\u5728\u6D4F\u89C8\u5668\u6253\u5F00 ${url}` : `Opened ${url}`);
+  else info(url);
+  if (licensingConfigured()) info(zh ? "\u4E70\u597D\u540E\u8FD0\u884C\uFF1Acowait activate <\u5BC6\u94A5>" : "Then run: cowait activate <key>");
+  console.log("");
+}
+async function cmdReport(args, lang) {
+  const zh = lang === "zh";
+  const days = Math.max(1, Math.min(120, Number(opt(args, "--days") ?? 7) || 7));
+  const { buildReport: buildReport2, reportHtml: reportHtml2, reportMarkdown: reportMarkdown2 } = await Promise.resolve().then(() => (init_report(), report_exports));
+  const s = loadState();
+  const r = buildReport2(s, days);
+  const pctText = r.coverage === null ? "\u2014" : `${Math.round(r.coverage * 100)}%`;
+  console.log(
+    zh ? `
+${r.from} \u2013 ${r.to}\uFF1AClaude \u5E72\u6D3B ${r.turns} \u8F6E\uFF0C\u6539\u4E86 ${r.files} \u4E2A\u6587\u4EF6\uFF1B\u4F60\u8BA4\u771F\u770B\u8FC7 ${r.read} \u4E2A\uFF08${pctText}\uFF09\uFF0C\u6807\u51FA\u95EE\u9898 ${r.flagged} \u4E2A` : `
+${r.from} \u2013 ${r.to}: Claude worked ${r.turns} turns and changed ${r.files} files; you read ${r.read} (${pctText}) and flagged ${r.flagged}`
+  );
+  if (!proUnlocked(activePlan())) {
+    info(zh ? "\u5B8C\u6574\u7684\u62A5\u544A\uFF08\u6BCF\u5929\u3001\u6BCF\u4E2A\u9879\u76EE\uFF0C\u53EF\u4EE5\u5206\u4EAB\u7684\u7F51\u9875\uFF09\u662F Pro \u529F\u80FD\uFF1Acowait upgrade" : "The full report (per day, per project, a page you can share) is a Pro feature: cowait upgrade");
+    console.log("");
+    return;
+  }
+  const md = flag(args, "--md");
+  const body = md ? reportMarkdown2(r, lang, version()) : reportHtml2(r, lang, version());
+  const out = opt(args, "--out") ?? path13.join(dataDir(), "reports", `cowait-report-${r.to}.${md ? "md" : "html"}`);
+  ensureDir(path13.dirname(out));
+  fs10.writeFileSync(out, body);
+  ok(zh ? `\u62A5\u544A\u5DF2\u4FDD\u5B58\uFF1A${out}` : `Report saved: ${out}`);
+  console.log("");
 }
 async function confirm(question) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -26442,7 +29803,7 @@ async function cmdInstall(args, lang) {
   const file = claudeSettingsPath(scope);
   const statusline = flag(args, "--statusline");
   console.log(zh ? "\ncowait install \u5C06\u4F1A\uFF1A" : "\ncowait install will:");
-  info(`${zh ? "\u4FEE\u6539" : "edit"} ${file}${fs8.existsSync(file) ? "" : zh ? "\uFF08\u4E0D\u5B58\u5728\uFF0C\u4F1A\u65B0\u5EFA\uFF09" : " (does not exist yet, will be created)"}`);
+  info(`${zh ? "\u4FEE\u6539" : "edit"} ${file}${fs10.existsSync(file) ? "" : zh ? "\uFF08\u4E0D\u5B58\u5728\uFF0C\u4F1A\u65B0\u5EFA\uFF09" : " (does not exist yet, will be created)"}`);
   info(
     zh ? "\u6DFB\u52A0 5 \u6761 hooks\uFF08UserPromptSubmit / PostToolUse / Stop / Notification / SessionEnd\uFF09\uFF0C" + (scope === "user" ? "\u5BF9\u8FD9\u53F0\u7535\u8111\u4E0A\u6240\u6709\u9879\u76EE\u7684 Claude Code \u751F\u6548" : "\u53EA\u5BF9\u5F53\u524D\u9879\u76EE\u751F\u6548") : "add 5 hooks (UserPromptSubmit / PostToolUse / Stop / Notification / SessionEnd), " + (scope === "user" ? "for every project on this machine" : "for this project only")
   );
@@ -26469,7 +29830,7 @@ async function cmdInstall(args, lang) {
   if (r.statusline === "kept-existing")
     info(zh ? "\u4F60\u5DF2\u7ECF\u6709\u81EA\u5B9A\u4E49\u72B6\u6001\u680F\uFF0C\u6CA1\u6709\u8986\u76D6\uFF08\u52A0 --force \u53EF\u66FF\u6362\uFF0C\u5378\u8F7D\u65F6\u4F1A\u8FD8\u539F\uFF09" : "You already have a custom status line; kept it (use --force to replace; uninstall restores it)");
   console.log(
-    zh ? "\n\u4E0B\u4E00\u6B65\uFF1A\n  1. \u91CD\u542F\u6B63\u5728\u8FD0\u884C\u7684 Claude Code \u4F1A\u8BDD\uFF0C\u8BA9\u65B0 hooks \u751F\u6548\n  2. \u5728\u65C1\u8FB9\u5F00\u4E00\u4E2A\u7EC8\u7AEF\u5206\u5C4F\u8FD0\u884C `cowait`\uFF08Windows Terminal / tmux \u91CC\u53EF\u4EE5\u76F4\u63A5 `cowait split`\uFF09\n  3. \u4E0D\u653E\u5FC3\u53EF\u4EE5\u5148\u8DD1 `cowait doctor` \u81EA\u68C0\uFF0C\u6216 `cowait demo` \u8BD5\u73A9\n" : "\nNext:\n  1. Restart running Claude Code sessions so the hooks load\n  2. Run `cowait` in a pane next to Claude Code (`cowait split` does it in Windows Terminal / tmux)\n  3. `cowait doctor` checks the setup, `cowait demo` lets you try it\n"
+    zh ? "\n\u4E0B\u4E00\u6B65\uFF1A\n  1. \u91CD\u542F\u6B63\u5728\u8FD0\u884C\u7684 Claude Code \u4F1A\u8BDD\uFF0C\u8BA9\u65B0 hooks \u751F\u6548\n  2. \u5728\u65C1\u8FB9\u5F00\u4E00\u4E2A\u7EC8\u7AEF\u5206\u5C4F\u8FD0\u884C `cowait`\uFF08Windows Terminal\u3001tmux\u3001zellij\u3001WezTerm\u3001kitty\u3001iTerm2 \u91CC\u53EF\u4EE5\u76F4\u63A5 `cowait split`\uFF09\n  3. \u4E0D\u653E\u5FC3\u53EF\u4EE5\u5148\u8DD1 `cowait doctor` \u81EA\u68C0\uFF0C\u6216 `cowait demo` \u8BD5\u73A9\n" : "\nNext:\n  1. Restart running Claude Code sessions so the hooks load\n  2. Run `cowait` in a pane next to Claude Code (`cowait split` does it in Windows Terminal, tmux, zellij, WezTerm, kitty and iTerm2)\n  3. `cowait doctor` checks the setup, `cowait demo` lets you try it\n"
   );
 }
 function cmdUninstall(args, lang) {
@@ -26481,27 +29842,31 @@ function cmdUninstall(args, lang) {
   info(zh ? `\u4F60\u7684\u6570\u636E\u8FD8\u5728 ${dataDir()}\uFF0C\u4E0D\u9700\u8981\u53EF\u4EE5\u76F4\u63A5\u5220\u9664` : `Your data is still in ${dataDir()}; delete it if you like`);
 }
 function smokeTest(command) {
-  const tmp = fs8.mkdtempSync(path9.join(os6.tmpdir(), "cowait-doctor-"));
+  const tmp = fs10.mkdtempSync(path13.join(os7.tmpdir(), "cowait-doctor-"));
   const payload = JSON.stringify({ hook_event_name: "UserPromptSubmit", session_id: "doctor", cwd: process.cwd(), prompt: "doctor" });
   const t0 = Date.now();
   const r = spawnSync2(command, { shell: true, input: payload, env: { ...process.env, COWAIT_HOME: tmp }, encoding: "utf8", timeout: 15e3, windowsHide: true });
   const ms = Date.now() - t0;
   let logged = false;
   try {
-    logged = fs8.readFileSync(path9.join(tmp, "events.jsonl"), "utf8").includes('"doctor"');
+    logged = fs10.readFileSync(path13.join(tmp, "events.jsonl"), "utf8").includes('"doctor"');
   } catch {
   }
-  fs8.rmSync(tmp, { recursive: true, force: true });
+  fs10.rmSync(tmp, { recursive: true, force: true });
   if (r.status === 0 && logged) return { ok: true, ms, detail: "" };
   return { ok: false, ms, detail: (r.stderr || r.error?.message || `exit ${r.status}`).toString().trim().slice(0, 300) };
 }
 function cmdDoctor(lang) {
   const zh = lang === "zh";
   console.log(zh ? "\nCowait \u81EA\u68C0\n" : "\nCowait doctor\n");
-  const major = Number(process.versions.node.split(".")[0]);
-  (major >= 20 ? ok : bad)(`Node ${process.version} ${zh ? "\uFF08\u9700\u8981 \u2265 20\uFF09" : "(need \u2265 20)"}`);
-  const hookJs = path9.join(packageRoot(), "dist", "hook.js");
-  (fs8.existsSync(hookJs) ? ok : bad)(`${zh ? "hook \u811A\u672C" : "hook script"}: ${hookJs}`);
+  if (isCompiled()) {
+    ok(`${zh ? "\u72EC\u7ACB\u53EF\u6267\u884C\u6587\u4EF6" : "standalone binary"} v${version()}: ${process.execPath}`);
+  } else {
+    const major = Number(process.versions.node.split(".")[0]);
+    (major >= 20 ? ok : bad)(`Node ${process.version} ${zh ? "\uFF08\u9700\u8981 \u2265 20\uFF09" : "(need \u2265 20)"}`);
+    const hookJs = path13.join(packageRoot(), "dist", "hook.js");
+    (fs10.existsSync(hookJs) ? ok : bad)(`${zh ? "hook \u811A\u672C" : "hook script"}: ${hookJs}`);
+  }
   let command = null;
   const inProject = hookStatus(readClaudeSettings("project")).installed.length > 0;
   for (const scope of ["user", "project"]) {
@@ -26524,13 +29889,13 @@ function cmdDoctor(lang) {
   else bad(`${zh ? "hook \u5B9E\u6D4B\u5931\u8D25" : "hook smoke test failed"}: ${smoke.detail}`);
   try {
     ensureDir(dataDir());
-    fs8.accessSync(dataDir(), fs8.constants.W_OK);
+    fs10.accessSync(dataDir(), fs10.constants.W_OK);
     ok(`${zh ? "\u6570\u636E\u76EE\u5F55\u53EF\u5199" : "data folder writable"}: ${dataDir()}`);
   } catch {
     bad(`${zh ? "\u6570\u636E\u76EE\u5F55\u4E0D\u53EF\u5199" : "data folder not writable"}: ${dataDir()}`);
   }
   try {
-    const m = fs8.statSync(paths.events()).mtimeMs;
+    const m = fs10.statSync(paths.events()).mtimeMs;
     info(`${zh ? "\u6700\u8FD1\u4E00\u6B21\u6536\u5230 Claude Code \u7684\u4E8B\u4EF6" : "last event from Claude Code"}: ${fmtDur(Date.now() - m)} ${zh ? "\u524D" : "ago"}`);
   } catch {
     info(zh ? "\u8FD8\u6CA1\u6536\u5230\u8FC7 Claude Code \u7684\u4E8B\u4EF6\uFF08\u88C5\u597D\u540E\u91CD\u542F Claude Code\uFF0C\u53D1\u4E00\u6761\u6D88\u606F\u8BD5\u8BD5\uFF09" : "No events from Claude Code yet (restart Claude Code after installing and send a message)");
@@ -26545,19 +29910,23 @@ function cmdStats(lang) {
   const s = loadState();
   const zh = lang === "zh";
   const cov = coverage(s);
-  const T = s.totals;
+  const T2 = s.totals;
   console.log(zh ? "\nCowait \u7EDF\u8BA1\n" : "\nCowait stats\n");
-  console.log(`  \u26A1 ${s.energy}   \u{1F4B0} ${s.coins}`);
+  const lv = levelInfo(s.xp);
+  const sk = streak(s);
+  console.log(`  Lv.${lv.level} ${levelTitle(lv.level)[lang]} (${lv.into}/${lv.need} XP) \xB7 \u{1F525} ${sk.days} (${zh ? "\u6700\u957F" : "best"} ${s.bestStreak}) \xB7 \u26A1 ${s.energy} \xB7 \u{1F4B0} ${s.coins}`);
   console.log(
-    zh ? `  Claude \u5E72\u6D3B\u7684\u8F6E\u6B21 ${T.turns} \xB7 \u6D4B\u8BD5\u901A\u8FC7\u7684\u8F6E\u6B21 ${T.testsPassed}
-  \u6539\u52A8\u5361\u7247 ${T.cards} \xB7 \u4F60\u5BA1\u8FC7 ${T.reviewed + T.flagged}\uFF08\u5176\u4E2D\u6807\u51FA\u95EE\u9898 ${T.flagged}\uFF09\xB7 \u626B\u4E00\u773C\u5C31\u8FC7 ${T.skimmed} \xB7 \u8DF3\u8FC7 ${T.skipped} \xB7 \u5F85\u5BA1 ${pendingCards(s).length}
+    zh ? `  Claude \u5E72\u6D3B\u7684\u8F6E\u6B21 ${T2.turns} \xB7 \u6D4B\u8BD5\u901A\u8FC7\u7684\u8F6E\u6B21 ${T2.testsPassed}
+  \u6539\u52A8\u5361\u7247 ${T2.cards} \xB7 \u4F60\u5BA1\u8FC7 ${T2.reviewed + T2.flagged}\uFF08\u5176\u4E2D\u6807\u51FA\u95EE\u9898 ${T2.flagged}\uFF09\xB7 \u626B\u4E00\u773C\u5C31\u8FC7 ${T2.skimmed} \xB7 \u8DF3\u8FC7 ${T2.skipped} \xB7 \u5F85\u5BA1 ${pendingCards(s).length}
   AI \u4EE3\u7801\u4EBA\u5DE5\u5BA1\u9605\u8986\u76D6\u7387 ${cov === null ? "\u2014" : Math.round(cov * 100) + "%"}\uFF08\u626B\u4E00\u773C\u5C31\u8FC7\u7684\u4E0D\u7B97\uFF09
-  \u8F6C\u8FBE\u7ED9 Claude \u7684\u7559\u8A00 ${T.delivered} \u6761
-  \u5237\u5361 ${T.learned} \u5F20 \xB7 \u6349\u866B\u5730\u7262 ${T.runs} \u5C40\uFF0C\u901A\u5173 ${T.wins} \u6B21\uFF0C\u6700\u6DF1\u7B2C ${T.bestFloor} \u5C42` : `  Claude turns ${T.turns} \xB7 turns with passing tests ${T.testsPassed}
-  Change cards ${T.cards} \xB7 reviewed ${T.reviewed + T.flagged} (${T.flagged} flagged) \xB7 skimmed ${T.skimmed} \xB7 skipped ${T.skipped} \xB7 pending ${pendingCards(s).length}
+  \u8F6C\u8FBE\u7ED9 Claude \u7684\u7559\u8A00 ${T2.delivered} \u6761
+  \u5237\u5361 ${T2.learned} \u5F20 \xB7 \u6349\u866B\u5730\u7262 ${T2.runs} \u5C40\uFF0C\u901A\u5173 ${T2.wins} \u6B21\uFF0C\u6700\u6DF1\u7B2C ${T2.bestFloor} \u5C42 \xB7 \u6808\u673A\u8C1C\u9898 ${T2.puzzles} \u9053 \xB7 \u4EE3\u7801\u901F\u6253 ${T2.sprints} \u8F6E\uFF08\u6700\u5FEB ${s.best.wpm} WPM\uFF09
+  \u6210\u5C31 ${Object.keys(s.achievements).length} \u4E2A \xB7 \u8BE6\u7EC6\u62A5\u544A\uFF1Acowait report` : `  Claude turns ${T2.turns} \xB7 turns with passing tests ${T2.testsPassed}
+  Change cards ${T2.cards} \xB7 reviewed ${T2.reviewed + T2.flagged} (${T2.flagged} flagged) \xB7 skimmed ${T2.skimmed} \xB7 skipped ${T2.skipped} \xB7 pending ${pendingCards(s).length}
   Human review coverage of AI code ${cov === null ? "\u2014" : Math.round(cov * 100) + "%"} (skims don't count)
-  Notes relayed to Claude ${T.delivered}
-  Flashcards ${T.learned} \xB7 Debug Dungeon runs ${T.runs}, wins ${T.wins}, deepest floor ${T.bestFloor}`
+  Notes relayed to Claude ${T2.delivered}
+  Flashcards ${T2.learned} \xB7 Debug Dungeon runs ${T2.runs}, wins ${T2.wins}, deepest floor ${T2.bestFloor} \xB7 Stack Puzzles ${T2.puzzles} \xB7 Code Sprints ${T2.sprints} (best ${s.best.wpm} WPM)
+  Achievements ${Object.keys(s.achievements).length} \xB7 Full report: cowait report`
   );
   console.log("");
 }
@@ -26584,37 +29953,97 @@ async function cmdLearn(args, lang) {
   saveState(s);
   ok(zh ? `\u597D\u4E86\uFF0C\u5171 ${d.cards.length} \u5F20\uFF0C\u5DF2\u8BBE\u4E3A\u5F53\u524D\u5361\u7EC4` : `Done: ${d.cards.length} cards, set as the current deck`);
 }
+var SPLIT_NAMES = { tmux: "tmux", zellij: "zellij", wezterm: "WezTerm", kitty: "kitty", iterm2: "iTerm2", "windows-terminal": "Windows Terminal" };
 function cmdSplit(lang) {
-  const cli = path9.join(packageRoot(), "dist", "cli.js");
   const zh = lang === "zh";
-  if (process.env.WT_SESSION) {
-    spawn2("wt.exe", ["-w", "0", "sp", "-V", "-s", "0.4", "-d", process.cwd(), process.execPath, cli], { detached: true, stdio: "ignore" }).unref();
-    ok(zh ? "\u5DF2\u5728 Windows Terminal \u53F3\u4FA7\u5206\u5C4F\u6253\u5F00 Cowait" : "Opened Cowait in a Windows Terminal split");
-  } else if (process.env.TMUX) {
-    spawnSync2("tmux", ["split-window", "-h", "-l", "40%", `"${process.execPath}" "${cli}"`], { stdio: "inherit" });
-  } else {
+  const plan = splitPlan(selfCommand(), process.cwd());
+  if (!plan) {
     console.log(
-      zh ? "\u6CA1\u68C0\u6D4B\u5230 Windows Terminal \u6216 tmux\u3002\u8BF7\u81EA\u5DF1\u5F00\u4E00\u4E2A\u65B0\u7EC8\u7AEF\u7A97\u53E3\u6216\u5206\u5C4F\uFF0C\u8FD0\u884C\uFF1Acowait" : "No Windows Terminal or tmux detected. Open another terminal pane and run: cowait"
+      zh ? "\u6CA1\u68C0\u6D4B\u5230\u80FD\u81EA\u52A8\u5206\u5C4F\u7684\u7EC8\u7AEF\uFF08Windows Terminal\u3001tmux\u3001zellij\u3001WezTerm\u3001kitty\u3001iTerm2\uFF09\u3002\u8BF7\u81EA\u5DF1\u5F00\u4E00\u4E2A\u65B0\u7EC8\u7AEF\u7A97\u53E3\u6216\u5206\u5C4F\uFF0C\u8FD0\u884C\uFF1Acowait" : "No terminal that Cowait can split was detected (Windows Terminal, tmux, zellij, WezTerm, kitty, iTerm2). Open another pane and run: cowait"
     );
+    return;
   }
+  const name = SPLIT_NAMES[plan.via];
+  const opened = () => ok(zh ? `\u5DF2\u5728 ${name} \u53F3\u4FA7\u5206\u5C4F\u6253\u5F00 Cowait` : `Opened Cowait in a ${name} split`);
+  if (plan.detached) {
+    const child = spawn3(plan.bin, plan.args, { detached: true, stdio: "ignore" });
+    child.on("error", () => void 0);
+    child.unref();
+    opened();
+    return;
+  }
+  const r = spawnSync2(plan.bin, plan.args, { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8", timeout: 15e3 });
+  if (r.status === 0) {
+    opened();
+    return;
+  }
+  bad(`${zh ? `${name} \u5206\u5C4F\u5931\u8D25` : `${name} split failed`}: ${(r.error?.message || r.stderr || `exit ${r.status}`).toString().trim().slice(0, 300)}`);
+  if (plan.via === "kitty")
+    info(
+      zh ? "kitty \u9700\u8981\u5F00\u542F\u8FDC\u7A0B\u63A7\u5236\uFF1A\u5728 kitty.conf \u91CC\u52A0 allow_remote_control yes\uFF08\u5DE6\u53F3\u5206\u5C4F\u8FD8\u8981 enabled_layouts splits\uFF09\uFF0C\u7136\u540E\u91CD\u542F kitty" : "kitty needs remote control: add `allow_remote_control yes` to kitty.conf (and `enabled_layouts splits` for a side-by-side split), then restart kitty"
+    );
+  if (plan.via === "iterm2")
+    info(
+      zh ? "macOS \u4F1A\u8BE2\u95EE\u662F\u5426\u5141\u8BB8\u63A7\u5236 iTerm2\uFF1A\u5728 \u7CFB\u7EDF\u8BBE\u7F6E \u2192 \u9690\u79C1\u4E0E\u5B89\u5168\u6027 \u2192 \u81EA\u52A8\u5316 \u91CC\u5141\u8BB8\u4F60\u7684\u7EC8\u7AEF\u63A7\u5236 iTerm2" : "macOS must allow controlling iTerm2: System Settings \u2192 Privacy & Security \u2192 Automation"
+    );
+  info(zh ? "\u4E5F\u53EF\u4EE5\u81EA\u5DF1\u5F00\u4E00\u4E2A\u5206\u5C4F\uFF0C\u8FD0\u884C\uFF1Acowait" : "Or open a pane yourself and run: cowait");
+  process.exitCode = 1;
+}
+async function cmdUpdate(args, lang) {
+  const zh = lang === "zh";
+  const kind = installKind();
+  const current = version();
+  const kindName = {
+    binary: zh ? "\u72EC\u7ACB\u53EF\u6267\u884C\u6587\u4EF6" : "standalone binary",
+    npm: zh ? "npm \u5168\u5C40\u5B89\u88C5" : "npm global install",
+    clone: zh ? "git \u514B\u9686" : "git clone"
+  }[kind];
+  console.log(zh ? `
+Cowait v${current}\uFF08${kindName}\uFF09` : `
+Cowait v${current} (${kindName})`);
+  const latest = await latestVersion();
+  const cmd = updateCommand(kind, lang);
+  if (latest === null) info(zh ? "\u67E5\u4E0D\u5230\u6700\u65B0\u7248\u672C\uFF08\u79BB\u7EBF\u3001\u7F51\u7EDC\u6162\uFF0C\u6216\u8005\u8FD8\u6CA1\u53D1\u5E03\u5230 npm\uFF09" : "Could not check the latest version (offline, slow network, or not on npm yet)");
+  else if (isNewer(latest, current)) ok(zh ? `\u6709\u65B0\u7248\u672C\uFF1Av${latest}` : `New version available: v${latest}`);
+  else ok(zh ? `\u5DF2\u7ECF\u662F\u6700\u65B0\u7248\uFF08npm \u4E0A\u6700\u65B0\u662F v${latest}\uFF09` : `Up to date (latest on npm: v${latest})`);
+  if (kind === "clone") {
+    if (!flag(args, "--yes") && !flag(args, "-y")) {
+      info(zh ? `\u66F4\u65B0\uFF1A${cmd}\uFF08\u6216\u8005 cowait update --yes \u8BA9 Cowait \u6765\u8FD0\u884C\uFF09` : `To update: ${cmd} (or cowait update --yes to run it)`);
+      console.log("");
+      return;
+    }
+    console.log(`
+> ${cmd}`);
+    const r = spawnSync2("git", ["-C", packageRoot(), "pull", "--ff-only"], { stdio: "inherit" });
+    if (r.status !== 0) {
+      bad(zh ? "git pull \u6CA1\u6709\u6210\u529F\uFF0C\u89C1\u4E0A\u9762\u7684\u8F93\u51FA" : "git pull did not succeed, see above");
+      process.exitCode = 1;
+      return;
+    }
+    ok(zh ? "\u5DF2\u66F4\u65B0\uFF08dist/ \u968F\u4ED3\u5E93\u63D0\u4EA4\uFF0C\u4E0D\u7528\u91CD\u65B0\u6784\u5EFA\uFF09\u3002\u9762\u677F\u8981\u5173\u6389\u518D\u6253\u5F00\u624D\u4F1A\u7528\u4E0A\u65B0\u7248\u672C" : "Updated (dist/ is committed, nothing to build). Reopen the panel to run the new version");
+    console.log("");
+    return;
+  }
+  if (latest === null || isNewer(latest, current)) info(zh ? `\u66F4\u65B0\u547D\u4EE4\uFF1A${cmd}` : `To update, run: ${cmd}`);
+  console.log("");
 }
 function cmdConfig(args, lang) {
   const cfg = loadConfig();
-  const [key, value] = args;
-  if (!key) {
+  const [key2, value] = args;
+  if (!key2) {
     console.log(`# ${paths.config()}`);
     console.log(JSON.stringify(cfg, null, 2));
     return;
   }
-  if (!(key in DEFAULT_CONFIG)) {
-    console.log(lang === "zh" ? `\u6CA1\u6709\u8FD9\u4E2A\u914D\u7F6E\u9879\uFF1A${key}` : `Unknown key: ${key}`);
+  if (!(key2 in DEFAULT_CONFIG)) {
+    console.log(lang === "zh" ? `\u6CA1\u6709\u8FD9\u4E2A\u914D\u7F6E\u9879\uFF1A${key2}` : `Unknown key: ${key2}`);
     process.exit(1);
   }
-  const def = DEFAULT_CONFIG[key];
+  const def = DEFAULT_CONFIG[key2];
   const v = typeof def === "boolean" ? ["1", "true", "on", "yes"].includes(String(value).toLowerCase()) : typeof def === "number" ? Number(value) : value;
-  const next = { ...cfg, [key]: v };
+  const next = { ...cfg, [key2]: v };
   saveConfig(next);
-  ok(`${key} = ${JSON.stringify(v)}`);
+  ok(`${key2} = ${JSON.stringify(v)}`);
 }
 async function cmdStatusline() {
   let raw = "";
@@ -26651,10 +30080,14 @@ function help(lang) {
   cowait uninstall       \u79FB\u9664 hooks\uFF08\u5176\u4ED6\u914D\u7F6E\u4E0D\u52A8\uFF09
   cowait doctor          \u81EA\u68C0
   cowait demo [--fast]   \u7528\u6A21\u62DF\u7684 Claude \u4F1A\u8BDD\u8BD5\u73A9\uFF0C\u4E0D\u9700\u8981 Claude Code
-  cowait split           \u5728 Windows Terminal / tmux \u91CC\u5206\u5C4F\u6253\u5F00\u9762\u677F
+  cowait split           \u5728\u53F3\u4FA7\u5206\u5C4F\u6253\u5F00\u9762\u677F\uFF08Windows Terminal / tmux / zellij / WezTerm / kitty / iTerm2\uFF09
+  cowait update [--yes]  \u68C0\u67E5\u65B0\u7248\u672C\u5E76\u7ED9\u51FA\u66F4\u65B0\u547D\u4EE4\uFF08git \u514B\u9686\u5B89\u88C5\u52A0 --yes \u76F4\u63A5 git pull\uFF09
   cowait learn "\u4E3B\u9898"    \u8BA9 AI \u51FA\u4E00\u7EC4\u5361\u7247 [-n 12]
   cowait stats           \u67E5\u770B\u7EDF\u8BA1\uFF08\u542B AI \u4EE3\u7801\u4EBA\u5DE5\u5BA1\u9605\u8986\u76D6\u7387\uFF09
+  cowait report          \u751F\u6210\u5BA1\u9605\u62A5\u544A\u7F51\u9875 [--days 7] [--md] [--out \u6587\u4EF6]
   cowait config [\u952E \u503C]  \u67E5\u770B\u6216\u4FEE\u6539\u914D\u7F6E
+  cowait upgrade         \u4E86\u89E3 Cowait Pro
+  cowait activate <\u5BC6\u94A5> \u6FC0\u6D3B Pro\uFF08cowait license \u67E5\u770B\uFF0Ccowait deactivate \u5728\u672C\u673A\u505C\u7528\uFF09
 ` : `Cowait v${version()} \u2014 turn time spent waiting on Claude Code into useful time
 
 Usage:
@@ -26666,15 +30099,20 @@ Usage:
   cowait uninstall       remove the hooks (nothing else is touched)
   cowait doctor          check the setup
   cowait demo [--fast]   try it with a simulated Claude session, no Claude Code needed
-  cowait split           open the panel in a Windows Terminal / tmux split
+  cowait split           open the panel in a split (Windows Terminal / tmux / zellij / WezTerm / kitty / iTerm2)
+  cowait update [--yes]  check for a newer version and show how to update (--yes: git pull for clones)
   cowait learn "topic"   have AI write a flashcard deck [-n 12]
   cowait stats           stats, including human review coverage of AI code
+  cowait report          a review report page [--days 7] [--md] [--out file]
   cowait config [k v]    show or change settings
+  cowait upgrade         about Cowait Pro
+  cowait activate <key>  activate Pro (cowait license shows it, cowait deactivate frees this machine)
 `
   );
 }
-async function main() {
+async function main2() {
   const [cmd, ...args] = process.argv.slice(2);
+  if (cmd === "hook") return runHookProcess();
   const lang = resolveLang(loadConfig());
   switch (cmd) {
     case void 0:
@@ -26695,6 +30133,19 @@ async function main() {
       return cmdLearn(args, lang);
     case "split":
       return cmdSplit(lang);
+    case "update":
+      return cmdUpdate(args, lang);
+    case "activate":
+      return cmdActivate(args, lang);
+    case "deactivate":
+      return cmdDeactivate(lang);
+    case "license":
+      return cmdLicense(args, lang);
+    case "upgrade":
+    case "pro":
+      return cmdUpgrade(lang);
+    case "report":
+      return cmdReport(args, lang);
     case "config":
       return cmdConfig(args, lang);
     case "statusline":
@@ -26708,7 +30159,7 @@ async function main() {
       return help(lang);
   }
 }
-main().catch((e) => {
+main2().catch((e) => {
   console.error(e?.message ?? e);
   process.exit(1);
 });

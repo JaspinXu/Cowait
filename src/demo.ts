@@ -6,7 +6,15 @@
 import { appendLine } from './fsutil.js';
 import { paths } from './paths.js';
 import { claimNotes } from './feedback.js';
+import { loadConfig } from './config.js';
+import { resolveLang, type Lang } from './i18n.js';
 import type { EditInfo, IEvent } from './events.js';
+
+/** What the fake user asked for in each turn: the turn titles in the review tab. */
+export const TITLES: Record<Lang, string[]> = {
+  zh: ['给下单接口加上参数校验，支付重试别重复扣款', '补上订单接口的测试，顺便处理缓存雪崩', '数据库连接池调小一点，重试加上退避'],
+  en: ['Validate the order input and make payment retries safe', 'Add tests for the orders API and fix the cache avalanche', 'Shrink the DB pool and add backoff to retries'],
+};
 
 export const CWD = process.platform === 'win32' ? 'G:\\code\\shop-api' : '/home/dev/shop-api';
 const f = (p: string) => (process.platform === 'win32' ? `${CWD}\\${p.replace(/\//g, '\\')}` : `${CWD}/${p}`);
@@ -89,7 +97,7 @@ export const EDITS: EditInfo[] = [
 
 type Step = [delayMs: number, make: (t: number) => IEvent | null];
 
-export function startDemo(speed = 1): () => void {
+export function startDemo(speed = 1, lang: Lang = resolveLang(loadConfig())): () => void {
   const sid = 'demo';
   let turn = 0;
   let timer: NodeJS.Timeout | undefined;
@@ -104,7 +112,7 @@ export function startDemo(speed = 1): () => void {
     const edits = TURNS[n % TURNS.length];
     const pass = n % 4 !== 2;
     return [
-      [0, (t) => ({ t, k: 'prompt', sid, cwd: CWD })],
+      [0, (t) => ({ t, k: 'prompt', sid, cwd: CWD, p: TITLES[lang][n % TITLES[lang].length] })],
       [2500, (t) => tool(t, 'Read')],
       ...edits.flatMap((e, i): Step[] => [
         [i === 0 ? 3000 : 2500, (t) => tool(t, e.kind === 'write' ? 'Write' : 'Edit', { edit: e })],

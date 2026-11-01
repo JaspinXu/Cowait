@@ -500,7 +500,10 @@ export function App({ cfg: initialCfg, lang: autoLang, initial, daily, pollMs = 
         note.open();
         setTypingNow(true);
       }
-    } else if (input === 'a') setCfg({ ...cfg, autoMode: !cfg.autoMode });
+    } else if (input === 'a') {
+      setCfg({ ...cfg, autoMode: !cfg.autoMode });
+      showToast(t(lang, cfg.autoMode ? 'auto_off' : 'auto_on'), 'gray');
+    }
     else if (input === 'i' && !hooked) hookUp('project');
     else if (input === '?') setOverlay('help');
     else if (input === 'q') exit();
@@ -584,7 +587,9 @@ export function App({ cfg: initialCfg, lang: autoLang, initial, daily, pollMs = 
           ? ''
           : typing
             ? hint
-            : fit([`${hint} · ${helpKey}`, hint], width - 1);
+            : hint
+              ? fit([`${hint} · ${helpKey}`, hint], width - 1)
+              : helpKey;
   return (
     <Box flexDirection="column" width={width}>
       <Box width={width - 1}>

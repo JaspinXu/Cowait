@@ -6,16 +6,41 @@ import { pathToFileURL } from "node:url";
 
 // src/paths.ts
 import os from "node:os";
+import path2 from "node:path";
+
+// src/runtime.ts
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 function packageRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 }
+var BUNFS = /^\/?(?:\$bunfs[\\/]|b:[\\/]~bun[\\/])/i;
+function isBunfsPath(p) {
+  let s = p;
+  if (s.startsWith("file:")) {
+    try {
+      s = decodeURIComponent(s.replace(/^file:\/\//, ""));
+    } catch {
+      s = s.replace(/^file:\/\//, "");
+    }
+  }
+  return BUNFS.test(s);
+}
+var compiledOverride = null;
+function isCompiled() {
+  if (compiledOverride !== null) return compiledOverride;
+  if (!process.versions.bun) return false;
+  const main2 = globalThis.Bun?.main;
+  return [typeof main2 === "string" ? main2 : "", import.meta.url, process.argv[1] ?? ""].some((p) => p && isBunfsPath(p));
+}
+
+// src/paths.ts
 function dataDir() {
   if (process.env.COWAIT_HOME) return process.env.COWAIT_HOME;
+  if (isCompiled()) return path2.join(os.homedir(), ".cowait");
   const root = packageRoot();
-  if (!root.split(path.sep).includes("node_modules")) return path.join(root, "data");
-  return path.join(os.homedir(), ".cowait");
+  if (!root.split(path2.sep).includes("node_modules")) return path2.join(root, "data");
+  return path2.join(os.homedir(), ".cowait");
 }
 function normPath(p) {
   const s = p.replace(/\\/g, "/").replace(/\/+$/, "");
@@ -27,17 +52,17 @@ function within(dir, root) {
   return d === r || d.startsWith(r + "/");
 }
 var paths = {
-  events: () => path.join(dataDir(), "events.jsonl"),
-  state: () => path.join(dataDir(), "state.json"),
-  config: () => path.join(dataDir(), "config.json"),
-  feedback: () => path.join(dataDir(), "feedback"),
-  decks: () => path.join(dataDir(), "decks"),
-  lock: () => path.join(dataDir(), "panel.lock")
+  events: () => path2.join(dataDir(), "events.jsonl"),
+  state: () => path2.join(dataDir(), "state.json"),
+  config: () => path2.join(dataDir(), "config.json"),
+  feedback: () => path2.join(dataDir(), "feedback"),
+  decks: () => path2.join(dataDir(), "decks"),
+  lock: () => path2.join(dataDir(), "panel.lock")
 };
 
 // src/fsutil.ts
 import fs from "node:fs";
-import path2 from "node:path";
+import path3 from "node:path";
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -52,7 +77,7 @@ function readJson(file, fallback) {
   }
 }
 function appendLine(file, line) {
-  ensureDir(path2.dirname(file));
+  ensureDir(path3.dirname(file));
   fs.appendFileSync(file, line + "\n");
 }
 
@@ -126,6 +151,13 @@ function clip(s, max = MAX_TEXT) {
 function str(v) {
   return typeof v === "string" ? v : "";
 }
+var TITLE_MAX = 60;
+function promptTitle(prompt) {
+  const line = str(prompt).split(/\r?\n/).map((x) => x.replace(/\s+/g, " ").trim()).find(Boolean);
+  if (!line) return void 0;
+  const chars = Array.from(line);
+  return chars.length > TITLE_MAX ? chars.slice(0, TITLE_MAX - 1).join("") + "\u2026" : line;
+}
 function readPatch(resp) {
   const sp = resp?.structuredPatch;
   if (!Array.isArray(sp) || sp.length === 0) return void 0;
@@ -179,13 +211,17 @@ ${str(resp?.output)}`;
   }
   return { cmd: clip(cmd, 300), test, result };
 }
-function toEvent(p, now) {
+function toEvent(p, now, opts = {}) {
   if (!p || typeof p !== "object") return null;
   const sid = str(p.session_id) || "unknown";
   const cwd = str(p.cwd);
   switch (p.hook_event_name) {
-    case "UserPromptSubmit":
-      return { t: now, k: "prompt", sid, cwd };
+    case "UserPromptSubmit": {
+      const ev = { t: now, k: "prompt", sid, cwd };
+      const title = opts.titles === false ? void 0 : promptTitle(p.prompt);
+      if (title) ev.p = title;
+      return ev;
+    }
     case "PostToolUse": {
       const tool = str(p.tool_name) || "tool";
       const ev = { t: now, k: "tool", sid, cwd, tool };
@@ -210,7 +246,7 @@ function toEvent(p, now) {
 
 // src/feedback.ts
 import fs2 from "node:fs";
-import path3 from "node:path";
+import path4 from "node:path";
 function isFor(note, cwd, sid) {
   if (note.sid && sid && note.sid === sid) return true;
   if (!note.cwd || !cwd) return true;
@@ -227,7 +263,7 @@ function claimNotes(cwd, sid) {
   const dir = paths.feedback();
   const out = [];
   for (const f of noteFiles()) {
-    const src = path3.join(dir, f);
+    const src = path4.join(dir, f);
     let note = null;
     try {
       note = parseJson(fs2.readFileSync(src, "utf8"));
@@ -267,8 +303,9 @@ function formatNotes(notes) {
 function log(ev) {
   appendLine(paths.events(), JSON.stringify(ev));
 }
-function feedbackEnabled() {
-  return readJson(paths.config(), {}).feedback !== false;
+function hookConfig() {
+  const c = readJson(paths.config(), {});
+  return { relay: c.feedback !== false, titles: c.promptTitles !== false };
 }
 function handleHook(raw, now = Date.now()) {
   let p;
@@ -280,8 +317,8 @@ function handleHook(raw, now = Date.now()) {
   const name = p?.hook_event_name ?? "";
   const sid = typeof p?.session_id === "string" ? p.session_id : "unknown";
   const cwd = typeof p?.cwd === "string" && p.cwd ? p.cwd : void 0;
-  const ev = toEvent(p, now);
-  const relay = feedbackEnabled();
+  const { relay, titles } = hookConfig();
+  const ev = toEvent(p, now, { titles });
   if (name === "Stop") {
     if (relay && !p.stop_hook_active) {
       const notes = claimNotes(cwd, sid);
@@ -326,14 +363,17 @@ async function main() {
   const out = handleHook(raw);
   if (out) await new Promise((resolve) => process.stdout.write(out, () => resolve()));
 }
-var isEntry = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (isEntry) {
+function runHookProcess() {
   const guard = setTimeout(() => process.exit(0), 4e3);
   main().catch(() => void 0).finally(() => {
     clearTimeout(guard);
     process.exit(0);
   });
 }
+var entryBundle = true;
+var isEntry = entryBundle && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isEntry) runHookProcess();
 export {
-  handleHook
+  handleHook,
+  runHookProcess
 };

@@ -19,8 +19,10 @@ function log(ev: IEvent): void {
   appendLine(paths.events(), JSON.stringify(ev));
 }
 
-function feedbackEnabled(): boolean {
-  return readJson<{ feedback?: boolean }>(paths.config(), {}).feedback !== false;
+/** The two settings the hook cares about, read once per call. */
+function hookConfig(): { relay: boolean; titles: boolean } {
+  const c = readJson<{ feedback?: boolean; promptTitles?: boolean }>(paths.config(), {});
+  return { relay: c.feedback !== false, titles: c.promptTitles !== false };
 }
 
 /** Process one payload. Returns what to print on stdout, or null. */
@@ -34,8 +36,8 @@ export function handleHook(raw: string, now = Date.now()): string | null {
   const name: string = p?.hook_event_name ?? '';
   const sid: string = typeof p?.session_id === 'string' ? p.session_id : 'unknown';
   const cwd: string | undefined = typeof p?.cwd === 'string' && p.cwd ? p.cwd : undefined;
-  const ev = toEvent(p, now);
-  const relay = feedbackEnabled();
+  const { relay, titles } = hookConfig();
+  const ev = toEvent(p, now, { titles });
 
   if (name === 'Stop') {
     // Notes left while Claude was working: keep Claude going so it can address them.
