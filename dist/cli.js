@@ -27589,6 +27589,7 @@ function Sprint({ st, update, lang, active, blocked, width, setTyping, setHint, 
       s.energy -= ECON.sprintCost;
       s.sprint = ref.current;
     });
+    setTyping(true);
     setDone(null);
     setMsg("");
     render2((x) => x + 1);

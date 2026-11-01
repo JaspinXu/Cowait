@@ -33,6 +33,21 @@ const typeKeys = async (app: { stdin: { write: (s: string) => void } }, keys: st
     await sleep(gap);
   }
 };
+/** Wait (up to 3 s) until `check` holds: slow CI machines need longer than a fixed sleep. */
+const until = async (check: () => boolean, ms = 3000) => {
+  const end = Date.now() + ms;
+  while (!check() && Date.now() < end) await sleep(15);
+};
+type Term = { stdin: { write: (s: string) => void }; lastFrame: () => string | undefined };
+/**
+ * Press a key that changes the screen, then wait for the new screen. A key sent before React has
+ * mounted the next tab would reach the old one, so tests must not race ahead of the render.
+ */
+const press = async (app: Term, key: string, shows: string) => {
+  app.stdin.write(key);
+  await until(() => (app.lastFrame() ?? '').includes(shows));
+  expect(app.lastFrame()).toContain(shows);
+};
 
 beforeEach(() => {
   home = tempHome();
@@ -467,17 +482,14 @@ describe('games', () => {
   it("solves today's Stack Puzzle and offers a spoiler-free share line", async () => {
     const app = render(<App cfg={{ ...cfgEn, autoMode: false }} lang="en" initial={ready()} daily={0} pollMs={30} />);
     await sleep(60);
-    await typeKeys(app, '\t2');
-    await sleep(40);
-    expect(app.lastFrame()).toContain("Enter start today's puzzle");
-    app.stdin.write('\r');
-    await sleep(80);
+    await press(app, '\t', 'Stack Puzzle');
+    await press(app, '2', "Enter start today's puzzle");
+    await press(app, '\r', 'Goal');
     const run = loadState().puzzle as PuzzleRun;
-    expect(app.lastFrame()).toContain('Goal');
     const path0 = solve(run.puzzle.start, run.puzzle.target, run.puzzle.buttons)!;
     expect(path0).toHaveLength(run.puzzle.par);
     await typeKeys(app, path0.map((i) => String(i + 1)).join(''), 40);
-    await sleep(60);
+    await until(() => (app.lastFrame() ?? '').includes('Solved!'));
     const f = app.lastFrame()!;
     expect(f).toContain('Solved!');
     expect(f).toContain('★★★');
@@ -490,10 +502,10 @@ describe('games', () => {
   it('a Code Sprint round owns the keyboard until it is done', async () => {
     const app = render(<App cfg={{ ...cfgEn, autoMode: false }} lang="en" initial={ready()} daily={0} pollMs={30} />);
     await sleep(60);
-    await typeKeys(app, '\t3');
-    await sleep(40);
+    await press(app, '\t', 'Stack Puzzle');
+    await press(app, '3', 'Enter start a round');
     app.stdin.write('\r');
-    await sleep(80);
+    await until(() => !!loadState().sprint);
     const lines: string[] = loadState().sprint.lines;
     expect(lines).toHaveLength(5);
     expect(loadState().energy).toBe(9);
@@ -506,7 +518,7 @@ describe('games', () => {
       for (const ch of line) app.stdin.write(ch);
       await sleep(40);
     }
-    await sleep(60);
+    await until(() => loadState().totals.sprints === 1);
     const f = app.lastFrame()!;
     expect(f).toContain('WPM');
     expect(loadState().totals.sprints).toBe(1);
@@ -519,13 +531,14 @@ describe('settings', () => {
   it('toggles a setting in the Me tab and saves it', async () => {
     const app = render(<App cfg={{ ...cfgEn, autoMode: false }} lang="en" initial={ready()} daily={0} pollMs={30} />);
     await sleep(60);
-    await typeKeys(app, '\t\t\ts');
-    await sleep(40);
-    expect(app.lastFrame()).toContain('Settings');
+    await press(app, '\t', 'Stack Puzzle');
+    await press(app, '\t', 'Q:');
+    await press(app, '\t', "Today's quests");
+    await press(app, 's', 'Settings');
     app.stdin.write('\u001B[B'); // ↓ to the bell
     await sleep(30);
     app.stdin.write('\r');
-    await sleep(60);
+    await until(() => loadConfig().bell);
     expect(loadConfig().bell).toBe(true);
     app.unmount();
   });
@@ -535,9 +548,9 @@ describe('auto mode and restarts', () => {
   it('a new Claude turn does not pull you out of a fight', async () => {
     const app = render(<App cfg={cfgEn} lang="en" initial={ready()} daily={0} pollMs={30} />);
     await sleep(60);
-    await typeKeys(app, '\t1n');
-    await sleep(60);
-    expect(app.lastFrame()).toContain('Hand');
+    await press(app, '\t', 'Stack Puzzle');
+    await press(app, '1', 'gear shop');
+    await press(app, 'n', 'Hand');
     emit({ t: Date.now(), k: 'prompt', sid: 's', cwd: '/proj' });
     await sleep(120);
     expect(app.lastFrame()).toContain('Hand');

@@ -64,6 +64,9 @@ export function Sprint({ st, update, lang, active, blocked, width, setTyping, se
       s.energy -= ECON.sprintCost;
       s.sprint = ref.current;
     });
+    // Right away, not after the next render: a key typed in between must not reach the panel
+    // (a `q` would quit it).
+    setTyping(true);
     setDone(null);
     setMsg('');
     render((x) => x + 1);
