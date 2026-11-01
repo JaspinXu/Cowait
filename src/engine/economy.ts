@@ -6,7 +6,10 @@
  *              did work, and a bonus when tests pass. Spent on permanent game gear.
  * Rewarding outcomes instead of minutes means a 20-minute run that goes nowhere pays nothing extra.
  */
-import type { CardStatus, State } from './state.js';
+import { localDay, turnByKey, type CardStatus, type State } from './state.js';
+import { track } from './progress.js';
+
+export { localDay };
 
 export const ECON = {
   reviewOk: 1,
@@ -16,7 +19,14 @@ export const ECON = {
   coinWorkTurn: 3,
   coinTestsPass: 10,
   winEnergy: 5,
-  maxCards: 80,
+  /** A Code Sprint round, and a practice Stack Puzzle (the daily puzzle is free). */
+  sprintCost: 1,
+  practiceCost: 1,
+  /** Practice puzzles a day on the free plan. */
+  freePractice: 3,
+  maxCards: 150,
+  /** Changes left unreviewed this long are archived (counted as skipped), so the queue never becomes a guilt pile. */
+  expireMs: 24 * 60 * 60 * 1000,
   /** A flashcard rated sooner than this after it appeared earns nothing. */
   minStudyMs: 1500,
 };
@@ -41,34 +51,58 @@ export function applyVerdict(
   s: State,
   cardId: string,
   verdict: Exclude<CardStatus, 'new'>,
-  opts: { note?: string; noteId?: string; quick?: boolean } = {},
+  opts: { note?: string; noteId?: string; quick?: boolean; now?: number } = {},
 ): number {
   const card = s.review.find((c) => c.id === cardId);
   if (!card || card.status !== 'new') return 0;
+  const now = opts.now ?? Date.now();
   card.status = verdict;
   let gain = 0;
   if (verdict === 'ok' && opts.quick) {
     // Rubber-stamping is not reviewing: it must not pay, or count toward coverage.
     card.quick = true;
     s.totals.skimmed++;
+    track(s, 'skimmed', now);
   } else if (verdict === 'ok') {
     s.totals.reviewed++;
     gain = ECON.reviewOk;
+    track(s, 'reviewed', now);
   } else if (verdict === 'flag') {
     s.totals.flagged++;
     card.note = opts.note;
     card.noteId = opts.noteId;
     gain = ECON.reviewFlag;
+    track(s, 'flagged', now);
+    track(s, 'note', now);
   } else {
     s.totals.skipped++;
+    track(s, 'skipped', now);
   }
   s.energy += gain;
+  // Every file of a turn read (none skimmed, none skipped): that turn was reviewed in full.
+  const meta = turnByKey(s, card.turn);
+  if (meta && !meta.full && verdict !== 'skip' && !card.quick) {
+    const mates = s.review.filter((c) => c.turn === card.turn);
+    if (mates.every((c) => (c.status === 'ok' || c.status === 'flag') && !c.quick)) {
+      meta.full = true;
+      track(s, 'fullTurn', now);
+    }
+  }
   return gain;
 }
 
-export function localDay(now: number): string {
-  const d = new Date(now);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** Archive changes nobody looked at for a day. Returns how many were archived. */
+export function expireOld(s: State, now: number): number {
+  let n = 0;
+  for (const c of s.review) {
+    if (c.status !== 'new' || now - (c.last ?? c.t) < ECON.expireMs) continue;
+    c.status = 'skip';
+    c.expired = true;
+    s.totals.skipped++;
+    s.totals.expired++;
+    n++;
+  }
+  return n;
 }
 
 /** First panel launch of the day gives a little energy. Returns the bonus granted. */

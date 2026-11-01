@@ -8,3 +8,5 @@ coverage/
 # Per-machine Claude Code settings (cowait install --project writes absolute paths here)
 .claude/settings.local.json
 .claude/*.cowait-backup-*
+# Agent worktrees (Claude Code)
+.claude/worktrees/

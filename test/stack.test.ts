@@ -108,7 +108,7 @@ describe('Stack Puzzle: the machine', () => {
   });
 
   it('has bilingual names and the expected button labels', () => {
-    expect(ALL_OPS.map((o) => o.label).slice(0, 11)).toEqual(['+', '-', '×', 'dup', 'swap', 'over', 'drop', '+1', '-1', 'neg', 'push 1']);
+    expect(ALL_OPS.map((o) => o.label).slice(0, 11)).toEqual(['+', '-', '*', 'dup', 'swap', 'over', 'drop', '+1', '-1', 'neg', 'push 1']);
     for (const o of ALL_OPS) {
       expect(o.name.zh && o.name.en && o.desc.zh && o.desc.en).toBeTruthy();
       expect(opById(o.id)).toEqual(o);

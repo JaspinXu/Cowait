@@ -44,7 +44,7 @@ const op = (kind: Exclude<OpKind, 'push'>, label: string, name: L, desc: L): Op 
 export const OPS: Record<Exclude<OpKind, 'push'>, Op> = {
   add: op('add', '+', l('加', 'Add'), l('顶上两数相加：a b → a+b', 'Add the top two: a b → a+b')),
   sub: op('sub', '-', l('减', 'Subtract'), l('下面的减上面的：a b → a-b', 'Second minus top: a b → a-b')),
-  mul: op('mul', '×', l('乘', 'Multiply'), l('顶上两数相乘：a b → a×b', 'Multiply the top two: a b → a×b')),
+  mul: op('mul', '*', l('乘', 'Multiply'), l('顶上两数相乘：a b → a×b', 'Multiply the top two: a b → a×b')),
   dup: op('dup', 'dup', l('复制', 'Duplicate'), l('复制栈顶：a → a a', 'Copy the top: a → a a')),
   swap: op('swap', 'swap', l('交换', 'Swap'), l('交换顶上两个：a b → b a', 'Swap the top two: a b → b a')),
   over: op('over', 'over', l('复制下层', 'Over'), l('把第二个复制到顶上：a b → a b a', 'Copy the second to the top: a b → a b a')),

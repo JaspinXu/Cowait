@@ -1,13 +1,13 @@
 /** Folds hook events into panel state. Pure: no I/O, so it is easy to test. */
 import type { IEvent } from '../events.js';
 import { normPath } from '../paths.js';
-import { ECON, turnCoins } from './economy.js';
-import type { Session, State } from './state.js';
+import { ECON, expireOld, turnCoins } from './economy.js';
+import { dayOf, MAX_TURNS, turnByKey, type Session, type State, type TurnMeta } from './state.js';
 
 /** What the UI may react to. `t` is when it happened, so a panel catching up on old events can stay quiet. */
 export type Signal =
   | { type: 'turn_start'; t: number; sid: string; cwd: string }
-  | { type: 'turn_done'; t: number; sid: string; cwd: string; ms: number; coins: number; pass: boolean; fail: boolean; edits: number }
+  | { type: 'turn_done'; t: number; sid: string; cwd: string; turn: string; ms: number; coins: number; pass: boolean; fail: boolean; edits: number }
   | { type: 'attention'; t: number; sid: string; cwd: string; msg: string }
   | { type: 'new_card'; t: number; count: number }
   | { type: 'delivered'; t: number; count: number };
@@ -16,8 +16,6 @@ const STALE_BUSY_MS = 15 * 60 * 1000;
 const FORGET_IDLE_MS = 24 * 60 * 60 * 1000;
 /** Edits one card may hold before the next edit to that file opens a new card. */
 const MAX_PARTS = 20;
-/** A card untouched for this long is old news: the next edit to the file starts a fresh card. */
-const MERGE_WINDOW_MS = 30 * 60 * 1000;
 
 function session(s: State, sid: string, cwd: string, t: number): Session {
   let x = s.sessions[sid];
@@ -27,6 +25,19 @@ function session(s: State, sid: string, cwd: string, t: number): Session {
   }
   if (cwd) x.cwd = cwd;
   return x;
+}
+
+/** The turn a session is in, created on first sight (an edit may arrive without its prompt event). */
+function turnOf(s: State, sid: string, x: Session, t: number): TurnMeta {
+  const start = x.turnStart ?? t;
+  const key = sid + '@' + start;
+  let m = turnByKey(s, key);
+  if (!m) {
+    m = { key, sid, cwd: x.cwd, start, files: 0 };
+    s.turns.push(m);
+    if (s.turns.length > MAX_TURNS) s.turns = s.turns.slice(-MAX_TURNS);
+  }
+  return m;
 }
 
 function trimCards(s: State): void {
@@ -50,6 +61,8 @@ export function applyEvents(s: State, events: IEvent[]): Signal[] {
       case 'prompt': {
         const x = session(s, e.sid, e.cwd, e.t);
         Object.assign(x, { status: 'busy', turnStart: e.t, lastAt: e.t, tools: 0, edits: 0, pass: false, fail: false });
+        const m = turnOf(s, e.sid, x, e.t);
+        if (e.p) m.title = e.p;
         out.push({ type: 'turn_start', t: e.t, sid: e.sid, cwd: x.cwd });
         break;
       }
@@ -69,25 +82,23 @@ export function applyEvents(s: State, events: IEvent[]): Signal[] {
           x.edits++;
           newCards++;
           lastEdit = e.t;
-          // Claude often edits one file many times in a row. While the earlier card is still
-          // waiting, fold the new edit into it: one file, one decision, with all the context.
+          // Claude often edits one file many times in a turn. While the earlier card is still
+          // waiting, fold the new edit into it: one file per turn, one decision, all the context.
           const edit = e.edit;
           const file = normPath(edit.file);
+          const turn = turnOf(s, e.sid, x, e.t);
           const open = s.review.find(
-            (c) =>
-              c.status === 'new' &&
-              c.sid === e.sid &&
-              normPath(c.file) === file &&
-              (c.more?.length ?? 0) < MAX_PARTS - 1 &&
-              e.t - (c.last ?? c.t) <= MERGE_WINDOW_MS,
+            (c) => c.status === 'new' && c.turn === turn.key && normPath(c.file) === file && (c.more?.length ?? 0) < MAX_PARTS - 1,
           );
           if (open) {
             (open.more ??= []).push(edit);
             open.last = e.t;
           } else {
             s.seq++;
-            s.review.push({ ...edit, id: `${e.t.toString(36)}-${s.seq}`, t: e.t, sid: e.sid, cwd: x.cwd, status: 'new' });
+            s.review.push({ ...edit, id: e.t.toString(36) + '-' + s.seq, t: e.t, sid: e.sid, cwd: x.cwd, turn: turn.key, status: 'new' });
             s.totals.cards++;
+            turn.files++;
+            dayOf(s, e.t).files++;
             trimCards(s);
           }
         }
@@ -104,8 +115,11 @@ export function applyEvents(s: State, events: IEvent[]): Signal[] {
           if (x.tools > 0) {
             s.history.push({ cwd: x.cwd, ms, t: e.t });
             if (s.history.length > 200) s.history = s.history.slice(-200);
+            dayOf(s, e.t).turns++;
           }
-          out.push({ type: 'turn_done', t: e.t, sid: e.sid, cwd: x.cwd, ms, coins, pass: x.pass, fail: x.fail, edits: x.edits });
+          const m = turnOf(s, e.sid, x, e.t);
+          Object.assign(m, { end: e.t, pass: x.pass || undefined, fail: x.fail || undefined });
+          out.push({ type: 'turn_done', t: e.t, sid: e.sid, cwd: x.cwd, turn: m.key, ms, coins, pass: x.pass, fail: x.fail, edits: x.edits });
         }
         Object.assign(x, { status: 'idle', turnStart: undefined, lastAt: e.t });
         break;
@@ -138,9 +152,12 @@ export function applyEvents(s: State, events: IEvent[]): Signal[] {
   return out;
 }
 
-/** Expire sessions that went silent (e.g. the user pressed Esc, so no Stop event ever came). */
+/**
+ * Expire sessions that went silent (e.g. the user pressed Esc, so no Stop event ever came), and
+ * archive changes that have waited more than a day.
+ */
 export function sweep(s: State, now: number): boolean {
-  let changed = false;
+  let changed = expireOld(s, now) > 0;
   for (const [sid, x] of Object.entries(s.sessions)) {
     if (x.status !== 'idle' && now - x.lastAt > STALE_BUSY_MS) {
       Object.assign(x, { status: 'idle', turnStart: undefined });

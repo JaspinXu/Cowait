@@ -1,10 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Text, type TextProps } from 'ink';
 import stringWidth from 'string-width';
 import { wrapText } from '../text.js';
 import type { State } from '../engine/state.js';
 import type { Config } from '../config.js';
 import type { Lang } from '../i18n.js';
+import type { Plan } from '../license.js';
 
 export interface ModeProps {
   st: State;
@@ -25,6 +26,47 @@ export interface ModeProps {
   setTyping: (v: boolean) => void;
   /** No hook has ever written an event and none is installed: explain how to connect. */
   setupHint: boolean;
+  /** One line at the bottom of the panel for a moment (rewards, confirmations). */
+  toast: (text: string, color?: string) => void;
+  /** The key hint the footer shows for this mode right now. */
+  setHint: (text: string) => void;
+  /** Change and save settings. */
+  setCfg: (cfg: Config) => void;
+  plan: Plan;
+  /** Review: jump to the first waiting file of this turn (set from the "Claude finished" alert). */
+  focusTurn: string | null;
+  clearFocus: () => void;
+}
+
+/** Publish this mode's key hint to the footer whenever it changes. */
+export function useHint(setHint: (text: string) => void, text: string, active = true): void {
+  useEffect(() => {
+    if (active) setHint(text);
+  }, [text, active]);
+}
+
+/** A thin progress bar: ▰▰▰▱▱ */
+export function Meter({ value, max, width, color = 'cyan' }: { value: number; max: number; width: number; color?: string }) {
+  const filled = max > 0 ? Math.min(width, Math.round((Math.max(0, value) / max) * width)) : 0;
+  return (
+    <Text>
+      <Text color={color}>{'━'.repeat(filled)}</Text>
+      <Text color="gray">{'─'.repeat(Math.max(0, width - filled))}</Text>
+    </Text>
+  );
+}
+
+/** Pad (or cut) to an exact terminal width, counting CJK as two columns. */
+export function padTo(s: string, width: number): string {
+  let out = '';
+  let w = 0;
+  for (const ch of s) {
+    const cw = stringWidth(ch);
+    if (w + cw > width) break;
+    out += ch;
+    w += cw;
+  }
+  return out + ' '.repeat(Math.max(0, width - w));
 }
 
 export function Bar({ value, max, width, color }: { value: number; max: number; width: number; color: string }) {

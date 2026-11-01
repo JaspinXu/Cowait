@@ -3,12 +3,13 @@ import { Box, Text, useInput } from 'ink';
 import { allDecks, saveDeck, tx, type Deck, type Flashcard } from '../learn/decks.js';
 import { nextCard, rate, dueCount, type Rating } from '../learn/srs.js';
 import { ECON } from '../engine/economy.js';
+import { track } from '../engine/progress.js';
 import { detectProvider } from '../learn/llm.js';
 import { generateCodebaseDeck, generateTopicDeck } from '../learn/generate.js';
 import { t } from '../i18n.js';
-import { InputLine, Labeled, Para, fit, useLine, useRefState, type ModeProps } from './common.js';
+import { InputLine, Labeled, Para, fit, useHint, useLine, useRefState, type ModeProps } from './common.js';
 
-export function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping }: ModeProps) {
+export function Learn({ st, update, cfg, lang, active, blocked, width, now, setTyping, setHint }: ModeProps) {
   const [reload, setReload] = useState(0);
   const decks = useMemo(() => allDecks(), [reload]);
   const deckId = st.learnDeck === 'all' || decks.some((d) => d.id === st.learnDeck) ? st.learnDeck : 'all';
@@ -68,6 +69,7 @@ export function Learn({ st, update, cfg, lang, active, blocked, width, now, setT
       if (!quick) {
         s.energy += ECON.learnCard;
         s.totals.learned++;
+        track(s, 'learned');
       }
     });
     setMsg(quick ? t(lang, 'ln_quick') : t(lang, 'ln_gained', { n: ECON.learnCard }));
@@ -140,6 +142,17 @@ export function Learn({ st, update, cfg, lang, active, blocked, width, now, setT
   const due = dueCount(ids, st.srs, now);
   const unseen = ids.filter((id) => !st.srs[id]).length;
   const item = cur ? cards.get(cur.id) : undefined;
+
+  const hint =
+    topic.value !== null
+      ? t(lang, 'note_hint')
+      : item && flipped
+        ? t(lang, 'ln_rate')
+        : item
+          ? fit([t(lang, 'ln_flip'), t(lang, 'ln_flip_short')], width - 12)
+          : fit([t(lang, 'ln_keys'), t(lang, 'ln_keys_short')], width - 12);
+  useHint(setHint, hint, active);
+
   const boxW = Math.min(width - 2, 90);
   const inner = boxW - 4; // round border + one column of padding on each side
 
@@ -179,14 +192,6 @@ export function Learn({ st, update, cfg, lang, active, blocked, width, now, setT
       ) : (
         <Text> </Text>
       )}
-      {item && (
-        <Text color="gray" wrap="truncate-end">
-          {flipped ? t(lang, 'ln_rate') : t(lang, 'ln_flip')}
-        </Text>
-      )}
-      <Text color="gray" wrap="truncate-end">
-        {fit([t(lang, 'ln_keys'), t(lang, 'ln_keys_short')], width - 1)}
-      </Text>
     </Box>
   );
 }

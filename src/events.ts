@@ -33,7 +33,8 @@ export interface BashInfo {
 }
 
 export type IEvent =
-  | { t: number; k: 'prompt'; sid: string; cwd: string }
+  /** `p`: the first line of your message, shortened: the turn's title in the review tab. Stays local. */
+  | { t: number; k: 'prompt'; sid: string; cwd: string; p?: string }
   | { t: number; k: 'tool'; sid: string; cwd: string; tool: string; edit?: EditInfo; bash?: BashInfo }
   | { t: number; k: 'stop'; sid: string; cwd: string }
   | { t: number; k: 'notify'; sid: string; cwd: string; msg: string }
@@ -50,6 +51,19 @@ function clip(s: unknown, max = MAX_TEXT): string {
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : '';
+}
+
+const TITLE_MAX = 60;
+
+/** A short, single-line title for a turn: the first non-empty line of the prompt. */
+export function promptTitle(prompt: unknown): string | undefined {
+  const line = str(prompt)
+    .split(/\r?\n/)
+    .map((x) => x.replace(/\s+/g, ' ').trim())
+    .find(Boolean);
+  if (!line) return undefined;
+  const chars = Array.from(line);
+  return chars.length > TITLE_MAX ? chars.slice(0, TITLE_MAX - 1).join('') + '…' : line;
 }
 
 function readPatch(resp: any): PatchHunk[] | undefined {
@@ -107,13 +121,17 @@ function bashInfo(input: any, resp: any): BashInfo | undefined {
 }
 
 /** Turn a Claude Code hook payload into a compact log event (or null to ignore it). */
-export function toEvent(p: any, now: number): IEvent | null {
+export function toEvent(p: any, now: number, opts: { titles?: boolean } = {}): IEvent | null {
   if (!p || typeof p !== 'object') return null;
   const sid = str(p.session_id) || 'unknown';
   const cwd = str(p.cwd);
   switch (p.hook_event_name) {
-    case 'UserPromptSubmit':
-      return { t: now, k: 'prompt', sid, cwd };
+    case 'UserPromptSubmit': {
+      const ev: IEvent = { t: now, k: 'prompt', sid, cwd };
+      const title = opts.titles === false ? undefined : promptTitle(p.prompt);
+      if (title) ev.p = title;
+      return ev;
+    }
     case 'PostToolUse': {
       const tool = str(p.tool_name) || 'tool';
       const ev: IEvent = { t: now, k: 'tool', sid, cwd, tool };

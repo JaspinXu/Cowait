@@ -4,28 +4,35 @@ import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import type { Config } from '../config.js';
 import { saveConfig } from '../config.js';
 import { applyEvents, sweep, type Signal } from '../engine/reducer.js';
-import { busySessions, pendingCards, recordNote, waitingNotes, type State } from '../engine/state.js';
+import { busySessions, pendingCards, recordNote, turnByKey, waitingNotes, type State } from '../engine/state.js';
 import { readNewEvents, rotateIfLarge, saveState } from '../engine/store.js';
 import { chooseMode, predictWait, MODES, type Mode } from '../engine/predict.js';
+import { ACHIEVEMENT_ENERGY, QUEST_ENERGY, recapDue, settleProgress, streak, track, weekKey, type ProgressEvent, type Recap } from '../engine/progress.js';
 import { addNote } from '../feedback.js';
+import { install, type Scope } from '../install.js';
+import type { Plan } from '../license.js';
 import { normPath } from '../paths.js';
-import { t, fmtDur, helpContent, type Lang } from '../i18n.js';
+import { t, fmtDur, helpContent, pct, type Lang } from '../i18n.js';
 import { Review } from './Review.js';
 import { Learn } from './Learn.js';
 import { Game } from './Game.js';
+import { Me } from './Me.js';
 import { InputLine, Para, fit, newNoteId, useLine } from './common.js';
 
-type Alert = { kind: 'done' | 'attention'; text: string; sub?: string };
-type Toast = { text: string; color: string };
+type Alert = { kind: 'done' | 'attention'; text: string; sub?: string; turn?: string };
+type Toast = { text: string; color: string; kind: 'feedback' | 'reward' };
+type Overlay = 'welcome' | 'recap' | 'help' | null;
 
 /** Changes folded from the event log are written to disk at most this often (the log can replay them). */
 const SAVE_EVERY_MS = 3000;
-const TOAST_MS = 4000;
+const FEEDBACK_MS = 2500;
+const REWARD_MS = 3500;
 /** Events older than this are history being caught up on (panel restarted): fold them in silently. */
 const STALE_MS = 15_000;
 
 export interface AppProps {
   cfg: Config;
+  /** Language to use while the config says "auto". */
   lang: Lang;
   initial: State;
   daily: number;
@@ -33,6 +40,11 @@ export interface AppProps {
   pollMs?: number;
   /** Nothing is hooked up yet: show how to connect Cowait to Claude Code. */
   setupHint?: boolean;
+  plan?: Plan;
+  /** The project folder the panel was opened in (where "hook up this project" writes). */
+  cwd?: string;
+  /** Resolves to a line announcing a newer version, if there is one. */
+  checkUpdate?: () => Promise<{ version: string; command: string } | null>;
 }
 
 function useSize() {
@@ -57,7 +69,7 @@ function noteTarget(s: State): { sid?: string; cwd?: string; dir?: string } {
   return { sid, cwd: pick.cwd || undefined, dir: many && pick.cwd ? path.basename(pick.cwd) : undefined };
 }
 
-const inFight = (m: Mode, s: State) => m === 'game' && (s.game?.phase === 'battle' || s.game?.phase === 'reward');
+const inFight = (m: Mode, s: State) => m === 'game' && s.arcade === 'dungeon' && (s.game?.phase === 'battle' || s.game?.phase === 'reward');
 
 function Help({ lang, width }: { lang: Lang; width: number }) {
   const h = helpContent(lang);
@@ -82,21 +94,104 @@ function Help({ lang, width }: { lang: Lang; width: number }) {
   );
 }
 
-export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setupHint = false }: AppProps) {
+function Welcome({ lang, width, hooked, cwd }: { lang: Lang; width: number; hooked: boolean; cwd: string }) {
+  const rows: [string, string][] = [
+    [t(lang, 'mode_review'), t(lang, 'wl_review')],
+    [t(lang, 'mode_game'), t(lang, 'wl_game')],
+    [t(lang, 'mode_learn'), t(lang, 'wl_learn')],
+  ];
+  const keyW = lang === 'zh' ? 6 : 8;
+  const opt = (k: string, text: string, color?: string) => (
+    <Box>
+      <Box width={8} flexShrink={0}>
+        <Text color="cyan" bold>
+          {k}
+        </Text>
+      </Box>
+      <Para text={text} width={width - 8} color={color} />
+    </Box>
+  );
+  return (
+    <Box flexDirection="column" width={width}>
+      <Text bold color="cyan">
+        {t(lang, 'wl_title')}
+      </Text>
+      <Text> </Text>
+      <Para text={t(lang, 'wl_intro')} width={width} />
+      {rows.map(([k, d]) => (
+        <Box key={k} marginTop={1}>
+          <Box width={keyW} flexShrink={0}>
+            <Text bold>{k}</Text>
+          </Box>
+          <Para text={d} width={width - keyW} color="gray" />
+        </Box>
+      ))}
+      <Text> </Text>
+      {hooked ? (
+        <>
+          <Para text={t(lang, 'wl_ready')} width={width} color="green" />
+          <Text> </Text>
+          {opt('Enter', t(lang, 'wl_start'))}
+        </>
+      ) : (
+        <>
+          <Text bold color="yellow">
+            {t(lang, 'wl_connect')}
+          </Text>
+          {opt('Enter', `${t(lang, 'wl_here')}  ${cwd}`)}
+          {opt('g', t(lang, 'wl_global'), 'gray')}
+          {opt('Esc', t(lang, 'wl_later'), 'gray')}
+        </>
+      )}
+      {opt('L', t(lang, 'wl_lang'), 'gray')}
+    </Box>
+  );
+}
+
+function RecapView({ r, lang, width }: { r: Recap; lang: Lang; width: number }) {
+  const md = (d: string) => d.slice(5).replace('-', '/');
+  const end = new Date(Number(r.week.slice(0, 4)), Number(r.week.slice(5, 7)) - 1, Number(r.week.slice(8, 10)) + 6);
+  const to = `${String(end.getMonth() + 1).padStart(2, '0')}/${String(end.getDate()).padStart(2, '0')}`;
+  const verdict = r.files === 0 ? 'rc_none' : (r.coverage ?? 0) >= 0.8 ? 'rc_hi' : (r.coverage ?? 0) >= 0.5 ? 'rc_mid' : 'rc_lo';
+  return (
+    <Box flexDirection="column" width={width}>
+      <Text bold color="cyan">
+        {t(lang, 'rc_title', { from: md(r.week), to })}
+      </Text>
+      <Text> </Text>
+      <Para text={t(lang, 'rc_turns', { n: r.turns, f: r.files })} width={width} />
+      {r.files > 0 ? <Para text={t(lang, 'rc_read', { r: r.read, p: pct(r.coverage) })} width={width} color={(r.coverage ?? 0) >= 0.5 ? 'green' : 'yellow'} /> : null}
+      <Para text={t(lang, 'rc_notes', { f: r.flagged, n: r.notes, l: r.learned })} width={width} />
+      <Para text={t(lang, 'rc_days', { n: r.activeDays, xp: r.xp })} width={width} />
+      <Text> </Text>
+      <Para text={t(lang, verdict)} width={width} color="magenta" />
+    </Box>
+  );
+}
+
+export function App({ cfg: initialCfg, lang: autoLang, initial, daily, pollMs = 400, setupHint = false, plan = 'free', cwd = process.cwd(), checkUpdate }: AppProps) {
   const { exit } = useApp();
   const { cols, rows } = useSize();
-  const [cfg, setCfg] = useState(initialCfg);
+  const [cfg, setCfgState] = useState(initialCfg);
+  const lang: Lang = cfg.lang === 'zh' || cfg.lang === 'en' ? cfg.lang : autoLang;
   const [st, setSt] = useState(initial);
   const ref = useRef(initial);
   const [now, setNow] = useState(Date.now());
   const [mode, setMode] = useState<Mode>(() => chooseMode(initial, initialCfg, predictWait(initial.history)));
-  const [auto, setAuto] = useState(initialCfg.autoMode);
-  const autoRef = useRef(auto);
-  autoRef.current = auto;
+  const autoRef = useRef(initialCfg.autoMode);
+  autoRef.current = cfg.autoMode;
   const [alert, setAlert] = useState<Alert | null>(null);
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [toast, setToastState] = useState<Toast | null>(null);
+  const toastRef = useRef<Toast | null>(null);
+  const setToast = (x: Toast | null) => {
+    toastRef.current = x;
+    setToastState(x);
+  };
+  const toastQueue = useRef<Toast[]>([]);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const [help, setHelp] = useState(false);
+  const [recap] = useState<Recap | null>(() => (initial.onboarded ? recapDue(initial) : null));
+  const [overlay, setOverlay] = useState<Overlay>(() => (!initial.onboarded ? 'welcome' : recap ? 'recap' : null));
+  const [hooked, setHooked] = useState(!setupHint);
   const [typing, setTyping] = useState(false);
   const typingRef = useRef(false);
   typingRef.current = typing;
@@ -105,12 +200,56 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
     typingRef.current = v;
     setTyping(v);
   };
+  const [hint, setHint] = useState('');
+  const [focusTurn, setFocusTurn] = useState<string | null>(null);
   const note = useLine();
   const lastSweep = useRef(0);
   const modeRef = useRef(mode);
   modeRef.current = mode;
 
-  // State on disk: user actions are saved at once; changes folded from the event log are batched,
+  // ---------------------------------------------------------------- toasts
+  // Feedback (✓ +1⚡) replaces feedback right away; rewards (quests, achievements) queue up.
+  const pump = () => {
+    if (toastTimer.current) return;
+    const next = toastQueue.current.shift();
+    setToast(next ?? null);
+    if (!next) return;
+    toastTimer.current = setTimeout(
+      () => {
+        toastTimer.current = undefined;
+        pump();
+      },
+      next.kind === 'reward' ? REWARD_MS : FEEDBACK_MS,
+    );
+  };
+  const pushToast = (x: Toast) => {
+    if (x.kind === 'feedback') {
+      toastQueue.current = [x, ...toastQueue.current.filter((q) => q.kind !== 'feedback')];
+      // Replace a feedback toast on screen at once; a reward toast finishes first.
+      if (toastTimer.current && toastRef.current?.kind !== 'reward') {
+        clearTimeout(toastTimer.current);
+        toastTimer.current = undefined;
+      }
+    } else toastQueue.current.push(x);
+    pump();
+  };
+  const showToast = (text: string, color = 'green') => pushToast({ text, color, kind: 'feedback' });
+  const celebrate = (evs: ProgressEvent[]) => {
+    for (const e of evs) {
+      const text =
+        e.type === 'quest'
+          ? t(lang, 'quest_done', { q: e.label[lang], e: QUEST_ENERGY })
+          : e.type === 'quests_all'
+            ? t(lang, 'quests_all')
+            : e.type === 'achievement'
+              ? t(lang, 'achievement', { n: e.name[lang], e: ACHIEVEMENT_ENERGY })
+              : t(lang, 'level_up', { l: e.level, t: e.title[lang] });
+      pushToast({ text, color: e.type === 'level' ? 'magenta' : 'yellow', kind: 'reward' });
+    }
+  };
+
+  // ---------------------------------------------------------------- state on disk
+  // User actions are saved at once; changes folded from the event log are batched,
   // since a crash just replays them from the log (the saved offset only moves with them).
   const dirty = useRef(false);
   const lastSave = useRef(0);
@@ -128,13 +267,16 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
   const update = (fn: (s: State) => void) => {
     const s = structuredClone(ref.current);
     fn(s);
+    const evs = settleProgress(s);
     commit(s);
+    // After the caller's own feedback toast ("✓ +1⚡"), not before it.
+    if (evs.length) setTimeout(() => celebrate(evs), 0);
   };
 
-  const showToast = (text: string, color = 'green') => {
-    setToast({ text, color });
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), TOAST_MS);
+  const setCfg = (c: Config) => {
+    autoRef.current = c.autoMode;
+    setCfgState(c);
+    saveConfig(c);
   };
 
   const ring = () => {
@@ -156,36 +298,49 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
         setAlert(null);
         if (autoRef.current && !typingRef.current && !inFight(m, s)) go(chooseMode(s, cfg, predictWait(s.history, sig.cwd)));
       } else if (sig.type === 'new_card') {
-        // Review first: fresh changes pull you to the review tab, unless you are mid-fight or typing.
-        if (autoRef.current && !typingRef.current && m !== 'review' && !inFight(m, s)) go('review');
+        // Review first: fresh changes pull you to the review tab, unless you are busy elsewhere.
+        if (autoRef.current && !typingRef.current && m !== 'review' && m !== 'me' && !inFight(m, s)) go('review');
       } else if (sig.type === 'turn_done') {
         const dir = sig.cwd ? path.basename(sig.cwd) : '';
         const multi = Object.keys(s.sessions).length > 1;
-        const waiting = pendingCards(s).length;
+        const files = turnByKey(s, sig.turn)?.files ?? 0;
+        const waiting = pendingCards(s).filter((c) => c.turn === sig.turn).length;
         const sub = [sig.coins > 0 ? t(lang, 'done_coins', { n: sig.coins }) : t(lang, 'done_none')];
         if (sig.pass) sub.push(t(lang, 'done_pass'));
         else if (sig.fail) sub.push(t(lang, 'done_fail'));
         if (waiting) sub.push(t(lang, 'done_pending', { n: waiting }));
         setAlert({
           kind: 'done',
-          text:
-            t(lang, 'done', { t: fmtDur(sig.ms) }) +
-            (sig.edits ? t(lang, sig.edits === 1 ? 'done_edit1' : 'done_edits', { n: sig.edits }) : '') +
-            (multi && dir ? t(lang, 'done_cwd', { dir }) : ''),
+          text: t(lang, 'done', { t: fmtDur(sig.ms) }) + (files ? t(lang, files === 1 ? 'done_edit1' : 'done_edits', { n: files }) : '') + (multi && dir ? t(lang, 'done_cwd', { dir }) : ''),
           sub: sub.join(' · '),
+          turn: waiting ? sig.turn : undefined,
         });
         ring();
       } else if (sig.type === 'attention') {
         setAlert({ kind: 'attention', text: t(lang, 'attention', { msg: sig.msg }) });
         ring();
       } else if (sig.type === 'delivered') {
-        showToast(sig.count > 1 ? t(lang, 'delivered_n', { n: sig.count }) : t(lang, 'delivered_one'));
+        showToast(sig.count > 1 ? t(lang, 'delivered_n', { n: sig.count }) : t(lang, 'delivered_one'), 'cyan');
       }
     }
   };
 
   useEffect(() => {
-    if (daily > 0) showToast(t(lang, 'daily', { n: daily }), 'cyan');
+    if (daily > 0) {
+      const sk = streak(ref.current).days;
+      showToast(sk > 0 ? t(lang, 'daily_streak', { n: daily, d: sk }) : t(lang, 'daily', { n: daily }), 'cyan');
+    }
+    // Quietly bring progress up to date (first run of this version, a new day).
+    const s = structuredClone(ref.current);
+    celebrate(settleProgress(s));
+    commit(s);
+    if (cfg.updateCheck && checkUpdate) {
+      checkUpdate()
+        .then((u) => {
+          if (u) pushToast({ text: t(lang, 'update_avail', { v: u.version, cmd: u.command }), color: 'magenta', kind: 'reward' });
+        })
+        .catch(() => undefined);
+    }
     return () => clearTimeout(toastTimer.current);
   }, []);
 
@@ -213,15 +368,22 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
           s.offset = 0;
         }
       }
+      let archived = 0;
       if (t0 - lastSweep.current > 30_000) {
         lastSweep.current = t0;
         const target = s ?? structuredClone(cur);
+        const before = target.totals.expired;
         if (sweep(target, t0)) s = target;
+        archived = target.totals.expired - before;
       }
+      let evs: ProgressEvent[] = [];
+      if (s) evs = settleProgress(s);
       // After a rotation the old log is gone and cannot be replayed: save right away.
-      if (s) commit(s, !rotated);
+      if (s) commit(s, !rotated && !archived);
       if (dirty.current && t0 - lastSave.current >= SAVE_EVERY_MS) persist(ref.current);
       if (sigs.length) onSignals(sigs, s ?? cur);
+      if (archived) showToast(t(lang, 'expired', { n: archived }), 'gray');
+      if (evs.length) celebrate(evs);
       // Second granularity: React skips the re-render when the value has not changed.
       setNow(Math.floor(t0 / 1000) * 1000);
     };
@@ -239,7 +401,7 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
   useEffect(() => {
     const was = prevPending.current;
     prevPending.current = pending;
-    if (auto && mode === 'review' && was > 0 && pending === 0 && !typing) {
+    if (cfg.autoMode && mode === 'review' && was > 0 && pending === 0 && !typing) {
       // Only if you are still on the review tab by then: never override a tab you picked yourself.
       const id = setTimeout(() => {
         if (modeRef.current !== 'review' || typingRef.current) return;
@@ -256,12 +418,40 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
     const text = raw.trim();
     if (!text) return;
     const s = ref.current;
-    const { sid, cwd } = noteTarget(s);
+    const { sid, cwd: noteCwd } = noteTarget(s);
     const id = newNoteId();
     const at = Date.now();
-    addNote({ id, t: at, text, cwd, sid });
-    update((x) => recordNote(x, { id, t: at, text, cwd }));
-    showToast(t(lang, busySessions(s).length ? 'note_sent_busy' : 'note_sent_idle'), 'yellow');
+    addNote({ id, t: at, text, cwd: noteCwd, sid });
+    update((x) => {
+      recordNote(x, { id, t: at, text, cwd: noteCwd });
+      // A note is useful work (XP), but energy is for notes about a specific change.
+      track(x, 'note');
+    });
+    showToast(t(lang, busySessions(s).length ? 'note_sent_busy' : 'note_sent_idle'), 'cyan');
+  };
+
+  const hookUp = (scope: Scope) => {
+    try {
+      install({ scope, cwd });
+      setHooked(true);
+      showToast(t(lang, 'installed_ok'), 'green');
+    } catch (e: any) {
+      showToast(t(lang, 'install_failed', { e: String(e?.message ?? e).slice(0, 120) }), 'red');
+    }
+  };
+
+  const finishWelcome = () => {
+    update((s) => {
+      s.onboarded = true;
+    });
+    setOverlay(recap ? 'recap' : null);
+  };
+
+  const closeRecap = () => {
+    update((s) => {
+      s.lastRecap = weekKey(Date.now());
+    });
+    setOverlay(null);
   };
 
   useInput((input, key) => {
@@ -270,14 +460,31 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
       note.handle(input, key, sendNote, () => setTypingNow(false));
       return;
     }
-    // A mode's own text box (review note, learn topic) is open: the keys are its.
+    // A mode's own text box or game (review note, topic, a sprint) is taking keys.
     if (typingRef.current) return;
+    if (overlay === 'welcome') {
+      if (input === 'L') setCfg({ ...cfg, lang: lang === 'zh' ? 'en' : 'zh' });
+      else if (key.return) {
+        if (!hooked) hookUp('project');
+        finishWelcome();
+      } else if (input === 'g' && !hooked) {
+        hookUp('user');
+        finishWelcome();
+      } else if (key.escape) finishWelcome();
+      return;
+    }
+    if (overlay === 'recap') return closeRecap();
     if (alert) {
+      if (key.return && alert.turn) {
+        setFocusTurn(alert.turn);
+        modeRef.current = 'review';
+        setMode('review');
+      }
       setAlert(null);
       return;
     }
-    if (help) {
-      setHelp(false);
+    if (overlay === 'help') {
+      setOverlay(null);
       return;
     }
     if (key.tab) {
@@ -293,14 +500,9 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
         note.open();
         setTypingNow(true);
       }
-    } else if (input === 'a') {
-      const next = !autoRef.current;
-      autoRef.current = next;
-      setAuto(next);
-      const c = { ...cfg, autoMode: next };
-      setCfg(c);
-      saveConfig(c);
-    } else if (input === '?') setHelp(true);
+    } else if (input === 'a') setCfg({ ...cfg, autoMode: !cfg.autoMode });
+    else if (input === 'i' && !hooked) hookUp('project');
+    else if (input === '?') setOverlay('help');
     else if (input === 'q') exit();
   });
 
@@ -329,13 +531,14 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
     statusEl = <Text color="gray">○ {t(lang, 'st_none')}</Text>;
   }
   const notesWaiting = waitingNotes(st).length;
+  const sk = streak(st, now);
 
   const tabs = MODES.map((m) => {
-    const label = t(lang, m === 'review' ? 'mode_review' : m === 'game' ? 'mode_game' : 'mode_learn');
+    const label = t(lang, m === 'review' ? 'mode_review' : m === 'game' ? 'mode_game' : m === 'learn' ? 'mode_learn' : 'mode_me');
     const badge = m === 'review' && pending ? ` ${pending}` : '';
-    const on = m === mode;
+    const on = m === mode && overlay !== 'help';
     return (
-      <Text key={m} inverse={on} bold={on} color={on ? 'cyan' : 'gray'}>
+      <Text key={m} inverse={on} bold={on} color={on ? 'cyan' : m === 'review' && pending ? 'yellow' : 'gray'}>
         {` ${label}${badge} `}
       </Text>
     );
@@ -347,24 +550,41 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
   const footerLines = noteOpen ? 2 : 1;
   // 3 header lines, the footer, and one spare row so the terminal never scrolls.
   const bodyH = Math.max(6, rows - 4 - footerLines - alertLines);
+  const showSetup = !hooked && st.offset === 0 && Object.keys(st.sessions).length === 0;
   const modeProps = {
     st,
     update,
     cfg,
     lang,
-    active: !help && !noteOpen && (!alert || typing),
+    active: overlay === null && !noteOpen && (!alert || typing),
     blocked: note.isOpen,
     width,
     height: bodyH,
     now,
     busy: working.length > 0 || !!attention,
     setTyping: setTypingNow,
-    setupHint: setupHint && st.offset === 0 && Object.keys(st.sessions).length === 0,
+    setupHint: showSetup,
+    toast: showToast,
+    setHint,
+    setCfg,
+    plan,
+    focusTurn,
+    clearFocus: () => setFocusTurn(null),
   };
 
   const target = noteOpen ? noteTarget(st) : {};
-  const onOff = t(lang, auto ? 'on' : 'off');
   const rule = '─'.repeat(Math.max(10, width - 1));
+  const helpKey = t(lang, 'help_key');
+  const footer =
+    overlay === 'help'
+      ? t(lang, 'help_close')
+      : overlay === 'recap'
+        ? t(lang, 'anykey')
+        : overlay === 'welcome'
+          ? ''
+          : typing
+            ? hint
+            : fit([`${hint} · ${helpKey}`, hint], width - 1);
   return (
     <Box flexDirection="column" width={width}>
       <Box width={width - 1}>
@@ -380,15 +600,14 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
         <Box flexShrink={0} marginLeft={1}>
           <Text>
             {notesWaiting ? <Text color="yellow">✎{notesWaiting} </Text> : null}
+            {sk.days > 0 ? <Text color={sk.today ? 'yellow' : 'gray'}>🔥{sk.days} </Text> : null}
             <Text color="yellow">⚡{st.energy}</Text> <Text color="yellow">💰{st.coins}</Text>
           </Text>
         </Box>
       </Box>
       <Box justifyContent="space-between" width={width - 1}>
         <Box>{tabs}</Box>
-        <Text color={auto ? 'green' : 'gray'}>
-          {t(lang, 'auto')} {auto ? '✓' : '✗'}
-        </Text>
+        <Text color="gray">{cfg.autoMode ? <Text color="green">{t(lang, 'auto')} </Text> : null}Tab ⇄</Text>
       </Box>
       <Text color="gray">{rule}</Text>
       {alert ? (
@@ -397,22 +616,34 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
             {alert.text}
           </Text>
           <Text color="gray" wrap="truncate-end">
-            {alert.sub ? `${alert.sub} · ` : ''}
-            {t(lang, 'anykey')}
+            {fit(
+              [
+                [alert.sub, t(lang, alert.turn ? 'alert_review' : 'anykey')],
+                [alert.sub, alert.turn ? t(lang, 'alert_review_short') : ''],
+                [alert.sub],
+              ].map((xs) => xs.filter(Boolean).join(' · ')),
+              Math.min(width - 1, 80) - 4,
+            )}
           </Text>
         </Box>
       ) : null}
       <Box flexDirection="column" height={bodyH} overflow="hidden">
         {/* flexShrink 0: content taller than the pane is clipped at the bottom, never squeezed line by line. */}
         <Box flexDirection="column" flexShrink={0}>
-          {help ? (
+          {overlay === 'welcome' ? (
+            <Welcome lang={lang} width={width - 1} hooked={hooked} cwd={cwd} />
+          ) : overlay === 'recap' && recap ? (
+            <RecapView r={recap} lang={lang} width={width - 1} />
+          ) : overlay === 'help' ? (
             <Help lang={lang} width={width - 1} />
           ) : mode === 'review' ? (
             <Review {...modeProps} />
           ) : mode === 'game' ? (
             <Game {...modeProps} />
-          ) : (
+          ) : mode === 'learn' ? (
             <Learn {...modeProps} />
+          ) : (
+            <Me {...modeProps} />
           )}
         </Box>
       </Box>
@@ -425,13 +656,9 @@ export function App({ cfg: initialCfg, lang, initial, daily, pollMs = 400, setup
         <Text color={toast.color} wrap="truncate-end">
           {toast.text}
         </Text>
-      ) : help ? (
-        <Text color="gray" wrap="truncate-end">
-          {t(lang, 'help_close')}
-        </Text>
       ) : (
         <Text color="gray" wrap="truncate-end">
-          {fit([t(lang, 'footer', { on: onOff }), t(lang, 'footer_short', { on: onOff })], width - 1)}
+          {footer || ' '}
         </Text>
       )}
     </Box>

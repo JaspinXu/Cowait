@@ -20,6 +20,10 @@ export interface Config {
   cliModel: string;
   /** Waits predicted shorter than this go to quick modes (review / flashcards). */
   shortWaitSec: number;
+  /** Keep the first line of each message to Claude as the turn's title in the review tab (local only). */
+  promptTitles: boolean;
+  /** Look for a newer Cowait once a day (one small request to the npm registry). */
+  updateCheck: boolean;
 }
 
 export const DEFAULT_CONFIG: Config = {
@@ -32,6 +36,8 @@ export const DEFAULT_CONFIG: Config = {
   model: 'claude-haiku-5-5',
   cliModel: 'haiku',
   shortWaitSec: 45,
+  promptTitles: true,
+  updateCheck: true,
 };
 
 export function loadConfig(): Config {

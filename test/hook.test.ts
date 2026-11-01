@@ -14,11 +14,12 @@ beforeEach(() => {
 const base = { session_id: 's1', cwd: '/proj', transcript_path: '/x' };
 
 describe('hook', () => {
-  it('logs a prompt and prints nothing', () => {
-    expect(handleHook(JSON.stringify({ ...base, hook_event_name: 'UserPromptSubmit', prompt: 'secret stuff' }), 1000)).toBeNull();
+  it('logs a prompt with only its first line as the turn title, and prints nothing', () => {
+    const prompt = '  fix the login bug  \n\nhere is the secret stuff you need';
+    expect(handleHook(JSON.stringify({ ...base, hook_event_name: 'UserPromptSubmit', prompt }), 1000)).toBeNull();
     const ev = readEvents(home);
-    expect(ev).toEqual([{ t: 1000, k: 'prompt', sid: 's1', cwd: '/proj' }]);
-    // The prompt text itself is never stored.
+    expect(ev).toEqual([{ t: 1000, k: 'prompt', sid: 's1', cwd: '/proj', p: 'fix the login bug' }]);
+    // Nothing past the first line is ever stored.
     expect(fs.readFileSync(path.join(home, 'events.jsonl'), 'utf8')).not.toContain('secret');
   });
 

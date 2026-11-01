@@ -1,8 +1,8 @@
 import type { Config } from '../config.js';
 import { pendingCards, type State, type TurnRecord } from './state.js';
 
-export type Mode = 'review' | 'game' | 'learn';
-export const MODES: Mode[] = ['review', 'game', 'learn'];
+export type Mode = 'review' | 'game' | 'learn' | 'me';
+export const MODES: Mode[] = ['review', 'game', 'learn', 'me'];
 
 function median(xs: number[]): number {
   const a = [...xs].sort((x, y) => x - y);

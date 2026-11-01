@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { applyEvents, sweep } from '../src/engine/reducer.js';
 import { newState, pendingCards, coverage } from '../src/engine/state.js';
-import { applyVerdict, grantDaily } from '../src/engine/economy.js';
+import { applyVerdict, grantDaily, ECON } from '../src/engine/economy.js';
 import { chooseMode, predictWait } from '../src/engine/predict.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { cardDiff } from '../src/engine/diff.js';
@@ -77,9 +77,9 @@ describe('reducer', () => {
     applyVerdict(s, s.review[0].id, 'ok');
     applyEvents(
       s,
-      Array.from({ length: 80 }, (_, i) => edit(10 + i, `/p/f${i}.ts`)),
+      Array.from({ length: ECON.maxCards }, (_, i) => edit(10 + i, `/p/f${i}.ts`)),
     );
-    expect(s.review).toHaveLength(80);
+    expect(s.review).toHaveLength(ECON.maxCards);
     expect(s.review.every((c) => c.status === 'new')).toBe(true);
   });
 

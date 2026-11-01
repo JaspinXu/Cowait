@@ -51,10 +51,18 @@ describe('review cards', () => {
     expect(pendingCards(s)).toHaveLength(1);
   });
 
-  it('does not fold an edit into a card that has sat untouched for a long time', () => {
+  it('keeps the same file apart across turns, and together within a turn however long it runs', () => {
     const s = newState();
-    applyEvents(s, [edit(1_000, '/p/a.ts'), edit(1_000 + 31 * 60_000, '/p/a.ts')]);
-    expect(pendingCards(s)).toHaveLength(2);
+    const prompt = (t: number): IEvent => ({ t, k: 'prompt', sid: 's', cwd: '/p', p: `turn at ${t}` });
+    applyEvents(s, [prompt(0), edit(1_000, '/p/a.ts'), edit(1_000 + 31 * 60_000, '/p/a.ts'), prompt(2_000_000), edit(2_000_001, '/p/a.ts')]);
+    expect(pendingCards(s).map((c) => [c.turn, 1 + (c.more?.length ?? 0)])).toEqual([
+      ['s@0', 2],
+      ['s@2000000', 1],
+    ]);
+    expect(s.turns.map((m) => [m.title, m.files])).toEqual([
+      ['turn at 0', 1],
+      ['turn at 2000000', 1],
+    ]);
   });
 
   it('caps a merged card at 20 edits and opens a new one after that', () => {
